@@ -1,0 +1,22 @@
+# Vanilla HTML/CSS/JS — there is nothing to build. Publish the repo as-is.
+[build]
+  publish = "."
+  command = ""
+
+# The classic PWA trap: you ship a fix and the phone keeps serving the old
+# worker. Make sure these two are always revalidated.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json"
+    Cache-Control = "public, max-age=0, must-revalidate"
