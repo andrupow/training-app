@@ -6,7 +6,7 @@
 
 'use strict';
 
-var BUILD = '1.7.0-m8';
+var BUILD = '1.7.1';
 var PLAN_URL = 'data/plan.json';
 var LS_PLAN = 'plan.cache.v1';
 var LS_LOGS = 'setLogs';
@@ -1928,6 +1928,117 @@ function holdBanner(session, gate) {
   return box;
 }
 
+/* ------------------------------------------------------------- install */
+/* Chrome will not say why it is refusing to install a site, so this reports
+   each condition separately. Everything here is read from the live page, on
+   the phone, which is the only place that can answer the question. */
+
+function installSection() {
+  var wrap = el('div', {}, [el('p', { class: 'section-label', text: 'Install & offline' })]);
+
+  var rows = el('div', { class: 'kv' });
+  function row(key, id) {
+    var val = el('span', { class: 'kv-val kv-quiet', id: id, text: 'checking…' });
+    rows.appendChild(el('div', { class: 'kv-row' }, [el('span', { class: 'kv-key', text: key }), val]));
+    return val;
+  }
+
+  var rMode = row('Running as', 'dg-mode');
+  var rHttps = row('Served over', 'dg-https');
+  var rSW = row('Service worker', 'dg-sw');
+  var rCache = row('Offline cache', 'dg-cache');
+  var rManifest = row('Manifest', 'dg-manifest');
+
+  wrap.appendChild(rows);
+
+  rMode.textContent = isInstalled() ? 'installed app' : 'browser tab';
+  rMode.className = 'kv-val ' + (isInstalled() ? 'kv-ok' : 'kv-quiet');
+
+  var secure = location.protocol === 'https:' || location.hostname === 'localhost';
+  rHttps.textContent = location.protocol.replace(':', '') + (secure ? '' : ' — install needs https');
+  rHttps.className = 'kv-val ' + (secure ? 'kv-ok' : 'kv-bad');
+
+  /* service worker */
+  if (!('serviceWorker' in navigator)) {
+    rSW.textContent = 'not supported';
+    rSW.className = 'kv-val kv-bad';
+  } else {
+    navigator.serviceWorker.getRegistration().then(function (reg) {
+      if (!reg) {
+        rSW.textContent = swError ? 'failed — ' + swError : 'not registered';
+        rSW.className = 'kv-val kv-bad';
+        return;
+      }
+      var w = reg.active ? 'active' : reg.installing ? 'installing' : reg.waiting ? 'waiting' : 'registered';
+      rSW.textContent = w + ' · scope ' + reg.scope.replace(location.origin, '');
+      rSW.className = 'kv-val ' + (reg.active ? 'kv-ok' : 'kv-quiet');
+    }).catch(function (err) {
+      rSW.textContent = 'error — ' + err.message;
+      rSW.className = 'kv-val kv-bad';
+    });
+  }
+
+  /* what is actually cached */
+  if (!('caches' in window)) {
+    rCache.textContent = 'not supported';
+    rCache.className = 'kv-val kv-bad';
+  } else {
+    caches.keys().then(function (keys) {
+      if (!keys.length) { rCache.textContent = 'empty'; rCache.className = 'kv-val kv-bad'; return; }
+      return caches.open(keys[keys.length - 1]).then(function (c) {
+        return c.keys().then(function (items) {
+          rCache.textContent = items.length + ' files · ' + keys[keys.length - 1];
+          rCache.className = 'kv-val ' + (items.length ? 'kv-ok' : 'kv-bad');
+        });
+      });
+    }).catch(function () {
+      rCache.textContent = 'unreadable';
+      rCache.className = 'kv-val kv-bad';
+    });
+  }
+
+  /* the manifest has to actually resolve from wherever this is hosted */
+  var link = document.querySelector('link[rel="manifest"]');
+  if (!link) {
+    rManifest.textContent = 'not linked';
+    rManifest.className = 'kv-val kv-bad';
+  } else {
+    fetch(link.href).then(function (res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    }).then(function (m) {
+      var icons = (m.icons || []).length;
+      rManifest.textContent = 'ok · ' + icons + ' icons';
+      rManifest.className = 'kv-val kv-ok';
+    }).catch(function (err) {
+      rManifest.textContent = 'failed — ' + err.message;
+      rManifest.className = 'kv-val kv-bad';
+    });
+  }
+
+  if (isInstalled()) {
+    wrap.appendChild(el('p', { class: 'hint', text: 'This is the installed app. It runs offline and keeps its data on this phone.' }));
+    return wrap;
+  }
+
+  if (installPrompt) {
+    var btn = el('button', { class: 'btn btn-go btn-block', type: 'button', text: 'Install on this phone' });
+    btn.addEventListener('click', function () {
+      installPrompt.prompt();
+      installPrompt.userChoice.then(function (choice) {
+        if (choice.outcome === 'accepted') installPrompt = null;
+        renderProgress();
+      });
+    });
+    wrap.appendChild(btn);
+    wrap.appendChild(el('p', { class: 'hint', text: 'Chrome has confirmed this site is installable.' }));
+  } else {
+    wrap.appendChild(el('p', { class: 'hint', text: 'No install button yet. If every row above is green, use Chrome’s ⋮ menu → Install app (or Add to Home screen). If a row is red, that is what is blocking it. Chrome sometimes only offers installation on a second visit — reload once and come back.' }));
+  }
+
+  return wrap;
+}
+
 /* ---------------------------------------------------------------- charts */
 /* Load by week, per track. Inline SVG, no library.
 
@@ -2265,6 +2376,7 @@ function renderProgress() {
     });
   }
 
+  nodes.push(installSection());
   nodes.push(chartsSection());
   nodes.push(backupSection());
   nodes.push(el('p', { class: 'buildline', text: 'Build ' + BUILD }));
@@ -2541,13 +2653,42 @@ function cachePlan(json) {
   }
 }
 
+var swError = null;
+
 function registerSW() {
-  if (!('serviceWorker' in navigator)) return;
-  if (location.protocol === 'file:') return;   /* SW needs http(s) */
+  if (!('serviceWorker' in navigator)) { swError = 'not supported by this browser'; return; }
+  if (location.protocol === 'file:') { swError = 'opened as a local file — needs https'; return; }
+
   navigator.serviceWorker.register('sw.js').catch(function (err) {
+    swError = String(err && err.message ? err.message : err);
     console.warn('service worker registration failed', err);
   });
 }
+
+/* Chrome fires this only when the site genuinely qualifies for installation.
+   Holding on to it turns "Install" into a button we control, rather than
+   hoping the user finds the right item in the browser menu. */
+var installPrompt = null;
+
+window.addEventListener('beforeinstallprompt', function (e) {
+  e.preventDefault();
+  installPrompt = e;
+  if (location.hash === '#/progress') renderProgress();
+});
+
+window.addEventListener('appinstalled', function () {
+  installPrompt = null;
+  toast('Installed. Open it from your home screen from now on.');
+});
+
+function isInstalled() {
+  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+    || navigator.standalone === true;
+}
+
+/* Registered up front, not inside the plan fetch: if plan.json ever fails
+   the app must still install and still work offline next time. */
+registerSW();
 
 loadPlan().then(function (json) {
   plan = json;
@@ -2560,7 +2701,6 @@ loadPlan().then(function (json) {
   if (!location.hash) location.replace('#/today');
   window.addEventListener('hashchange', route);
   route();
-  registerSW();
 }).catch(function () {
   renderError('Could not load the plan. Connect once so it can be cached, then it works offline.');
 });

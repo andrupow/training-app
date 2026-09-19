@@ -2,7 +2,7 @@
    Bump CACHE on every deploy. skipWaiting + clients.claim so the phone
    never keeps serving yesterday's build. */
 
-var CACHE = 'plan-v1.7.0-m8';
+var CACHE = 'plan-v1.7.1';
 
 var PRECACHE = [
   './',
@@ -18,7 +18,17 @@ var PRECACHE = [
 self.addEventListener('install', function (event) {
   event.waitUntil(
     caches.open(CACHE)
-      .then(function (cache) { return cache.addAll(PRECACHE); })
+      .then(function (cache) {
+        /* Deliberately NOT cache.addAll: that rejects the whole install if a
+           single file 404s, and a failed install means no active worker —
+           which in turn means Chrome silently refuses to offer "Install app".
+           One missing icon must not cost us installability. */
+        return Promise.all(PRECACHE.map(function (url) {
+          return cache.add(url).catch(function (err) {
+            console.warn('[sw] could not precache', url, err);
+          });
+        }));
+      })
       .then(function () { return self.skipWaiting(); })
   );
 });

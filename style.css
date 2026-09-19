@@ -849,3 +849,8 @@ body.has-rest .view { padding-bottom: calc(var(--tap) + 116px + env(safe-area-in
   margin-bottom: 4px;
   line-height: 1.35;
 }
+
+/* ---------- install diagnostics ---------- */
+
+.kv-ok  { color: var(--ten); font-weight: 600; font-size: 13.5px; white-space: normal; text-align: right; }
+.kv-bad { color: var(--test); font-weight: 600; font-size: 13.5px; white-space: normal; text-align: right; }
