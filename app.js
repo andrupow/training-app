@@ -6,7 +6,7 @@
 
 'use strict';
 
-var BUILD = '1.7.1';
+var BUILD = '1.8.0-m9';
 var PLAN_URL = 'data/plan.json';
 var LS_PLAN = 'plan.cache.v1';
 var LS_LOGS = 'setLogs';
@@ -676,10 +676,16 @@ function exerciseCard(ex, session, mode, gate) {
     spec.appendChild(el('span', { class: 'rest', text: 'rest ' + rest }));
   }
 
+  var runLink = (mode === 'live' && session)
+    ? el('a', { class: 'ex-run', href: '#/run/' + session.id + '/' + session.exercises.indexOf(ex),
+        'aria-label': 'Run ' + ex.name, text: '▶' })
+    : null;
+
   var card = el('div', { class: 'ex' + (held ? ' is-held' : '') }, [
     el('div', { class: 'ex-head' }, [
       el('span', { class: 'ex-name', text: ex.name }),
-      held ? badge('HOLD', 'badge-hold') : null
+      held ? badge('HOLD', 'badge-hold') : null,
+      runLink
     ]),
     spec.childNodes.length ? spec : null,
     ex.tempo && ex.tempo !== '—' ? el('div', { class: 'ex-tempo', text: ex.tempo }) : null
@@ -1176,8 +1182,14 @@ function renderToday() {
     ]));
   });
 
+  if (live && s.exercises.length) {
+    var start = el('a', { class: 'btn btn-go btn-block btn-start', href: '#/run/' + s.id + '/0',
+      text: doneSets(s) ? '▶ Resume session' : '▶ Start session' });
+    nodes.push(start);
+  }
+
   nodes.push(el('p', { class: 'hint', text: live
-    ? 'Tap a set to tick it off. Long-press to record what actually happened.'
+    ? 'Or tap a set to tick it off by hand. Long-press to record what actually happened.'
     : 'Logging opens on the day.' }));
 
   var gate = sessionGate(s);
@@ -1443,6 +1455,406 @@ function backupSection() {
   wrap.appendChild(el('p', { class: 'hint', text: 'Export writes one JSON file to your downloads. Keep a copy somewhere off the phone — that file is the only thing standing between you and re-keying the block from memory.' }));
 
   return wrap;
+}
+
+/* ---------------------------------------------------------------- runner */
+/* Full-screen, one exercise at a time. The phone is on a bench, you have one
+   hand, and the only thing that should be readable from two metres away is
+   the number and the button.
+
+   Rest starts on its own; the next work set always waits for a tap. Nothing
+   should ever start counting a hold while you are still chalking up. */
+
+var runner = null;   /* { sessionId, exIdx, setIdx, phase, side, endAt, secs, startedAt } */
+var runTick = null;
+
+/* "20 s" / "15 min" / "35–45 s" → seconds. Ranges take the low end; you can
+   edit it up before starting. Anything else is a rep-counted set. */
+function timedSeconds(ex) {
+  var m = String(ex.reps || '').match(/^(\d+)(?:\s*[–-]\s*\d+)?\s*(s|min)\b/);
+  if (!m) return null;
+  var n = Number(m[1]);
+  return m[2] === 'min' ? n * 60 : n;
+}
+
+function isPerSide(ex) {
+  return /\/\s*(side|arm|leg)/i.test(String(ex.reps || ''));
+}
+
+function stepFor(secs) {
+  return secs >= 300 ? 60 : secs >= 60 ? 15 : 5;
+}
+
+/* The target for THIS set, not the whole exercise — "Set 1 of 4" is already
+   on the line above, so repeating "4 × 5" here just reads as noise. */
+function runRepsText(ex) {
+  var reps = String(ex.reps || '').trim();
+  if (!reps || reps === '—') return '';
+  if (/^\d+$/.test(reps)) return reps + (reps === '1' ? ' rep' : ' reps');
+  if (/^\d+\s*[–-]\s*\d+$/.test(reps)) return reps + ' reps';
+  return reps;                       /* "8 / side", "30 m", "5 + max", "rounds" */
+}
+
+function runSession() {
+  return runner ? sessionById(runner.sessionId) : null;
+}
+
+function runExercise() {
+  var s = runSession();
+  return s && s.exercises[runner.exIdx] ? s.exercises[runner.exIdx] : null;
+}
+
+/* Resume on the first set that is not already ticked off. */
+function firstUndoneSet(session, ex) {
+  var n = Number(ex.sets) || 0;
+  for (var i = 0; i < n; i++) {
+    var e = getLog(session.id, ex.id, i);
+    if (!e || !e.done) return i;
+  }
+  return n;                       /* all done */
+}
+
+function enterRunner(sessionId, exIdx) {
+  var s = sessionById(sessionId);
+  if (!s) return renderNotFound('No session "' + sessionId + '".');
+
+  exIdx = Math.max(0, Math.min(exIdx || 0, s.exercises.length - 1));
+  var ex = s.exercises[exIdx];
+
+  var keepStart = runner && runner.sessionId === sessionId ? runner.startedAt : Date.now();
+
+  runner = {
+    sessionId: sessionId,
+    exIdx: exIdx,
+    setIdx: Math.min(firstUndoneSet(s, ex), (Number(ex.sets) || 1) - 1),
+    phase: 'ready',
+    side: 0,
+    endAt: 0,
+    secs: timedSeconds(ex),
+    startedAt: keepStart
+  };
+
+  document.body.classList.add('in-run');
+  acquireWakeLock();              /* hold the screen for the whole session */
+  if (!runTick) runTick = setInterval(tickRunner, 250);
+  paintRunner();
+}
+
+function leaveRunner() {
+  runner = null;
+  if (runTick) { clearInterval(runTick); runTick = null; }
+
+  /* The root is position:fixed and full-bleed — leaving it in the DOM would
+     cover the app with a blank sheet even once the body class is gone. */
+  var root = document.getElementById('runner');
+  if (root) root.remove();
+
+  document.body.classList.remove('in-run');
+  releaseWakeLock();
+}
+
+/* --- the state machine ------------------------------------------------ */
+
+function runRemaining() {
+  if (!runner || !runner.endAt) return 0;
+  return Math.max(0, Math.round((runner.endAt - Date.now()) / 1000));
+}
+
+function startTimedSet() {
+  runner.phase = 'working';
+  runner.endAt = Date.now() + runner.secs * 1000;
+  ensureAudio();
+  scheduleBeep(runner.secs);
+  paintRunner();
+}
+
+/* One set finished: log it, advance, and let the rest run itself. */
+function completeSet() {
+  var s = runSession();
+  var ex = runExercise();
+  if (!s || !ex) return;
+
+  /* A timed per-side set is two efforts; the first only switches sides. */
+  if (runner.phase !== 'resting' && isPerSide(ex) && timedSeconds(ex) !== null && runner.side === 0) {
+    runner.side = 1;
+    runner.phase = 'ready';
+    runner.endAt = 0;
+    cancelBeep();
+    if (navigator.vibrate) navigator.vibrate(60);
+    paintRunner();
+    return;
+  }
+
+  writeLog(s.id, ex.id, runner.setIdx, { done: true });
+  paintCount();
+  cancelBeep();
+
+  var lastSet = runner.setIdx >= (Number(ex.sets) || 1) - 1;
+  var lastEx = runner.exIdx >= s.exercises.length - 1;
+
+  runner.side = 0;
+  runner.endAt = 0;
+
+  if (lastSet && lastEx) {
+    runner.phase = 'finished';
+    stopRest();
+    paintRunner();
+    return;
+  }
+
+  if (lastSet) {
+    runner.exIdx += 1;
+    runner.setIdx = 0;
+    runner.secs = timedSeconds(s.exercises[runner.exIdx]);
+  } else {
+    runner.setIdx += 1;
+  }
+
+  /* Rest is the one thing that starts by itself. */
+  if (Number(ex.restSec) > 0) {
+    runner.phase = 'resting';
+    startRest(ex);
+  } else {
+    runner.phase = 'ready';
+  }
+
+  paintRunner();
+}
+
+function skipRest() {
+  stopRest();
+  runner.phase = 'ready';
+  paintRunner();
+}
+
+function skipSet() {
+  var s = runSession();
+  var ex = runExercise();
+  if (!s || !ex) return;
+
+  var lastSet = runner.setIdx >= (Number(ex.sets) || 1) - 1;
+  var lastEx = runner.exIdx >= s.exercises.length - 1;
+
+  cancelBeep();
+  runner.endAt = 0;
+  runner.side = 0;
+  runner.phase = 'ready';
+
+  if (lastSet && lastEx) { runner.phase = 'finished'; paintRunner(); return; }
+  if (lastSet) { runner.exIdx += 1; runner.setIdx = 0; runner.secs = timedSeconds(s.exercises[runner.exIdx]); }
+  else runner.setIdx += 1;
+
+  paintRunner();
+}
+
+function skipExercise() {
+  var s = runSession();
+  if (!s) return;
+  cancelBeep();
+  stopRest();
+
+  if (runner.exIdx >= s.exercises.length - 1) { runner.phase = 'finished'; paintRunner(); return; }
+
+  runner.exIdx += 1;
+  runner.setIdx = firstUndoneSet(s, s.exercises[runner.exIdx]);
+  if (runner.setIdx >= (Number(s.exercises[runner.exIdx].sets) || 1)) runner.setIdx = 0;
+  runner.secs = timedSeconds(s.exercises[runner.exIdx]);
+  runner.side = 0;
+  runner.endAt = 0;
+  runner.phase = 'ready';
+  paintRunner();
+}
+
+function adjustSecs(delta) {
+  runner.secs = Math.max(5, runner.secs + delta);
+  paintRunner();
+}
+
+/* --- the tick --------------------------------------------------------- */
+
+function tickRunner() {
+  if (!runner) return;
+
+  if (runner.phase === 'working' && runRemaining() === 0) {
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    completeSet();
+    return;
+  }
+
+  if (runner.phase === 'resting' && restRemaining() === 0) {
+    runner.phase = 'ready';
+    paintRunner();
+    return;
+  }
+
+  var big = document.getElementById('run-big');
+  if (!big) return;
+  if (runner.phase === 'working') big.textContent = fmtClock(runRemaining());
+  else if (runner.phase === 'resting') big.textContent = fmtClock(restRemaining());
+}
+
+/* --- rendering -------------------------------------------------------- */
+
+function runnerRoot() {
+  var node = document.getElementById('runner');
+  if (!node) {
+    node = el('div', { class: 'runner', id: 'runner' });
+    document.body.appendChild(node);
+  }
+  return node;
+}
+
+function paintRunner() {
+  var root = runnerRoot();
+  root.textContent = '';
+
+  var s = runSession();
+  if (!s) { leaveRunner(); return; }
+
+  if (runner.phase === 'finished') { root.appendChild(runSummary(s)); return; }
+
+  var ex = s.exercises[runner.exIdx];
+  var sets = Number(ex.sets) || 1;
+  var timed = timedSeconds(ex) !== null;
+  var perSide = isPerSide(ex);
+
+  /* top bar */
+  var back = el('button', { class: 'run-back', type: 'button', 'aria-label': 'Leave the runner', text: '‹' });
+  back.addEventListener('click', function () { location.hash = '#/today'; });
+
+  root.appendChild(el('div', { class: 'run-top' }, [
+    back,
+    el('div', { class: 'run-crumb' }, [
+      el('div', { class: 'run-crumb-week', text: (s.weekLabel || s.week) + ' · ' + s.day }),
+      el('div', { class: 'run-crumb-name', text: s.name })
+    ]),
+    el('div', { class: 'run-pos', text: (runner.exIdx + 1) + '/' + s.exercises.length })
+  ]));
+
+  var body = el('div', { class: 'run-body' });
+
+  body.appendChild(el('div', { class: 'run-ex', text: ex.name }));
+  body.appendChild(el('div', { class: 'run-setline', text: 'Set ' + (runner.setIdx + 1) + ' of ' + sets
+    + (perSide && timed ? (runner.side === 0 ? ' · Left' : ' · Right') : '') }));
+
+  /* the target: load, and either reps or an editable duration */
+  var gate = sessionGate(s);
+  var held = !!(ex.track && gate.holds[ex.track]);
+  var load = held ? heldLoad(ex, s, gate.prevWeek) : null;
+  if (!load) load = resolveLoad(ex.load, s.date);
+
+  var target = el('div', { class: 'run-target' });
+  if (load.text !== '—') target.appendChild(el('div', { class: 'run-load', text: load.text }));
+  if (held) target.appendChild(badge('HOLD', 'badge-hold'));
+
+  if (timed && runner.phase === 'ready') {
+    var step = stepFor(runner.secs);
+    var minus = el('button', { class: 'run-step', type: 'button', 'aria-label': 'Less time', text: '−' });
+    var plus = el('button', { class: 'run-step', type: 'button', 'aria-label': 'More time', text: '+' });
+    minus.addEventListener('click', function () { adjustSecs(-step); });
+    plus.addEventListener('click', function () { adjustSecs(step); });
+
+    target.appendChild(el('div', { class: 'run-dur' }, [
+      minus,
+      el('span', { class: 'run-dur-val', text: fmtClock(runner.secs) }),
+      plus
+    ]));
+    target.appendChild(el('div', { class: 'run-hint', text: 'Adjust before you start' }));
+  } else if (!timed) {
+    target.appendChild(el('div', { class: 'run-reps', text: runRepsText(ex) }));
+  }
+
+  body.appendChild(target);
+
+  /* the big number, when something is counting */
+  if (runner.phase === 'working' || runner.phase === 'resting') {
+    body.appendChild(el('div', {
+      class: 'run-big' + (runner.phase === 'resting' ? ' is-rest' : ''),
+      id: 'run-big',
+      text: fmtClock(runner.phase === 'working' ? runRemaining() : restRemaining())
+    }));
+    body.appendChild(el('div', { class: 'run-hint', text: runner.phase === 'resting' ? 'Rest' : 'Hold' }));
+  }
+
+  /* the one button that matters */
+  body.appendChild(primaryAction(ex, timed));
+
+  /* set dots */
+  var dots = el('div', { class: 'run-dots' });
+  for (var i = 0; i < sets; i++) {
+    var e = getLog(s.id, ex.id, i);
+    dots.appendChild(el('span', {
+      class: 'run-dot' + (e && e.done ? ' is-done' : '') + (i === runner.setIdx ? ' is-now' : '')
+    }));
+  }
+  body.appendChild(dots);
+
+  if (ex.tempo && ex.tempo !== '—') body.appendChild(el('div', { class: 'run-tempo', text: ex.tempo }));
+  if (ex.cue) body.appendChild(el('div', { class: 'run-cue', text: ex.cue }));
+
+  /* secondary actions */
+  var logBtn = el('button', { class: 'run-link', type: 'button', text: 'Log actual' });
+  logBtn.addEventListener('click', function () {
+    openSetSheet(ex, s, runner.setIdx, el('button', {}), el('div', {}));
+  });
+
+  var skipS = el('button', { class: 'run-link', type: 'button', text: 'Skip set' });
+  skipS.addEventListener('click', skipSet);
+
+  var skipE = el('button', { class: 'run-link', type: 'button', text: 'Skip exercise' });
+  skipE.addEventListener('click', skipExercise);
+
+  body.appendChild(el('div', { class: 'run-links' }, [logBtn, skipS, skipE]));
+
+  root.appendChild(body);
+}
+
+function primaryAction(ex, timed) {
+  var btn = el('button', { class: 'run-action', type: 'button' });
+
+  if (runner.phase === 'resting') {
+    btn.textContent = 'Skip rest';
+    btn.className = 'run-action is-quiet';
+    btn.addEventListener('click', skipRest);
+    return btn;
+  }
+
+  if (runner.phase === 'working') {
+    btn.textContent = '✓ Done early';
+    btn.className = 'run-action is-quiet';
+    btn.addEventListener('click', function () { cancelBeep(); completeSet(); });
+    return btn;
+  }
+
+  if (timed) {
+    btn.textContent = '▶ Start set ' + (runner.setIdx + 1);
+    btn.addEventListener('click', startTimedSet);
+    return btn;
+  }
+
+  btn.textContent = '✓ Set ' + (runner.setIdx + 1) + ' done';
+  btn.addEventListener('click', completeSet);
+  return btn;
+}
+
+function runSummary(s) {
+  var total = totalSets(s);
+  var done = doneSets(s);
+  var mins = Math.max(1, Math.round((Date.now() - runner.startedAt) / 60000));
+
+  var finish = el('button', { class: 'run-action', type: 'button', text: 'Finish' });
+  finish.addEventListener('click', function () { location.hash = '#/today'; });
+
+  return el('div', { class: 'run-body run-done' }, [
+    el('div', { class: 'run-ex', text: 'Session done' }),
+    el('div', { class: 'run-setline', text: s.name }),
+    el('div', { class: 'run-big', text: done + ' / ' + total }),
+    el('div', { class: 'run-hint', text: 'sets logged · ' + mins + ' min' }),
+    finish,
+    el('div', { class: 'run-cue', text: done < total
+      ? 'Some sets were skipped. You can still tick them off on the Today tab.'
+      : 'Everything the plan asked for. Check in tomorrow morning.' })
+  ]);
 }
 
 /* --- Check-in ---------------------------------------------------------- */
@@ -2577,6 +2989,15 @@ function route() {
   var hash = location.hash.replace(/^#\/?/, '');
   var parts = hash.split('/').filter(Boolean);
   var tab = parts[0] || 'today';
+
+  /* The runner owns the whole screen; leaving it is a route change. */
+  if (tab !== 'run' && runner) leaveRunner();
+
+  if (tab === 'run') {
+    enterRunner(parts[1], Number(parts[2] || 0));
+    markTab('today');
+    return;
+  }
 
   if (tab === 'plan' && parts[1]) renderWeek(parts[1]);
   else if (tab === 'plan') renderWeekList();

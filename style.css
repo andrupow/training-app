@@ -854,3 +854,207 @@ body.has-rest .view { padding-bottom: calc(var(--tap) + 116px + env(safe-area-in
 
 .kv-ok  { color: var(--ten); font-weight: 600; font-size: 13.5px; white-space: normal; text-align: right; }
 .kv-bad { color: var(--test); font-weight: 600; font-size: 13.5px; white-space: normal; text-align: right; }
+
+/* ---------- session runner (Milestone 9) ---------- */
+
+.btn-start { text-align: center; line-height: var(--tap); text-decoration: none; }
+
+.ex-run {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap);
+  height: var(--tap);
+  margin: -10px -6px -10px 0;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 15px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* the runner owns the screen */
+body.in-run { overflow: hidden; }
+body.in-run .tabbar,
+body.in-run .appbar,
+body.in-run .view,
+body.in-run .restbar { display: none; }
+
+.runner {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+}
+
+.run-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.run-back {
+  flex: 0 0 auto;
+  width: var(--tap);
+  height: var(--tap);
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 30px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.run-crumb { flex: 1; min-width: 0; }
+.run-crumb-week { font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+.run-crumb-name { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.run-pos {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.run-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px 20px 20px;
+  text-align: center;
+  overflow-y: auto;
+}
+
+.run-ex {
+  font-size: 24px;
+  font-weight: 680;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  max-width: 18ch;
+}
+
+.run-setline { font-size: 14px; color: var(--muted); margin-bottom: 8px; }
+
+.run-target { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+
+.run-load {
+  font-size: 34px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+
+.run-reps { font-size: 19px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* editable duration, before the set starts */
+.run-dur { display: flex; align-items: center; gap: 14px; }
+
+.run-step {
+  width: var(--tap);
+  height: var(--tap);
+  border: 1.5px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.run-dur-val {
+  font-size: 34px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  min-width: 3.5ch;
+}
+
+/* the counting number */
+.run-big {
+  font-size: 68px;
+  font-weight: 750;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+  margin: 6px 0 0;
+}
+
+.run-big.is-rest { color: var(--accent); }
+
+.run-hint { font-size: 12.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+
+.run-action {
+  width: 100%;
+  max-width: 340px;
+  min-height: 68px;
+  margin: 18px 0 10px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: 19px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.run-action:active { transform: scale(0.98); }
+
+.run-action.is-quiet {
+  background: var(--surface);
+  color: var(--muted);
+  border: 1.5px solid var(--line);
+  min-height: 54px;
+  font-size: 16px;
+}
+
+.run-dots { display: flex; gap: 8px; margin-bottom: 4px; }
+
+.run-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line);
+}
+
+.run-dot.is-done { background: var(--accent); border-color: var(--accent); }
+.run-dot.is-now { border-color: var(--accent); border-width: 2.5px; }
+
+.run-tempo { font-size: 13.5px; color: var(--muted); }
+.run-cue { font-size: 13.5px; color: var(--muted); max-width: 32ch; line-height: 1.45; margin-top: 6px; }
+
+.run-links { display: flex; gap: 6px; margin-top: 14px; flex-wrap: wrap; justify-content: center; }
+
+.run-link {
+  min-height: var(--tap);
+  padding: 0 12px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13.5px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.run-done .run-big { color: var(--accent); }
+
+/* short phones: shrink the giant numbers rather than scroll */
+@media (max-height: 700px) {
+  .run-ex { font-size: 20px; }
+  .run-big { font-size: 54px; }
+  .run-load, .run-dur-val { font-size: 28px; }
+  .run-action { min-height: 60px; margin-top: 12px; }
+}
