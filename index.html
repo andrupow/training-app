@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Integrated Plan</title>
+<meta name="description" content="14-week training block — plan browser and log.">
+<meta name="theme-color" content="#111417">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="appbar">
+  <h1 id="appbar-title">Plan</h1>
+  <span id="appbar-sub" class="appbar-sub"></span>
+</header>
+
+<main id="view" class="view" tabindex="-1">
+  <p class="loading">Loading plan…</p>
+</main>
+
+<nav class="tabbar" aria-label="Main">
+  <a href="#/today"    data-tab="today"><span class="tab-ico">▣</span>Today</a>
+  <a href="#/plan"     data-tab="plan"><span class="tab-ico">▤</span>Plan</a>
+  <a href="#/checkin"  data-tab="checkin"><span class="tab-ico">◎</span>Check-in</a>
+  <a href="#/progress" data-tab="progress"><span class="tab-ico">◈</span>Progress</a>
+</nav>
+
+<script src="app.js"></script>
+</body>
+</html>

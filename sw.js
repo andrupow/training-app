@@ -1,0 +1,64 @@
+/* The Integrated Plan — service worker.
+   Bump CACHE on every deploy. skipWaiting + clients.claim so the phone
+   never keeps serving yesterday's build. */
+
+var CACHE = 'plan-v1.7.0-m8';
+
+var PRECACHE = [
+  './',
+  'index.html',
+  'style.css',
+  'app.js',
+  'manifest.webmanifest',
+  'data/plan.json',
+  'icons/icon-192.png',
+  'icons/icon-512.png'
+];
+
+self.addEventListener('install', function (event) {
+  event.waitUntil(
+    caches.open(CACHE)
+      .then(function (cache) { return cache.addAll(PRECACHE); })
+      .then(function () { return self.skipWaiting(); })
+  );
+});
+
+self.addEventListener('activate', function (event) {
+  event.waitUntil(
+    caches.keys()
+      .then(function (keys) {
+        return Promise.all(keys.map(function (k) {
+          return k === CACHE ? null : caches.delete(k);
+        }));
+      })
+      .then(function () { return self.clients.claim(); })
+  );
+});
+
+/* Network first, cache as the offline fallback. The cache is a safety net,
+   not the source of truth — that way a fix ships the moment you reload. */
+self.addEventListener('fetch', function (event) {
+  var req = event.request;
+  if (req.method !== 'GET') return;
+  if (new URL(req.url).origin !== self.location.origin) return;
+
+  event.respondWith(
+    fetch(req)
+      .then(function (res) {
+        /* 200 only — Cache.put rejects on a 206, and res.ok covers it. */
+        if (res && res.status === 200) {
+          var copy = res.clone();
+          event.waitUntil(caches.open(CACHE).then(function (c) { return c.put(req, copy); }));
+        }
+        return res;
+      })
+      .catch(function () {
+        return caches.match(req).then(function (hit) {
+          if (hit) return hit;
+          /* A deep link like #/plan/W6 is still index.html to the network. */
+          if (req.mode === 'navigate') return caches.match('index.html');
+          return Response.error();
+        });
+      })
+  );
+});

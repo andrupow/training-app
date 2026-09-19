@@ -1,0 +1,5004 @@
+{
+  "meta": {
+    "title": "The Integrated Plan",
+    "subtitle": "Bar muscle-up · tendon feats · kettlebell · sprint & hinge",
+    "startDate": "2026-09-21",
+    "endDate": "2026-12-31",
+    "daysPerWeek": 5,
+    "priority": [
+      "Bar muscle-up (Tue 29 Dec)",
+      "Heel raise / pogo (Tue 8 Dec)",
+      "Weighted Nordic (Tue 15 Dec)",
+      "Kettlebell pressing",
+      "Sprints & hinge",
+      "Weighted pull-up (w/c 4 Jan)"
+    ],
+    "overrideRule": "If a session is compromised, the muscle-up work is done in full and the tendon work is cut. Never the reverse."
+  },
+  "baselineFields": [
+    {
+      "key": "bodyweightKg",
+      "label": "Bodyweight",
+      "unit": "kg",
+      "type": "number"
+    },
+    {
+      "key": "pullup5RMAddedKg",
+      "label": "Pull-up 5RM added load",
+      "unit": "kg",
+      "type": "number"
+    },
+    {
+      "key": "maxCleanDips",
+      "label": "Max clean parallel dips",
+      "unit": "reps",
+      "type": "number"
+    },
+    {
+      "key": "maxSLHeelRaises",
+      "label": "Max single-leg heel raises",
+      "unit": "reps",
+      "type": "number"
+    },
+    {
+      "key": "nordicBreakPoint",
+      "label": "Nordic break point",
+      "type": "select",
+      "options": [
+        "Upper third",
+        "Middle third",
+        "Lower third",
+        "Full range"
+      ]
+    }
+  ],
+  "trafficLight": {
+    "areas": [
+      "elbow",
+      "shoulder",
+      "achilles",
+      "hamstring"
+    ],
+    "areaToTracks": {
+      "elbow": [
+        "pullup",
+        "dips"
+      ],
+      "shoulder": [
+        "dips",
+        "kbPress"
+      ],
+      "achilles": [
+        "heelRaise",
+        "pogo"
+      ],
+      "hamstring": [
+        "nordic",
+        "hinge",
+        "sprint"
+      ]
+    },
+    "rules": [
+      {
+        "state": "green",
+        "test": "maxPain <= 3 AND stiffness in [none, under30]",
+        "action": "Progress as written."
+      },
+      {
+        "state": "amber",
+        "test": "maxPain in 4..5 OR stiffness == 30to60",
+        "action": "Hold the current load another full week. No progression. Keep the volume."
+      },
+      {
+        "state": "red",
+        "test": "maxPain > 5 OR stiffness == over60 OR pain rising 3 sessions running",
+        "action": "Cut load 30%. Swap dynamic work for isometrics (5 × 45 s pain-free) for 7 days. Unchanged after two weeks — get it assessed."
+      }
+    ],
+    "elbowRule": "Any amber on the medial elbow holds the weighted pull-up load where it is, regardless of the schedule. That tendon is the one thing that can end the muscle-up attempt."
+  },
+  "checkpoints": [
+    {
+      "date": "2026-10-09",
+      "week": "W4",
+      "label": "P1 test",
+      "detail": "8 clean parallel dips + 5 strict chest-to-bar pulls"
+    },
+    {
+      "date": "2026-11-06",
+      "week": "W8",
+      "label": "P2 test + RECALIBRATE",
+      "detail": "5 s straight-bar negative + 4 Russian dips. Then retest pull-up 5RM — all Block 3 loads key off the new number."
+    },
+    {
+      "date": "2026-12-04",
+      "week": "W12",
+      "label": "P3 test + RECALIBRATE",
+      "detail": "1 clean single with the light band + 5 straight-bar dips. Then retest pull-up 5RM."
+    },
+    {
+      "date": "2026-12-08",
+      "week": "W13",
+      "label": "TENDON TEST",
+      "detail": "Heel raise +35% BW × 8, then 20 continuous single-leg pogos. Film the pogos."
+    },
+    {
+      "date": "2026-12-15",
+      "week": "W14",
+      "label": "NORDIC TEST",
+      "detail": "Weighted Nordic at 5 kg, full range with push-back."
+    },
+    {
+      "date": "2026-12-29",
+      "week": "TEST",
+      "label": "MUSCLE-UP TEST",
+      "detail": "1 strict unassisted rep. Backup Thu 31 Dec."
+    }
+  ],
+  "weeks": [
+    {
+      "id": "W2",
+      "label": "Week 2",
+      "dates": "21–27 Sep",
+      "start": "2026-09-21",
+      "block": "B1",
+      "muPhase": "P1",
+      "deload": false
+    },
+    {
+      "id": "W3",
+      "label": "Week 3",
+      "dates": "28 Sep – 4 Oct",
+      "start": "2026-09-28",
+      "block": "B1",
+      "muPhase": "P1",
+      "deload": false
+    },
+    {
+      "id": "W4",
+      "label": "Week 4",
+      "dates": "5–11 Oct",
+      "start": "2026-10-05",
+      "block": "B1",
+      "muPhase": "P1",
+      "deload": true
+    },
+    {
+      "id": "W5",
+      "label": "Week 5",
+      "dates": "12–18 Oct",
+      "start": "2026-10-12",
+      "block": "B2",
+      "muPhase": "P2",
+      "deload": false
+    },
+    {
+      "id": "W6",
+      "label": "Week 6",
+      "dates": "19–25 Oct",
+      "start": "2026-10-19",
+      "block": "B2",
+      "muPhase": "P2",
+      "deload": false
+    },
+    {
+      "id": "W7",
+      "label": "Week 7",
+      "dates": "26 Oct – 1 Nov",
+      "start": "2026-10-26",
+      "block": "B2",
+      "muPhase": "P2",
+      "deload": false
+    },
+    {
+      "id": "W8",
+      "label": "Week 8",
+      "dates": "2–8 Nov",
+      "start": "2026-11-02",
+      "block": "B2",
+      "muPhase": "P2",
+      "deload": true
+    },
+    {
+      "id": "W9",
+      "label": "Week 9",
+      "dates": "9–15 Nov",
+      "start": "2026-11-09",
+      "block": "B3",
+      "muPhase": "P3",
+      "deload": false
+    },
+    {
+      "id": "W10",
+      "label": "Week 10",
+      "dates": "16–22 Nov",
+      "start": "2026-11-16",
+      "block": "B3",
+      "muPhase": "P3",
+      "deload": false
+    },
+    {
+      "id": "W11",
+      "label": "Week 11",
+      "dates": "23–29 Nov",
+      "start": "2026-11-23",
+      "block": "B3",
+      "muPhase": "P3",
+      "deload": false
+    },
+    {
+      "id": "W12",
+      "label": "Week 12",
+      "dates": "30 Nov – 6 Dec",
+      "start": "2026-11-30",
+      "block": "B3",
+      "muPhase": "P3",
+      "deload": true
+    },
+    {
+      "id": "W13",
+      "label": "Week 13",
+      "dates": "7–13 Dec",
+      "start": "2026-12-07",
+      "block": "B4",
+      "muPhase": "P4",
+      "deload": false
+    },
+    {
+      "id": "W14",
+      "label": "Week 14",
+      "dates": "14–20 Dec",
+      "start": "2026-12-14",
+      "block": "B4",
+      "muPhase": "P4",
+      "deload": false
+    },
+    {
+      "id": "W15",
+      "label": "Week 15",
+      "dates": "21–27 Dec",
+      "start": "2026-12-21",
+      "block": "B4",
+      "muPhase": "P4",
+      "deload": true
+    }
+  ],
+  "sessions": [
+    {
+      "id": "W2-Mon",
+      "week": "W2",
+      "weekLabel": "Week 2",
+      "weekDates": "21–27 Sep",
+      "block": "B1",
+      "muPhase": "P1",
+      "deload": false,
+      "day": "Mon",
+      "date": "2026-09-21",
+      "name": "A — Pull Strength & Dip Volume",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "wtd-c2b",
+          "name": "Weighted chest-to-bar pull-up",
+          "sets": 4,
+          "reps": "5",
+          "tempo": "3s up / 3s down",
+          "restSec": 180,
+          "load": {
+            "type": "pct5RM",
+            "value": 0.6
+          },
+          "cue": "Dead hang start, touch lower sternum, zero swing.",
+          "track": "pullup"
+        },
+        {
+          "id": "par-dips",
+          "name": "Parallel bar dips (band or BW)",
+          "sets": 4,
+          "reps": "6–8",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Lower until shoulders break 90°, then lock out. Lean forward 15°, elbows tucked.",
+          "track": "dips"
+        },
+        {
+          "id": "bar-support",
+          "name": "Straight-bar support hold",
+          "sets": 3,
+          "reps": "20 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Jump on, lock elbows, push shoulders down into depression."
+        },
+        {
+          "id": "hollow",
+          "name": "Hollow body hold",
+          "sets": 3,
+          "reps": "30 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Lower back glued flat to the floor, ribs tucked toward pelvis."
+        }
+      ]
+    },
+    {
+      "id": "W2-Tue",
+      "week": "W2",
+      "weekLabel": "Week 2",
+      "weekDates": "21–27 Sep",
+      "block": "B1",
+      "muPhase": "P1",
+      "deload": false,
+      "day": "Tue",
+      "date": "2026-09-22",
+      "name": "B — Sprint, Hinge & Press",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "sprint",
+          "name": "Sprints, 30 m",
+          "sets": 4,
+          "reps": "30 m",
+          "tempo": "85% effort",
+          "restSec": 90,
+          "load": {
+            "type": "none"
+          },
+          "cue": "After the full warm-up. Grass or track. Stop the session if form degrades.",
+          "track": "sprint"
+        },
+        {
+          "id": "hinge",
+          "name": "Trap-bar deadlift (or back squat)",
+          "sets": 3,
+          "reps": "8",
+          "tempo": "2s eccentric",
+          "restSec": 150,
+          "load": {
+            "type": "text",
+            "text": "RPE 6"
+          },
+          "cue": "Your acceleration and static-jump driver.",
+          "track": "hinge"
+        },
+        {
+          "id": "heel-raise",
+          "name": "Double-leg heel raise off step",
+          "sets": 4,
+          "reps": "10",
+          "tempo": "3s up / 3s down",
+          "restSec": 90,
+          "load": {
+            "type": "pctBW",
+            "value": 0.4
+          },
+          "cue": "Full stretch at the bottom, full plantarflexion at the top. Superset with the KB press.",
+          "track": "heelRaise"
+        },
+        {
+          "id": "kb-press",
+          "name": "KB single-arm strict press",
+          "sets": 3,
+          "reps": "8 / arm",
+          "tempo": "Controlled",
+          "restSec": 0,
+          "load": {
+            "type": "text",
+            "text": "Moderate bell"
+          },
+          "cue": "Ribs down, glutes tight, no lean. Alternate with the heel raise sets.",
+          "track": "kbPress"
+        },
+        {
+          "id": "kb-floor",
+          "name": "KB single-arm floor press",
+          "sets": 3,
+          "reps": "8 / arm",
+          "tempo": "2s pause",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Moderate bell"
+          },
+          "cue": "Elbow at 45°, pause with the triceps on the floor."
+        }
+      ]
+    },
+    {
+      "id": "W2-Wed",
+      "week": "W2",
+      "weekLabel": "Week 2",
+      "weekDates": "21–27 Sep",
+      "block": "B1",
+      "muPhase": "P1",
+      "deload": false,
+      "day": "Wed",
+      "date": "2026-09-23",
+      "name": "C — Dip Eccentrics & Shoulder Armour",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "dip-neg",
+          "name": "Parallel bar 3-second dip negatives",
+          "sets": 4,
+          "reps": "4",
+          "tempo": "3s down",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Jump to top, lower agonisingly slow over 3 full seconds. Fight hardest at the bottom.",
+          "track": "dips"
+        },
+        {
+          "id": "strict-pull",
+          "name": "Strict dead-hang pull-ups",
+          "sets": 3,
+          "reps": "4",
+          "tempo": "2s down",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Overhand. Chin clearly over bar, full elbow lockout at the bottom."
+        },
+        {
+          "id": "scap-shrug",
+          "name": "Scapular dip shrugs",
+          "sets": 3,
+          "reps": "10",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "In dip support: shrug to ears, then press tall."
+        },
+        {
+          "id": "face-pull",
+          "name": "Band face pulls + external rotation",
+          "sets": 3,
+          "reps": "15",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Light band"
+          },
+          "cue": "Pull to eye level, thumbs pointing backward."
+        }
+      ]
+    },
+    {
+      "id": "W2-Thu",
+      "week": "W2",
+      "weekLabel": "Week 2",
+      "weekDates": "21–27 Sep",
+      "block": "B1",
+      "muPhase": "P1",
+      "deload": false,
+      "day": "Thu",
+      "date": "2026-09-24",
+      "name": "D — Posterior Chain & Elastic",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "pogo",
+          "name": "Double-leg pogo",
+          "sets": 4,
+          "reps": "15 s",
+          "tempo": "Low amplitude",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "FIRST, while fresh. Stiff ankle, quiet contacts, heels never touch. Not max effort.",
+          "track": "pogo"
+        },
+        {
+          "id": "nordic",
+          "name": "Band-assisted Nordic curl",
+          "sets": 3,
+          "reps": "5",
+          "tempo": "5s eccentric",
+          "restSec": 120,
+          "load": {
+            "type": "text",
+            "text": "Heavy band"
+          },
+          "cue": "Band anchored overhead. Hips stay extended — no hinging at the waist.",
+          "track": "nordic"
+        },
+        {
+          "id": "achilles-iso",
+          "name": "Achilles isometric hold",
+          "sets": 5,
+          "reps": "30 s",
+          "tempo": "Static, ~70%",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Single-leg heel raise held at mid-height. Superset with the Copenhagen."
+        },
+        {
+          "id": "copenhagen",
+          "name": "Copenhagen plank",
+          "sets": 3,
+          "reps": "20 s / side",
+          "tempo": "Static",
+          "restSec": 0,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Adductor insurance. Alternate with the isometric sets."
+        },
+        {
+          "id": "kb-light",
+          "name": "KB shoulder-health circuit",
+          "sets": 2,
+          "reps": "rounds",
+          "tempo": "Easy",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Light bell"
+          },
+          "cue": "Halos ×8/side, arm bar 30 s/side, bottoms-up carry 20 m/side. Deliberately easy — Friday is the skill day."
+        }
+      ]
+    },
+    {
+      "id": "W2-Fri",
+      "week": "W2",
+      "weekLabel": "Week 2",
+      "weekDates": "21–27 Sep",
+      "block": "B1",
+      "muPhase": "P1",
+      "deload": false,
+      "day": "Fri",
+      "date": "2026-09-25",
+      "name": "E — Explosive Arc & Straight-Bar Prep",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "sternum-pull",
+          "name": "High sternum pull-ups",
+          "sets": 4,
+          "reps": "3",
+          "tempo": "Explosive",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "100% intent, C-curve arc to the lower sternum. Stop the set immediately if rep height drops."
+        },
+        {
+          "id": "band-bar-dip",
+          "name": "Band-assisted straight-bar dips",
+          "sets": 4,
+          "reps": "5",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "text",
+            "text": "Light band"
+          },
+          "cue": "Lean chest over the bar, touch lower ribs.",
+          "track": "dips"
+        },
+        {
+          "id": "false-grip",
+          "name": "False-grip bar active hangs",
+          "sets": 3,
+          "reps": "15–20 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Deep palm-crease grip, shoulder blades pulled down."
+        },
+        {
+          "id": "arch-hollow",
+          "name": "Floor arch-to-hollow snaps",
+          "sets": 3,
+          "reps": "10",
+          "tempo": "Dynamic",
+          "restSec": 60,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Rocking between superman and hollow. Sharpens the core whip for the transition arc."
+        }
+      ]
+    },
+    {
+      "id": "W3-Mon",
+      "week": "W3",
+      "weekLabel": "Week 3",
+      "weekDates": "28 Sep – 4 Oct",
+      "block": "B1",
+      "muPhase": "P1",
+      "deload": false,
+      "day": "Mon",
+      "date": "2026-09-28",
+      "name": "A — Pull Strength & Dip Volume",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "wtd-c2b",
+          "name": "Weighted chest-to-bar pull-up",
+          "sets": 4,
+          "reps": "5",
+          "tempo": "3s up / 3s down",
+          "restSec": 180,
+          "load": {
+            "type": "pct5RM",
+            "value": 0.65
+          },
+          "cue": "Dead hang start, touch lower sternum, zero swing.",
+          "track": "pullup"
+        },
+        {
+          "id": "par-dips",
+          "name": "Parallel bar dips (band or BW)",
+          "sets": 4,
+          "reps": "6–8",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Lower until shoulders break 90°, then lock out. Lean forward 15°, elbows tucked.",
+          "track": "dips"
+        },
+        {
+          "id": "bar-support",
+          "name": "Straight-bar support hold",
+          "sets": 3,
+          "reps": "20 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Jump on, lock elbows, push shoulders down into depression."
+        },
+        {
+          "id": "hollow",
+          "name": "Hollow body hold",
+          "sets": 3,
+          "reps": "30 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Lower back glued flat to the floor, ribs tucked toward pelvis."
+        }
+      ]
+    },
+    {
+      "id": "W3-Tue",
+      "week": "W3",
+      "weekLabel": "Week 3",
+      "weekDates": "28 Sep – 4 Oct",
+      "block": "B1",
+      "muPhase": "P1",
+      "deload": false,
+      "day": "Tue",
+      "date": "2026-09-29",
+      "name": "B — Sprint, Hinge & Press",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "sprint",
+          "name": "Sprints, 30 m",
+          "sets": 4,
+          "reps": "30 m",
+          "tempo": "85% effort",
+          "restSec": 90,
+          "load": {
+            "type": "none"
+          },
+          "cue": "After the full warm-up. Grass or track. Stop the session if form degrades.",
+          "track": "sprint"
+        },
+        {
+          "id": "hinge",
+          "name": "Trap-bar deadlift (or back squat)",
+          "sets": 4,
+          "reps": "6",
+          "tempo": "2s eccentric",
+          "restSec": 150,
+          "load": {
+            "type": "text",
+            "text": "RPE 7"
+          },
+          "cue": "Your acceleration and static-jump driver.",
+          "track": "hinge"
+        },
+        {
+          "id": "heel-raise",
+          "name": "Double-leg heel raise off step",
+          "sets": 4,
+          "reps": "10",
+          "tempo": "3s up / 3s down",
+          "restSec": 90,
+          "load": {
+            "type": "pctBW",
+            "value": 0.5
+          },
+          "cue": "Full stretch at the bottom, full plantarflexion at the top. Superset with the KB press.",
+          "track": "heelRaise"
+        },
+        {
+          "id": "kb-press",
+          "name": "KB single-arm strict press",
+          "sets": 3,
+          "reps": "8 / arm",
+          "tempo": "Controlled",
+          "restSec": 0,
+          "load": {
+            "type": "text",
+            "text": "Moderate bell"
+          },
+          "cue": "Ribs down, glutes tight, no lean. Alternate with the heel raise sets.",
+          "track": "kbPress"
+        },
+        {
+          "id": "kb-floor",
+          "name": "KB single-arm floor press",
+          "sets": 3,
+          "reps": "8 / arm",
+          "tempo": "2s pause",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Moderate bell"
+          },
+          "cue": "Elbow at 45°, pause with the triceps on the floor."
+        }
+      ]
+    },
+    {
+      "id": "W3-Wed",
+      "week": "W3",
+      "weekLabel": "Week 3",
+      "weekDates": "28 Sep – 4 Oct",
+      "block": "B1",
+      "muPhase": "P1",
+      "deload": false,
+      "day": "Wed",
+      "date": "2026-09-30",
+      "name": "C — Dip Eccentrics & Shoulder Armour",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "dip-neg",
+          "name": "Parallel bar 3-second dip negatives",
+          "sets": 4,
+          "reps": "4",
+          "tempo": "3s down",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Jump to top, lower agonisingly slow over 3 full seconds. Fight hardest at the bottom.",
+          "track": "dips"
+        },
+        {
+          "id": "strict-pull",
+          "name": "Strict dead-hang pull-ups",
+          "sets": 3,
+          "reps": "4",
+          "tempo": "2s down",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Overhand. Chin clearly over bar, full elbow lockout at the bottom."
+        },
+        {
+          "id": "scap-shrug",
+          "name": "Scapular dip shrugs",
+          "sets": 3,
+          "reps": "10",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "In dip support: shrug to ears, then press tall."
+        },
+        {
+          "id": "face-pull",
+          "name": "Band face pulls + external rotation",
+          "sets": 3,
+          "reps": "15",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Light band"
+          },
+          "cue": "Pull to eye level, thumbs pointing backward."
+        }
+      ]
+    },
+    {
+      "id": "W3-Thu",
+      "week": "W3",
+      "weekLabel": "Week 3",
+      "weekDates": "28 Sep – 4 Oct",
+      "block": "B1",
+      "muPhase": "P1",
+      "deload": false,
+      "day": "Thu",
+      "date": "2026-10-01",
+      "name": "D — Posterior Chain & Elastic",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "pogo",
+          "name": "Double-leg pogo",
+          "sets": 4,
+          "reps": "20 s",
+          "tempo": "Low amplitude",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "FIRST, while fresh. Stiff ankle, quiet contacts, heels never touch. Not max effort.",
+          "track": "pogo"
+        },
+        {
+          "id": "nordic",
+          "name": "Band-assisted Nordic curl",
+          "sets": 3,
+          "reps": "5",
+          "tempo": "5s eccentric",
+          "restSec": 120,
+          "load": {
+            "type": "text",
+            "text": "Heavy band"
+          },
+          "cue": "Band anchored overhead. Hips stay extended — no hinging at the waist.",
+          "track": "nordic"
+        },
+        {
+          "id": "achilles-iso",
+          "name": "Achilles isometric hold",
+          "sets": 5,
+          "reps": "30 s",
+          "tempo": "Static, ~70%",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Single-leg heel raise held at mid-height. Superset with the Copenhagen."
+        },
+        {
+          "id": "copenhagen",
+          "name": "Copenhagen plank",
+          "sets": 3,
+          "reps": "20 s / side",
+          "tempo": "Static",
+          "restSec": 0,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Adductor insurance. Alternate with the isometric sets."
+        },
+        {
+          "id": "kb-light",
+          "name": "KB shoulder-health circuit",
+          "sets": 2,
+          "reps": "rounds",
+          "tempo": "Easy",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Light bell"
+          },
+          "cue": "Halos ×8/side, arm bar 30 s/side, bottoms-up carry 20 m/side. Deliberately easy — Friday is the skill day."
+        }
+      ]
+    },
+    {
+      "id": "W3-Fri",
+      "week": "W3",
+      "weekLabel": "Week 3",
+      "weekDates": "28 Sep – 4 Oct",
+      "block": "B1",
+      "muPhase": "P1",
+      "deload": false,
+      "day": "Fri",
+      "date": "2026-10-02",
+      "name": "E — Explosive Arc & Straight-Bar Prep",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "sternum-pull",
+          "name": "High sternum pull-ups",
+          "sets": 4,
+          "reps": "3",
+          "tempo": "Explosive",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "100% intent, C-curve arc to the lower sternum. Stop the set immediately if rep height drops."
+        },
+        {
+          "id": "band-bar-dip",
+          "name": "Band-assisted straight-bar dips",
+          "sets": 4,
+          "reps": "5",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "text",
+            "text": "Light band"
+          },
+          "cue": "Lean chest over the bar, touch lower ribs.",
+          "track": "dips"
+        },
+        {
+          "id": "false-grip",
+          "name": "False-grip bar active hangs",
+          "sets": 3,
+          "reps": "15–20 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Deep palm-crease grip, shoulder blades pulled down."
+        },
+        {
+          "id": "arch-hollow",
+          "name": "Floor arch-to-hollow snaps",
+          "sets": 3,
+          "reps": "10",
+          "tempo": "Dynamic",
+          "restSec": 60,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Rocking between superman and hollow. Sharpens the core whip for the transition arc."
+        }
+      ]
+    },
+    {
+      "id": "W4-Mon",
+      "week": "W4",
+      "weekLabel": "Week 4",
+      "weekDates": "5–11 Oct",
+      "block": "B1",
+      "muPhase": "P1",
+      "deload": true,
+      "day": "Mon",
+      "date": "2026-10-05",
+      "name": "A — Pull Strength & Dip Volume",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "wtd-c2b",
+          "name": "Weighted chest-to-bar pull-up",
+          "sets": 3,
+          "reps": "4",
+          "tempo": "3s up / 3s down",
+          "restSec": 180,
+          "load": {
+            "type": "pct5RM",
+            "value": 0.6
+          },
+          "cue": "Dead hang start, touch lower sternum, zero swing.",
+          "track": "pullup"
+        },
+        {
+          "id": "par-dips",
+          "name": "Parallel bar dips (band or BW)",
+          "sets": 4,
+          "reps": "6–8",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Lower until shoulders break 90°, then lock out. Lean forward 15°, elbows tucked.",
+          "track": "dips",
+          "note": "DELOAD — 50% volume Mon/Wed. FRIDAY = P1 TEST: 8 clean parallel dips + 5 strict chest-to-bar pulls."
+        },
+        {
+          "id": "bar-support",
+          "name": "Straight-bar support hold",
+          "sets": 3,
+          "reps": "20 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Jump on, lock elbows, push shoulders down into depression."
+        },
+        {
+          "id": "hollow",
+          "name": "Hollow body hold",
+          "sets": 3,
+          "reps": "30 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Lower back glued flat to the floor, ribs tucked toward pelvis."
+        }
+      ]
+    },
+    {
+      "id": "W4-Tue",
+      "week": "W4",
+      "weekLabel": "Week 4",
+      "weekDates": "5–11 Oct",
+      "block": "B1",
+      "muPhase": "P1",
+      "deload": true,
+      "day": "Tue",
+      "date": "2026-10-06",
+      "name": "B — Sprint, Hinge & Press",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "sprint",
+          "name": "Sprints, 30 m",
+          "sets": 3,
+          "reps": "30 m",
+          "tempo": "85% effort",
+          "restSec": 90,
+          "load": {
+            "type": "none"
+          },
+          "cue": "After the full warm-up. Grass or track. Stop the session if form degrades.",
+          "track": "sprint"
+        },
+        {
+          "id": "hinge",
+          "name": "Trap-bar deadlift (or back squat)",
+          "sets": 3,
+          "reps": "6",
+          "tempo": "2s eccentric",
+          "restSec": 150,
+          "load": {
+            "type": "text",
+            "text": "RPE 6"
+          },
+          "cue": "Your acceleration and static-jump driver.",
+          "track": "hinge"
+        },
+        {
+          "id": "heel-raise",
+          "name": "Double-leg heel raise off step",
+          "sets": 2,
+          "reps": "10",
+          "tempo": "3s up / 3s down",
+          "restSec": 90,
+          "load": {
+            "type": "pctBW",
+            "value": 0.5
+          },
+          "cue": "Full stretch at the bottom, full plantarflexion at the top. Superset with the KB press.",
+          "track": "heelRaise"
+        },
+        {
+          "id": "kb-press",
+          "name": "KB single-arm strict press",
+          "sets": 2,
+          "reps": "8 / arm",
+          "tempo": "Controlled",
+          "restSec": 0,
+          "load": {
+            "type": "text",
+            "text": "Moderate bell"
+          },
+          "cue": "Ribs down, glutes tight, no lean. Alternate with the heel raise sets.",
+          "track": "kbPress"
+        },
+        {
+          "id": "kb-floor",
+          "name": "KB single-arm floor press",
+          "sets": 3,
+          "reps": "8 / arm",
+          "tempo": "2s pause",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Moderate bell"
+          },
+          "cue": "Elbow at 45°, pause with the triceps on the floor."
+        }
+      ]
+    },
+    {
+      "id": "W4-Wed",
+      "week": "W4",
+      "weekLabel": "Week 4",
+      "weekDates": "5–11 Oct",
+      "block": "B1",
+      "muPhase": "P1",
+      "deload": true,
+      "day": "Wed",
+      "date": "2026-10-07",
+      "name": "C — Dip Eccentrics & Shoulder Armour",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "dip-neg",
+          "name": "Parallel bar 3-second dip negatives",
+          "sets": 4,
+          "reps": "4",
+          "tempo": "3s down",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Jump to top, lower agonisingly slow over 3 full seconds. Fight hardest at the bottom.",
+          "track": "dips",
+          "note": "DELOAD — 50% volume Mon/Wed. FRIDAY = P1 TEST: 8 clean parallel dips + 5 strict chest-to-bar pulls."
+        },
+        {
+          "id": "strict-pull",
+          "name": "Strict dead-hang pull-ups",
+          "sets": 3,
+          "reps": "4",
+          "tempo": "2s down",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Overhand. Chin clearly over bar, full elbow lockout at the bottom."
+        },
+        {
+          "id": "scap-shrug",
+          "name": "Scapular dip shrugs",
+          "sets": 3,
+          "reps": "10",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "In dip support: shrug to ears, then press tall."
+        },
+        {
+          "id": "face-pull",
+          "name": "Band face pulls + external rotation",
+          "sets": 3,
+          "reps": "15",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Light band"
+          },
+          "cue": "Pull to eye level, thumbs pointing backward."
+        }
+      ]
+    },
+    {
+      "id": "W4-Thu",
+      "week": "W4",
+      "weekLabel": "Week 4",
+      "weekDates": "5–11 Oct",
+      "block": "B1",
+      "muPhase": "P1",
+      "deload": true,
+      "day": "Thu",
+      "date": "2026-10-08",
+      "name": "D — Posterior Chain & Elastic",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "pogo",
+          "name": "Double-leg pogo",
+          "sets": 3,
+          "reps": "20 s",
+          "tempo": "Low amplitude",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "FIRST, while fresh. Stiff ankle, quiet contacts, heels never touch. Not max effort.",
+          "track": "pogo"
+        },
+        {
+          "id": "nordic",
+          "name": "Band-assisted Nordic curl",
+          "sets": 2,
+          "reps": "5",
+          "tempo": "5s eccentric",
+          "restSec": 120,
+          "load": {
+            "type": "text",
+            "text": "Medium band"
+          },
+          "cue": "Band anchored overhead. Hips stay extended — no hinging at the waist.",
+          "track": "nordic"
+        },
+        {
+          "id": "achilles-iso",
+          "name": "Achilles isometric hold",
+          "sets": 5,
+          "reps": "30 s",
+          "tempo": "Static, ~70%",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Single-leg heel raise held at mid-height. Superset with the Copenhagen."
+        },
+        {
+          "id": "copenhagen",
+          "name": "Copenhagen plank",
+          "sets": 3,
+          "reps": "20 s / side",
+          "tempo": "Static",
+          "restSec": 0,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Adductor insurance. Alternate with the isometric sets."
+        },
+        {
+          "id": "kb-light",
+          "name": "KB shoulder-health circuit",
+          "sets": 2,
+          "reps": "rounds",
+          "tempo": "Easy",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Light bell"
+          },
+          "cue": "Halos ×8/side, arm bar 30 s/side, bottoms-up carry 20 m/side. Deliberately easy — Friday is the skill day."
+        }
+      ]
+    },
+    {
+      "id": "W4-Fri",
+      "week": "W4",
+      "weekLabel": "Week 4",
+      "weekDates": "5–11 Oct",
+      "block": "B1",
+      "muPhase": "P1",
+      "deload": true,
+      "day": "Fri",
+      "date": "2026-10-09",
+      "name": "E — Explosive Arc & Straight-Bar Prep",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "sternum-pull",
+          "name": "High sternum pull-ups",
+          "sets": 4,
+          "reps": "3",
+          "tempo": "Explosive",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "100% intent, C-curve arc to the lower sternum. Stop the set immediately if rep height drops."
+        },
+        {
+          "id": "band-bar-dip",
+          "name": "Band-assisted straight-bar dips",
+          "sets": 4,
+          "reps": "5",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "text",
+            "text": "Light band"
+          },
+          "cue": "Lean chest over the bar, touch lower ribs.",
+          "track": "dips",
+          "note": "DELOAD — 50% volume Mon/Wed. FRIDAY = P1 TEST: 8 clean parallel dips + 5 strict chest-to-bar pulls."
+        },
+        {
+          "id": "false-grip",
+          "name": "False-grip bar active hangs",
+          "sets": 3,
+          "reps": "15–20 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Deep palm-crease grip, shoulder blades pulled down."
+        },
+        {
+          "id": "arch-hollow",
+          "name": "Floor arch-to-hollow snaps",
+          "sets": 3,
+          "reps": "10",
+          "tempo": "Dynamic",
+          "restSec": 60,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Rocking between superman and hollow. Sharpens the core whip for the transition arc."
+        }
+      ]
+    },
+    {
+      "id": "W5-Mon",
+      "week": "W5",
+      "weekLabel": "Week 5",
+      "weekDates": "12–18 Oct",
+      "block": "B2",
+      "muPhase": "P2",
+      "deload": false,
+      "day": "Mon",
+      "date": "2026-10-12",
+      "name": "A — Straight-Bar Eccentrics & Heavy Pull",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "wtd-c2b",
+          "name": "Weighted chest-to-bar pull-up",
+          "sets": 5,
+          "reps": "4",
+          "tempo": "2s up / 4s down",
+          "restSec": 210,
+          "load": {
+            "type": "pct5RM",
+            "value": 0.72
+          },
+          "cue": "The 4-second lower is the whole point — do not rush it to save time.",
+          "track": "pullup"
+        },
+        {
+          "id": "bar-dip-neg",
+          "name": "Straight-bar dip 5-second negatives",
+          "sets": 4,
+          "reps": "3",
+          "tempo": "5s down",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Lower agonisingly slow until the lower ribs touch. Control the last two inches.",
+          "track": "dips"
+        },
+        {
+          "id": "par-dips",
+          "name": "Parallel bar dips, strict lockout",
+          "sets": 4,
+          "reps": "8",
+          "tempo": "1s lockout",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Unassisted. Deep, press up, squeeze the triceps for one full second."
+        },
+        {
+          "id": "false-grip-top",
+          "name": "False-grip static top hold",
+          "sets": 3,
+          "reps": "15 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Hang with chest touching the bar, wrists wrapped over the pipe."
+        }
+      ]
+    },
+    {
+      "id": "W5-Tue",
+      "week": "W5",
+      "weekLabel": "Week 5",
+      "weekDates": "12–18 Oct",
+      "block": "B2",
+      "muPhase": "P2",
+      "deload": false,
+      "day": "Tue",
+      "date": "2026-10-13",
+      "name": "B — Sprint, Hinge & Press",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "sprint",
+          "name": "Sprints",
+          "sets": 5,
+          "reps": "30 m",
+          "tempo": "90% effort",
+          "restSec": 120,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Build distance before intensity. Full recovery between reps.",
+          "track": "sprint"
+        },
+        {
+          "id": "hinge",
+          "name": "Trap-bar deadlift (or back squat)",
+          "sets": 4,
+          "reps": "5",
+          "tempo": "2s eccentric",
+          "restSec": 150,
+          "load": {
+            "type": "text",
+            "text": "RPE 7"
+          },
+          "cue": "Drive hard out of the bottom.",
+          "track": "hinge"
+        },
+        {
+          "id": "heel-raise",
+          "name": "Single-leg heel raise, loaded",
+          "sets": 4,
+          "reps": "8 / side",
+          "tempo": "3s up / 3s down",
+          "restSec": 120,
+          "load": {
+            "type": "pctBW",
+            "value": 0.1
+          },
+          "cue": "Barbell, machine or a loaded backpack. Full stretch every rep. Superset with the KB press.",
+          "track": "heelRaise"
+        },
+        {
+          "id": "kb-press",
+          "name": "KB single-arm strict press",
+          "sets": 4,
+          "reps": "6 / arm",
+          "tempo": "3s eccentric",
+          "restSec": 0,
+          "load": {
+            "type": "text",
+            "text": "Moderate bell"
+          },
+          "cue": "Alternate with the heel raise sets.",
+          "track": "kbPress"
+        },
+        {
+          "id": "kb-floor",
+          "name": "KB single-arm floor press",
+          "sets": 4,
+          "reps": "6 / arm",
+          "tempo": "2s pause",
+          "restSec": 90,
+          "load": {
+            "type": "text",
+            "text": "Moderate bell"
+          },
+          "cue": "2 s pause on the floor each rep."
+        }
+      ]
+    },
+    {
+      "id": "W5-Wed",
+      "week": "W5",
+      "weekLabel": "Week 5",
+      "weekDates": "12–18 Oct",
+      "block": "B2",
+      "muPhase": "P2",
+      "deload": false,
+      "day": "Wed",
+      "date": "2026-10-14",
+      "name": "C — Russian Dips & Wrist Turnover",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "russian-dip",
+          "name": "Russian dips (parallel bars)",
+          "sets": 4,
+          "reps": "4–5",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Lower to forearms, roll bodyweight forward onto hands, press up. Lean the torso forward aggressively.",
+          "track": "dips"
+        },
+        {
+          "id": "lsit-chin",
+          "name": "Strict L-sit chin-ups",
+          "sets": 3,
+          "reps": "4",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Supinated grip, legs locked parallel to the floor. Zero momentum."
+        },
+        {
+          "id": "band-bar-dip",
+          "name": "Band straight-bar dips",
+          "sets": 3,
+          "reps": "6",
+          "tempo": "Controlled",
+          "restSec": 90,
+          "load": {
+            "type": "text",
+            "text": "Medium band"
+          },
+          "cue": "Full range with assist out of the hole."
+        },
+        {
+          "id": "wrist-roller",
+          "name": "Forearm wrist rollers / DB curls",
+          "sets": 3,
+          "reps": "15",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Moderate"
+          },
+          "cue": "Heavy wrist flexion and extension. Eliminates wrist pain and speeds the knuckle roll."
+        }
+      ]
+    },
+    {
+      "id": "W5-Thu",
+      "week": "W5",
+      "weekLabel": "Week 5",
+      "weekDates": "12–18 Oct",
+      "block": "B2",
+      "muPhase": "P2",
+      "deload": false,
+      "day": "Thu",
+      "date": "2026-10-15",
+      "name": "D — Posterior Chain & Elastic",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "pogo",
+          "name": "Double-leg pogo",
+          "sets": 5,
+          "reps": "20 s",
+          "tempo": "Low amplitude",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "FIRST, while fresh. Double-leg in W5, single-leg from W6 — only if every Block 1 signal was green.",
+          "track": "pogo"
+        },
+        {
+          "id": "nordic",
+          "name": "Nordic curl",
+          "sets": 3,
+          "reps": "5",
+          "tempo": "5s lower",
+          "restSec": 120,
+          "load": {
+            "type": "text",
+            "text": "Medium band"
+          },
+          "cue": "Control as far as you can, then catch. Do not collapse through the bottom half.",
+          "track": "nordic"
+        },
+        {
+          "id": "achilles-iso",
+          "name": "Achilles isometric hold",
+          "sets": 5,
+          "reps": "35–45 s",
+          "tempo": "Static, 80–85%",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Single-leg, mid-range. Superset with the Copenhagen."
+        },
+        {
+          "id": "copenhagen",
+          "name": "Copenhagen plank",
+          "sets": 3,
+          "reps": "30 s / side",
+          "tempo": "Static",
+          "restSec": 0,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": ""
+        },
+        {
+          "id": "kb-light",
+          "name": "KB shoulder-health circuit",
+          "sets": 2,
+          "reps": "rounds",
+          "tempo": "Easy",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Light bell"
+          },
+          "cue": "Halos ×8/side, arm bar 30 s/side, bottoms-up carry 20 m/side."
+        }
+      ]
+    },
+    {
+      "id": "W5-Fri",
+      "week": "W5",
+      "weekLabel": "Week 5",
+      "weekDates": "12–18 Oct",
+      "block": "B2",
+      "muPhase": "P2",
+      "deload": false,
+      "day": "Fri",
+      "date": "2026-10-16",
+      "name": "E — Low-Bar Turnovers & Dynamic Kip",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "turnover",
+          "name": "Low-bar jumping muscle-up turnovers",
+          "sets": 4,
+          "reps": "3",
+          "tempo": "Explosive",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Chest-high bar. Snap knuckles over. Roll both wrists simultaneously — no one-arm cheating, ever."
+        },
+        {
+          "id": "speed-c2b",
+          "name": "Speed chest-to-bar pull-ups",
+          "sets": 4,
+          "reps": "3",
+          "tempo": "Max velocity",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Cut the set the moment rep speed decelerates."
+        },
+        {
+          "id": "dip-burnout",
+          "name": "Parallel bar dip pause burnout",
+          "sets": 3,
+          "reps": "5 + max",
+          "tempo": "2s bottom pause",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "5 reps with a 2 s bottom pause, immediately followed by max clean reps.",
+          "track": "dips"
+        },
+        {
+          "id": "t2b",
+          "name": "Hanging strict toes-to-bar",
+          "sets": 3,
+          "reps": "8",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Controlled raise, legs straight, toes touch the bar."
+        }
+      ]
+    },
+    {
+      "id": "W6-Mon",
+      "week": "W6",
+      "weekLabel": "Week 6",
+      "weekDates": "19–25 Oct",
+      "block": "B2",
+      "muPhase": "P2",
+      "deload": false,
+      "day": "Mon",
+      "date": "2026-10-19",
+      "name": "A — Straight-Bar Eccentrics & Heavy Pull",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "wtd-c2b",
+          "name": "Weighted chest-to-bar pull-up",
+          "sets": 5,
+          "reps": "4",
+          "tempo": "2s up / 4s down",
+          "restSec": 210,
+          "load": {
+            "type": "pct5RM",
+            "value": 0.76
+          },
+          "cue": "The 4-second lower is the whole point — do not rush it to save time.",
+          "track": "pullup"
+        },
+        {
+          "id": "bar-dip-neg",
+          "name": "Straight-bar dip 5-second negatives",
+          "sets": 4,
+          "reps": "3",
+          "tempo": "5s down",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Lower agonisingly slow until the lower ribs touch. Control the last two inches.",
+          "track": "dips"
+        },
+        {
+          "id": "par-dips",
+          "name": "Parallel bar dips, strict lockout",
+          "sets": 4,
+          "reps": "8",
+          "tempo": "1s lockout",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Unassisted. Deep, press up, squeeze the triceps for one full second."
+        },
+        {
+          "id": "false-grip-top",
+          "name": "False-grip static top hold",
+          "sets": 3,
+          "reps": "15 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Hang with chest touching the bar, wrists wrapped over the pipe."
+        }
+      ]
+    },
+    {
+      "id": "W6-Tue",
+      "week": "W6",
+      "weekLabel": "Week 6",
+      "weekDates": "19–25 Oct",
+      "block": "B2",
+      "muPhase": "P2",
+      "deload": false,
+      "day": "Tue",
+      "date": "2026-10-20",
+      "name": "B — Sprint, Hinge & Press",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "sprint",
+          "name": "Sprints",
+          "sets": 5,
+          "reps": "30 m",
+          "tempo": "90% effort",
+          "restSec": 120,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Build distance before intensity. Full recovery between reps.",
+          "track": "sprint"
+        },
+        {
+          "id": "hinge",
+          "name": "Trap-bar deadlift (or back squat)",
+          "sets": 4,
+          "reps": "5",
+          "tempo": "2s eccentric",
+          "restSec": 150,
+          "load": {
+            "type": "text",
+            "text": "RPE 7"
+          },
+          "cue": "Drive hard out of the bottom.",
+          "track": "hinge"
+        },
+        {
+          "id": "heel-raise",
+          "name": "Single-leg heel raise, loaded",
+          "sets": 4,
+          "reps": "8 / side",
+          "tempo": "3s up / 3s down",
+          "restSec": 120,
+          "load": {
+            "type": "pctBW",
+            "value": 0.15
+          },
+          "cue": "Barbell, machine or a loaded backpack. Full stretch every rep. Superset with the KB press.",
+          "track": "heelRaise"
+        },
+        {
+          "id": "kb-press",
+          "name": "KB single-arm strict press",
+          "sets": 4,
+          "reps": "6 / arm",
+          "tempo": "3s eccentric",
+          "restSec": 0,
+          "load": {
+            "type": "text",
+            "text": "Moderate bell"
+          },
+          "cue": "Alternate with the heel raise sets.",
+          "track": "kbPress"
+        },
+        {
+          "id": "kb-floor",
+          "name": "KB single-arm floor press",
+          "sets": 4,
+          "reps": "6 / arm",
+          "tempo": "2s pause",
+          "restSec": 90,
+          "load": {
+            "type": "text",
+            "text": "Moderate bell"
+          },
+          "cue": "2 s pause on the floor each rep."
+        }
+      ]
+    },
+    {
+      "id": "W6-Wed",
+      "week": "W6",
+      "weekLabel": "Week 6",
+      "weekDates": "19–25 Oct",
+      "block": "B2",
+      "muPhase": "P2",
+      "deload": false,
+      "day": "Wed",
+      "date": "2026-10-21",
+      "name": "C — Russian Dips & Wrist Turnover",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "russian-dip",
+          "name": "Russian dips (parallel bars)",
+          "sets": 4,
+          "reps": "4–5",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Lower to forearms, roll bodyweight forward onto hands, press up. Lean the torso forward aggressively.",
+          "track": "dips"
+        },
+        {
+          "id": "lsit-chin",
+          "name": "Strict L-sit chin-ups",
+          "sets": 3,
+          "reps": "4",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Supinated grip, legs locked parallel to the floor. Zero momentum."
+        },
+        {
+          "id": "band-bar-dip",
+          "name": "Band straight-bar dips",
+          "sets": 3,
+          "reps": "6",
+          "tempo": "Controlled",
+          "restSec": 90,
+          "load": {
+            "type": "text",
+            "text": "Medium band"
+          },
+          "cue": "Full range with assist out of the hole."
+        },
+        {
+          "id": "wrist-roller",
+          "name": "Forearm wrist rollers / DB curls",
+          "sets": 3,
+          "reps": "15",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Moderate"
+          },
+          "cue": "Heavy wrist flexion and extension. Eliminates wrist pain and speeds the knuckle roll."
+        }
+      ]
+    },
+    {
+      "id": "W6-Thu",
+      "week": "W6",
+      "weekLabel": "Week 6",
+      "weekDates": "19–25 Oct",
+      "block": "B2",
+      "muPhase": "P2",
+      "deload": false,
+      "day": "Thu",
+      "date": "2026-10-22",
+      "name": "D — Posterior Chain & Elastic",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "pogo",
+          "name": "Single-leg pogo",
+          "sets": 4,
+          "reps": "15 s",
+          "tempo": "Low amplitude",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "FIRST, while fresh. Double-leg in W5, single-leg from W6 — only if every Block 1 signal was green.",
+          "track": "pogo",
+          "note": "Single-leg begins — only if every Block 1 signal was green."
+        },
+        {
+          "id": "nordic",
+          "name": "Nordic curl",
+          "sets": 4,
+          "reps": "5",
+          "tempo": "5s lower",
+          "restSec": 120,
+          "load": {
+            "type": "text",
+            "text": "Medium band"
+          },
+          "cue": "Control as far as you can, then catch. Do not collapse through the bottom half.",
+          "track": "nordic"
+        },
+        {
+          "id": "achilles-iso",
+          "name": "Achilles isometric hold",
+          "sets": 5,
+          "reps": "35–45 s",
+          "tempo": "Static, 80–85%",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Single-leg, mid-range. Superset with the Copenhagen."
+        },
+        {
+          "id": "copenhagen",
+          "name": "Copenhagen plank",
+          "sets": 3,
+          "reps": "30 s / side",
+          "tempo": "Static",
+          "restSec": 0,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": ""
+        },
+        {
+          "id": "kb-light",
+          "name": "KB shoulder-health circuit",
+          "sets": 2,
+          "reps": "rounds",
+          "tempo": "Easy",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Light bell"
+          },
+          "cue": "Halos ×8/side, arm bar 30 s/side, bottoms-up carry 20 m/side."
+        }
+      ]
+    },
+    {
+      "id": "W6-Fri",
+      "week": "W6",
+      "weekLabel": "Week 6",
+      "weekDates": "19–25 Oct",
+      "block": "B2",
+      "muPhase": "P2",
+      "deload": false,
+      "day": "Fri",
+      "date": "2026-10-23",
+      "name": "E — Low-Bar Turnovers & Dynamic Kip",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "turnover",
+          "name": "Low-bar jumping muscle-up turnovers",
+          "sets": 4,
+          "reps": "3",
+          "tempo": "Explosive",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Chest-high bar. Snap knuckles over. Roll both wrists simultaneously — no one-arm cheating, ever."
+        },
+        {
+          "id": "speed-c2b",
+          "name": "Speed chest-to-bar pull-ups",
+          "sets": 4,
+          "reps": "3",
+          "tempo": "Max velocity",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Cut the set the moment rep speed decelerates."
+        },
+        {
+          "id": "dip-burnout",
+          "name": "Parallel bar dip pause burnout",
+          "sets": 3,
+          "reps": "5 + max",
+          "tempo": "2s bottom pause",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "5 reps with a 2 s bottom pause, immediately followed by max clean reps.",
+          "track": "dips"
+        },
+        {
+          "id": "t2b",
+          "name": "Hanging strict toes-to-bar",
+          "sets": 3,
+          "reps": "8",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Controlled raise, legs straight, toes touch the bar."
+        }
+      ]
+    },
+    {
+      "id": "W7-Mon",
+      "week": "W7",
+      "weekLabel": "Week 7",
+      "weekDates": "26 Oct – 1 Nov",
+      "block": "B2",
+      "muPhase": "P2",
+      "deload": false,
+      "day": "Mon",
+      "date": "2026-10-26",
+      "name": "A — Straight-Bar Eccentrics & Heavy Pull",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "wtd-c2b",
+          "name": "Weighted chest-to-bar pull-up",
+          "sets": 5,
+          "reps": "4",
+          "tempo": "2s up / 4s down",
+          "restSec": 210,
+          "load": {
+            "type": "pct5RM",
+            "value": 0.8
+          },
+          "cue": "The 4-second lower is the whole point — do not rush it to save time.",
+          "track": "pullup"
+        },
+        {
+          "id": "bar-dip-neg",
+          "name": "Straight-bar dip 5-second negatives",
+          "sets": 4,
+          "reps": "3",
+          "tempo": "5s down",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Lower agonisingly slow until the lower ribs touch. Control the last two inches.",
+          "track": "dips"
+        },
+        {
+          "id": "par-dips",
+          "name": "Parallel bar dips, strict lockout",
+          "sets": 4,
+          "reps": "8",
+          "tempo": "1s lockout",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Unassisted. Deep, press up, squeeze the triceps for one full second."
+        },
+        {
+          "id": "false-grip-top",
+          "name": "False-grip static top hold",
+          "sets": 3,
+          "reps": "15 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Hang with chest touching the bar, wrists wrapped over the pipe."
+        }
+      ]
+    },
+    {
+      "id": "W7-Tue",
+      "week": "W7",
+      "weekLabel": "Week 7",
+      "weekDates": "26 Oct – 1 Nov",
+      "block": "B2",
+      "muPhase": "P2",
+      "deload": false,
+      "day": "Tue",
+      "date": "2026-10-27",
+      "name": "B — Sprint, Hinge & Press",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "sprint",
+          "name": "Sprints",
+          "sets": 5,
+          "reps": "40 m",
+          "tempo": "90% effort",
+          "restSec": 120,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Build distance before intensity. Full recovery between reps.",
+          "track": "sprint"
+        },
+        {
+          "id": "hinge",
+          "name": "Trap-bar deadlift (or back squat)",
+          "sets": 4,
+          "reps": "5",
+          "tempo": "2s eccentric",
+          "restSec": 150,
+          "load": {
+            "type": "text",
+            "text": "RPE 8"
+          },
+          "cue": "Drive hard out of the bottom.",
+          "track": "hinge"
+        },
+        {
+          "id": "heel-raise",
+          "name": "Single-leg heel raise, loaded",
+          "sets": 4,
+          "reps": "8 / side",
+          "tempo": "3s up / 3s down",
+          "restSec": 120,
+          "load": {
+            "type": "pctBW",
+            "value": 0.2
+          },
+          "cue": "Barbell, machine or a loaded backpack. Full stretch every rep. Superset with the KB press.",
+          "track": "heelRaise"
+        },
+        {
+          "id": "kb-press",
+          "name": "KB single-arm strict press",
+          "sets": 4,
+          "reps": "6 / arm",
+          "tempo": "3s eccentric",
+          "restSec": 0,
+          "load": {
+            "type": "text",
+            "text": "Moderate bell"
+          },
+          "cue": "Alternate with the heel raise sets.",
+          "track": "kbPress"
+        },
+        {
+          "id": "kb-floor",
+          "name": "KB single-arm floor press",
+          "sets": 4,
+          "reps": "6 / arm",
+          "tempo": "2s pause",
+          "restSec": 90,
+          "load": {
+            "type": "text",
+            "text": "Moderate bell"
+          },
+          "cue": "2 s pause on the floor each rep."
+        }
+      ]
+    },
+    {
+      "id": "W7-Wed",
+      "week": "W7",
+      "weekLabel": "Week 7",
+      "weekDates": "26 Oct – 1 Nov",
+      "block": "B2",
+      "muPhase": "P2",
+      "deload": false,
+      "day": "Wed",
+      "date": "2026-10-28",
+      "name": "C — Russian Dips & Wrist Turnover",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "russian-dip",
+          "name": "Russian dips (parallel bars)",
+          "sets": 4,
+          "reps": "4–5",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Lower to forearms, roll bodyweight forward onto hands, press up. Lean the torso forward aggressively.",
+          "track": "dips"
+        },
+        {
+          "id": "lsit-chin",
+          "name": "Strict L-sit chin-ups",
+          "sets": 3,
+          "reps": "4",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Supinated grip, legs locked parallel to the floor. Zero momentum."
+        },
+        {
+          "id": "band-bar-dip",
+          "name": "Band straight-bar dips",
+          "sets": 3,
+          "reps": "6",
+          "tempo": "Controlled",
+          "restSec": 90,
+          "load": {
+            "type": "text",
+            "text": "Medium band"
+          },
+          "cue": "Full range with assist out of the hole."
+        },
+        {
+          "id": "wrist-roller",
+          "name": "Forearm wrist rollers / DB curls",
+          "sets": 3,
+          "reps": "15",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Moderate"
+          },
+          "cue": "Heavy wrist flexion and extension. Eliminates wrist pain and speeds the knuckle roll."
+        }
+      ]
+    },
+    {
+      "id": "W7-Thu",
+      "week": "W7",
+      "weekLabel": "Week 7",
+      "weekDates": "26 Oct – 1 Nov",
+      "block": "B2",
+      "muPhase": "P2",
+      "deload": false,
+      "day": "Thu",
+      "date": "2026-10-29",
+      "name": "D — Posterior Chain & Elastic",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "pogo",
+          "name": "Single-leg pogo",
+          "sets": 4,
+          "reps": "15 s",
+          "tempo": "Low amplitude",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "FIRST, while fresh. Double-leg in W5, single-leg from W6 — only if every Block 1 signal was green.",
+          "track": "pogo"
+        },
+        {
+          "id": "nordic",
+          "name": "Nordic curl",
+          "sets": 4,
+          "reps": "5",
+          "tempo": "5s lower",
+          "restSec": 120,
+          "load": {
+            "type": "text",
+            "text": "Light band"
+          },
+          "cue": "Control as far as you can, then catch. Do not collapse through the bottom half.",
+          "track": "nordic"
+        },
+        {
+          "id": "achilles-iso",
+          "name": "Achilles isometric hold",
+          "sets": 5,
+          "reps": "35–45 s",
+          "tempo": "Static, 80–85%",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Single-leg, mid-range. Superset with the Copenhagen."
+        },
+        {
+          "id": "copenhagen",
+          "name": "Copenhagen plank",
+          "sets": 3,
+          "reps": "30 s / side",
+          "tempo": "Static",
+          "restSec": 0,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": ""
+        },
+        {
+          "id": "kb-light",
+          "name": "KB shoulder-health circuit",
+          "sets": 2,
+          "reps": "rounds",
+          "tempo": "Easy",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Light bell"
+          },
+          "cue": "Halos ×8/side, arm bar 30 s/side, bottoms-up carry 20 m/side."
+        }
+      ]
+    },
+    {
+      "id": "W7-Fri",
+      "week": "W7",
+      "weekLabel": "Week 7",
+      "weekDates": "26 Oct – 1 Nov",
+      "block": "B2",
+      "muPhase": "P2",
+      "deload": false,
+      "day": "Fri",
+      "date": "2026-10-30",
+      "name": "E — Low-Bar Turnovers & Dynamic Kip",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "turnover",
+          "name": "Low-bar jumping muscle-up turnovers",
+          "sets": 4,
+          "reps": "3",
+          "tempo": "Explosive",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Chest-high bar. Snap knuckles over. Roll both wrists simultaneously — no one-arm cheating, ever."
+        },
+        {
+          "id": "speed-c2b",
+          "name": "Speed chest-to-bar pull-ups",
+          "sets": 4,
+          "reps": "3",
+          "tempo": "Max velocity",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Cut the set the moment rep speed decelerates."
+        },
+        {
+          "id": "dip-burnout",
+          "name": "Parallel bar dip pause burnout",
+          "sets": 3,
+          "reps": "5 + max",
+          "tempo": "2s bottom pause",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "5 reps with a 2 s bottom pause, immediately followed by max clean reps.",
+          "track": "dips"
+        },
+        {
+          "id": "t2b",
+          "name": "Hanging strict toes-to-bar",
+          "sets": 3,
+          "reps": "8",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Controlled raise, legs straight, toes touch the bar."
+        }
+      ]
+    },
+    {
+      "id": "W8-Mon",
+      "week": "W8",
+      "weekLabel": "Week 8",
+      "weekDates": "2–8 Nov",
+      "block": "B2",
+      "muPhase": "P2",
+      "deload": true,
+      "day": "Mon",
+      "date": "2026-11-02",
+      "name": "A — Straight-Bar Eccentrics & Heavy Pull",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "wtd-c2b",
+          "name": "Weighted chest-to-bar pull-up",
+          "sets": 3,
+          "reps": "3",
+          "tempo": "2s up / 4s down",
+          "restSec": 210,
+          "load": {
+            "type": "pct5RM",
+            "value": 0.7
+          },
+          "cue": "The 4-second lower is the whole point — do not rush it to save time.",
+          "track": "pullup"
+        },
+        {
+          "id": "bar-dip-neg",
+          "name": "Straight-bar dip 5-second negatives",
+          "sets": 4,
+          "reps": "3",
+          "tempo": "5s down",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Lower agonisingly slow until the lower ribs touch. Control the last two inches.",
+          "track": "dips",
+          "note": "DELOAD — 50% volume Mon/Wed. FRIDAY = P2 TEST: 5 s straight-bar negative + 4 Russian dips. Then retest pull-up 5RM."
+        },
+        {
+          "id": "par-dips",
+          "name": "Parallel bar dips, strict lockout",
+          "sets": 4,
+          "reps": "8",
+          "tempo": "1s lockout",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Unassisted. Deep, press up, squeeze the triceps for one full second."
+        },
+        {
+          "id": "false-grip-top",
+          "name": "False-grip static top hold",
+          "sets": 3,
+          "reps": "15 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Hang with chest touching the bar, wrists wrapped over the pipe."
+        }
+      ]
+    },
+    {
+      "id": "W8-Tue",
+      "week": "W8",
+      "weekLabel": "Week 8",
+      "weekDates": "2–8 Nov",
+      "block": "B2",
+      "muPhase": "P2",
+      "deload": true,
+      "day": "Tue",
+      "date": "2026-11-03",
+      "name": "B — Sprint, Hinge & Press",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "sprint",
+          "name": "Sprints",
+          "sets": 3,
+          "reps": "30 m",
+          "tempo": "90% effort",
+          "restSec": 120,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Build distance before intensity. Full recovery between reps.",
+          "track": "sprint"
+        },
+        {
+          "id": "hinge",
+          "name": "Trap-bar deadlift (or back squat)",
+          "sets": 3,
+          "reps": "5",
+          "tempo": "2s eccentric",
+          "restSec": 150,
+          "load": {
+            "type": "text",
+            "text": "RPE 6"
+          },
+          "cue": "Drive hard out of the bottom.",
+          "track": "hinge"
+        },
+        {
+          "id": "heel-raise",
+          "name": "Single-leg heel raise, loaded",
+          "sets": 2,
+          "reps": "8 / side",
+          "tempo": "3s up / 3s down",
+          "restSec": 120,
+          "load": {
+            "type": "pctBW",
+            "value": 0.12
+          },
+          "cue": "Barbell, machine or a loaded backpack. Full stretch every rep. Superset with the KB press.",
+          "track": "heelRaise"
+        },
+        {
+          "id": "kb-press",
+          "name": "KB single-arm strict press",
+          "sets": 2,
+          "reps": "6 / arm",
+          "tempo": "3s eccentric",
+          "restSec": 0,
+          "load": {
+            "type": "text",
+            "text": "Moderate bell"
+          },
+          "cue": "Alternate with the heel raise sets.",
+          "track": "kbPress"
+        },
+        {
+          "id": "kb-floor",
+          "name": "KB single-arm floor press",
+          "sets": 4,
+          "reps": "6 / arm",
+          "tempo": "2s pause",
+          "restSec": 90,
+          "load": {
+            "type": "text",
+            "text": "Moderate bell"
+          },
+          "cue": "2 s pause on the floor each rep."
+        }
+      ]
+    },
+    {
+      "id": "W8-Wed",
+      "week": "W8",
+      "weekLabel": "Week 8",
+      "weekDates": "2–8 Nov",
+      "block": "B2",
+      "muPhase": "P2",
+      "deload": true,
+      "day": "Wed",
+      "date": "2026-11-04",
+      "name": "C — Russian Dips & Wrist Turnover",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "russian-dip",
+          "name": "Russian dips (parallel bars)",
+          "sets": 4,
+          "reps": "4–5",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Lower to forearms, roll bodyweight forward onto hands, press up. Lean the torso forward aggressively.",
+          "track": "dips",
+          "note": "DELOAD — 50% volume Mon/Wed. FRIDAY = P2 TEST: 5 s straight-bar negative + 4 Russian dips. Then retest pull-up 5RM."
+        },
+        {
+          "id": "lsit-chin",
+          "name": "Strict L-sit chin-ups",
+          "sets": 3,
+          "reps": "4",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Supinated grip, legs locked parallel to the floor. Zero momentum."
+        },
+        {
+          "id": "band-bar-dip",
+          "name": "Band straight-bar dips",
+          "sets": 3,
+          "reps": "6",
+          "tempo": "Controlled",
+          "restSec": 90,
+          "load": {
+            "type": "text",
+            "text": "Medium band"
+          },
+          "cue": "Full range with assist out of the hole."
+        },
+        {
+          "id": "wrist-roller",
+          "name": "Forearm wrist rollers / DB curls",
+          "sets": 3,
+          "reps": "15",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Moderate"
+          },
+          "cue": "Heavy wrist flexion and extension. Eliminates wrist pain and speeds the knuckle roll."
+        }
+      ]
+    },
+    {
+      "id": "W8-Thu",
+      "week": "W8",
+      "weekLabel": "Week 8",
+      "weekDates": "2–8 Nov",
+      "block": "B2",
+      "muPhase": "P2",
+      "deload": true,
+      "day": "Thu",
+      "date": "2026-11-05",
+      "name": "D — Posterior Chain & Elastic",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "pogo",
+          "name": "Double-leg pogo",
+          "sets": 3,
+          "reps": "20 s",
+          "tempo": "Low amplitude",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "FIRST, while fresh. Double-leg in W5, single-leg from W6 — only if every Block 1 signal was green.",
+          "track": "pogo"
+        },
+        {
+          "id": "nordic",
+          "name": "Nordic curl",
+          "sets": 2,
+          "reps": "5",
+          "tempo": "5s lower",
+          "restSec": 120,
+          "load": {
+            "type": "text",
+            "text": "Light band"
+          },
+          "cue": "Control as far as you can, then catch. Do not collapse through the bottom half.",
+          "track": "nordic"
+        },
+        {
+          "id": "achilles-iso",
+          "name": "Achilles isometric hold",
+          "sets": 5,
+          "reps": "35–45 s",
+          "tempo": "Static, 80–85%",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Single-leg, mid-range. Superset with the Copenhagen."
+        },
+        {
+          "id": "copenhagen",
+          "name": "Copenhagen plank",
+          "sets": 3,
+          "reps": "30 s / side",
+          "tempo": "Static",
+          "restSec": 0,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": ""
+        },
+        {
+          "id": "kb-light",
+          "name": "KB shoulder-health circuit",
+          "sets": 2,
+          "reps": "rounds",
+          "tempo": "Easy",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Light bell"
+          },
+          "cue": "Halos ×8/side, arm bar 30 s/side, bottoms-up carry 20 m/side."
+        }
+      ]
+    },
+    {
+      "id": "W8-Fri",
+      "week": "W8",
+      "weekLabel": "Week 8",
+      "weekDates": "2–8 Nov",
+      "block": "B2",
+      "muPhase": "P2",
+      "deload": true,
+      "day": "Fri",
+      "date": "2026-11-06",
+      "name": "E — Low-Bar Turnovers & Dynamic Kip",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "turnover",
+          "name": "Low-bar jumping muscle-up turnovers",
+          "sets": 4,
+          "reps": "3",
+          "tempo": "Explosive",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Chest-high bar. Snap knuckles over. Roll both wrists simultaneously — no one-arm cheating, ever."
+        },
+        {
+          "id": "speed-c2b",
+          "name": "Speed chest-to-bar pull-ups",
+          "sets": 4,
+          "reps": "3",
+          "tempo": "Max velocity",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Cut the set the moment rep speed decelerates."
+        },
+        {
+          "id": "dip-burnout",
+          "name": "Parallel bar dip pause burnout",
+          "sets": 3,
+          "reps": "5 + max",
+          "tempo": "2s bottom pause",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "5 reps with a 2 s bottom pause, immediately followed by max clean reps.",
+          "track": "dips",
+          "note": "DELOAD — 50% volume Mon/Wed. FRIDAY = P2 TEST: 5 s straight-bar negative + 4 Russian dips. Then retest pull-up 5RM."
+        },
+        {
+          "id": "t2b",
+          "name": "Hanging strict toes-to-bar",
+          "sets": 3,
+          "reps": "8",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Controlled raise, legs straight, toes touch the bar."
+        }
+      ]
+    },
+    {
+      "id": "W9-Mon",
+      "week": "W9",
+      "weekLabel": "Week 9",
+      "weekDates": "9–15 Nov",
+      "block": "B3",
+      "muPhase": "P3",
+      "deload": false,
+      "day": "Mon",
+      "date": "2026-11-09",
+      "name": "A — Banded Reps & Heavy Pull",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "band-mu",
+          "name": "Band-assisted bar muscle-ups",
+          "sets": 4,
+          "reps": "2–3",
+          "tempo": "Explosive",
+          "restSec": 180,
+          "load": {
+            "type": "text",
+            "text": "Medium band"
+          },
+          "cue": "Full hang → explosive C-pull → wrist snap → full dip lockout. Snap the knuckles over simultaneously."
+        },
+        {
+          "id": "wtd-c2b",
+          "name": "Weighted chest-to-bar pull-up",
+          "sets": 5,
+          "reps": "3",
+          "tempo": "2s up / 3s down",
+          "restSec": 210,
+          "load": {
+            "type": "pct5RM",
+            "value": 0.84
+          },
+          "cue": "Doubles as your plan's “+5 kg weighted pull-up”. Do not add them again on Wednesday.",
+          "track": "pullup"
+        },
+        {
+          "id": "bar-dips",
+          "name": "Straight-bar dips (unassisted or light band)",
+          "sets": 4,
+          "reps": "5",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Touch the lower chest to the pipe, drive straight up. Chest leaned forward 25° throughout.",
+          "track": "dips"
+        },
+        {
+          "id": "face-pull",
+          "name": "Band face pulls + external rotation",
+          "sets": 3,
+          "reps": "15",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Light band"
+          },
+          "cue": "High tension, pull to the forehead."
+        }
+      ]
+    },
+    {
+      "id": "W9-Tue",
+      "week": "W9",
+      "weekLabel": "Week 9",
+      "weekDates": "9–15 Nov",
+      "block": "B3",
+      "muPhase": "P3",
+      "deload": false,
+      "day": "Tue",
+      "date": "2026-11-10",
+      "name": "B — Sprint, Hinge & Press",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "sprint",
+          "name": "Sprints",
+          "sets": 6,
+          "reps": "40 m",
+          "tempo": "95% effort",
+          "restSec": 150,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Full recovery. This is the fastest you will run in the block.",
+          "track": "sprint"
+        },
+        {
+          "id": "hinge",
+          "name": "Trap-bar deadlift (or back squat)",
+          "sets": 4,
+          "reps": "4",
+          "tempo": "2s eccentric",
+          "restSec": 180,
+          "load": {
+            "type": "text",
+            "text": "RPE 8"
+          },
+          "cue": "Heaviest hinge work of the plan.",
+          "track": "hinge"
+        },
+        {
+          "id": "heel-raise",
+          "name": "Single-leg heel raise, loaded",
+          "sets": 4,
+          "reps": "8 / side",
+          "tempo": "3s up / 3s down",
+          "restSec": 120,
+          "load": {
+            "type": "pctBW",
+            "value": 0.25
+          },
+          "cue": "Do not shorten the range to chase load. Superset with the KB press.",
+          "track": "heelRaise"
+        },
+        {
+          "id": "kb-press",
+          "name": "KB single-arm strict press",
+          "sets": 5,
+          "reps": "5 / arm",
+          "tempo": "Controlled",
+          "restSec": 0,
+          "load": {
+            "type": "text",
+            "text": "Moderate bell"
+          },
+          "cue": "Alternate with the heel raise sets.",
+          "track": "kbPress"
+        },
+        {
+          "id": "kb-power",
+          "name": "KB push press or bottoms-up press",
+          "sets": 3,
+          "reps": "5 / arm",
+          "tempo": "Explosive / static",
+          "restSec": 90,
+          "load": {
+            "type": "text",
+            "text": "Moderate or light bell"
+          },
+          "cue": "Alternate weeks: push press with the moderate bell for overload, bottoms-up with the light bell for stability."
+        }
+      ]
+    },
+    {
+      "id": "W9-Wed",
+      "week": "W9",
+      "weekLabel": "Week 9",
+      "weekDates": "9–15 Nov",
+      "block": "B3",
+      "muPhase": "P3",
+      "deload": false,
+      "day": "Wed",
+      "date": "2026-11-11",
+      "name": "C — Pressing Strength Reserve",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "wtd-dips",
+          "name": "Weighted parallel bar dips",
+          "sets": 4,
+          "reps": "5",
+          "tempo": "Controlled",
+          "restSec": 150,
+          "load": {
+            "type": "fixedKg",
+            "value": 2.5
+          },
+          "cue": "Deep, strict, weight vest or belt. +2.5 kg W9–W10, +5 kg W11.",
+          "track": "dips"
+        },
+        {
+          "id": "lockout-hold",
+          "name": "Straight-bar support lockout hold",
+          "sets": 3,
+          "reps": "25 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Arms locked, chest tall, core hollow."
+        },
+        {
+          "id": "lsit-hold",
+          "name": "Strict hanging L-sit hold",
+          "sets": 3,
+          "reps": "20 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Legs locked parallel to the floor. Stops the energy leak through the core during the pull."
+        },
+        {
+          "id": "scap-shrug",
+          "name": "Scapular dip shrugs",
+          "sets": 3,
+          "reps": "10",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": ""
+        }
+      ]
+    },
+    {
+      "id": "W9-Thu",
+      "week": "W9",
+      "weekLabel": "Week 9",
+      "weekDates": "9–15 Nov",
+      "block": "B3",
+      "muPhase": "P3",
+      "deload": false,
+      "day": "Thu",
+      "date": "2026-11-12",
+      "name": "D — Posterior Chain & Elastic",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "pogo",
+          "name": "Single-leg pogo",
+          "sets": 4,
+          "reps": "20 s",
+          "tempo": "Minimal contact",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "FIRST. From W10 switch to 5 × 10 reps with contact-time focus and full rest. Stop the set the moment contacts get heavy.",
+          "track": "pogo"
+        },
+        {
+          "id": "nordic",
+          "name": "Nordic curl",
+          "sets": 4,
+          "reps": "5",
+          "tempo": "5s lower",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "W9 unassisted eccentric. W10 add the push-back. W11 weighted at +2.5 kg.",
+          "track": "nordic"
+        },
+        {
+          "id": "achilles-iso",
+          "name": "Achilles isometric hold",
+          "sets": 4,
+          "reps": "30 s",
+          "tempo": "Static, 90%",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Superset with the Copenhagen."
+        },
+        {
+          "id": "copenhagen",
+          "name": "Copenhagen plank",
+          "sets": 3,
+          "reps": "30 s / side",
+          "tempo": "Static",
+          "restSec": 0,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": ""
+        },
+        {
+          "id": "kb-light",
+          "name": "KB shoulder-health circuit",
+          "sets": 2,
+          "reps": "rounds",
+          "tempo": "Easy",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Light bell"
+          },
+          "cue": ""
+        }
+      ]
+    },
+    {
+      "id": "W9-Fri",
+      "week": "W9",
+      "weekLabel": "Week 9",
+      "weekDates": "9–15 Nov",
+      "block": "B3",
+      "muPhase": "P3",
+      "deload": false,
+      "day": "Fri",
+      "date": "2026-11-13",
+      "name": "E — Light Band Singles & Power Peaking",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "light-band-mu",
+          "name": "Light band muscle-up",
+          "sets": 5,
+          "reps": "1–2",
+          "tempo": "100% intent",
+          "restSec": 180,
+          "load": {
+            "type": "text",
+            "text": "Light band"
+          },
+          "cue": "Minimal assistance band. Pull down to the navel, pop over."
+        },
+        {
+          "id": "neg-mu",
+          "name": "6-second straight-bar negative muscle-up",
+          "sets": 3,
+          "reps": "2",
+          "tempo": "6s down",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Jump to top support, descend agonisingly slow through the dip. Feel the transition angle in reverse."
+        },
+        {
+          "id": "explosive-dips",
+          "name": "Explosive straight-bar dips",
+          "sets": 3,
+          "reps": "4–5",
+          "tempo": "Explosive",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Drive up violently out of the lowest dip angle.",
+          "track": "dips"
+        },
+        {
+          "id": "bar-swings",
+          "name": "Dynamic arch-to-hollow bar swings",
+          "sets": 3,
+          "reps": "8",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Controlled gymnastic beat swings. Sharpens timing for the unassisted pull."
+        }
+      ]
+    },
+    {
+      "id": "W10-Mon",
+      "week": "W10",
+      "weekLabel": "Week 10",
+      "weekDates": "16–22 Nov",
+      "block": "B3",
+      "muPhase": "P3",
+      "deload": false,
+      "day": "Mon",
+      "date": "2026-11-16",
+      "name": "A — Banded Reps & Heavy Pull",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "band-mu",
+          "name": "Band-assisted bar muscle-ups",
+          "sets": 4,
+          "reps": "2–3",
+          "tempo": "Explosive",
+          "restSec": 180,
+          "load": {
+            "type": "text",
+            "text": "Medium band"
+          },
+          "cue": "Full hang → explosive C-pull → wrist snap → full dip lockout. Snap the knuckles over simultaneously."
+        },
+        {
+          "id": "wtd-c2b",
+          "name": "Weighted chest-to-bar pull-up",
+          "sets": 5,
+          "reps": "3",
+          "tempo": "2s up / 3s down",
+          "restSec": 210,
+          "load": {
+            "type": "pct5RM",
+            "value": 0.86
+          },
+          "cue": "Doubles as your plan's “+5 kg weighted pull-up”. Do not add them again on Wednesday.",
+          "track": "pullup"
+        },
+        {
+          "id": "bar-dips",
+          "name": "Straight-bar dips (unassisted or light band)",
+          "sets": 4,
+          "reps": "5",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Touch the lower chest to the pipe, drive straight up. Chest leaned forward 25° throughout.",
+          "track": "dips",
+          "note": "Film a light-band muscle-up this week."
+        },
+        {
+          "id": "face-pull",
+          "name": "Band face pulls + external rotation",
+          "sets": 3,
+          "reps": "15",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Light band"
+          },
+          "cue": "High tension, pull to the forehead."
+        }
+      ]
+    },
+    {
+      "id": "W10-Tue",
+      "week": "W10",
+      "weekLabel": "Week 10",
+      "weekDates": "16–22 Nov",
+      "block": "B3",
+      "muPhase": "P3",
+      "deload": false,
+      "day": "Tue",
+      "date": "2026-11-17",
+      "name": "B — Sprint, Hinge & Press",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "sprint",
+          "name": "Sprints",
+          "sets": 6,
+          "reps": "40 m",
+          "tempo": "95% effort",
+          "restSec": 150,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Full recovery. This is the fastest you will run in the block.",
+          "track": "sprint"
+        },
+        {
+          "id": "hinge",
+          "name": "Trap-bar deadlift (or back squat)",
+          "sets": 4,
+          "reps": "4",
+          "tempo": "2s eccentric",
+          "restSec": 180,
+          "load": {
+            "type": "text",
+            "text": "RPE 8"
+          },
+          "cue": "Heaviest hinge work of the plan.",
+          "track": "hinge"
+        },
+        {
+          "id": "heel-raise",
+          "name": "Single-leg heel raise, loaded",
+          "sets": 4,
+          "reps": "8 / side",
+          "tempo": "3s up / 3s down",
+          "restSec": 120,
+          "load": {
+            "type": "pctBW",
+            "value": 0.28
+          },
+          "cue": "Do not shorten the range to chase load. Superset with the KB press.",
+          "track": "heelRaise"
+        },
+        {
+          "id": "kb-press",
+          "name": "KB single-arm strict press",
+          "sets": 5,
+          "reps": "5 / arm",
+          "tempo": "Controlled",
+          "restSec": 0,
+          "load": {
+            "type": "text",
+            "text": "Moderate bell"
+          },
+          "cue": "Alternate with the heel raise sets.",
+          "track": "kbPress"
+        },
+        {
+          "id": "kb-power",
+          "name": "KB push press or bottoms-up press",
+          "sets": 3,
+          "reps": "5 / arm",
+          "tempo": "Explosive / static",
+          "restSec": 90,
+          "load": {
+            "type": "text",
+            "text": "Moderate or light bell"
+          },
+          "cue": "Alternate weeks: push press with the moderate bell for overload, bottoms-up with the light bell for stability."
+        }
+      ]
+    },
+    {
+      "id": "W10-Wed",
+      "week": "W10",
+      "weekLabel": "Week 10",
+      "weekDates": "16–22 Nov",
+      "block": "B3",
+      "muPhase": "P3",
+      "deload": false,
+      "day": "Wed",
+      "date": "2026-11-18",
+      "name": "C — Pressing Strength Reserve",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "wtd-dips",
+          "name": "Weighted parallel bar dips",
+          "sets": 4,
+          "reps": "5",
+          "tempo": "Controlled",
+          "restSec": 150,
+          "load": {
+            "type": "fixedKg",
+            "value": 2.5
+          },
+          "cue": "Deep, strict, weight vest or belt. +2.5 kg W9–W10, +5 kg W11.",
+          "track": "dips",
+          "note": "Film a light-band muscle-up this week."
+        },
+        {
+          "id": "lockout-hold",
+          "name": "Straight-bar support lockout hold",
+          "sets": 3,
+          "reps": "25 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Arms locked, chest tall, core hollow."
+        },
+        {
+          "id": "lsit-hold",
+          "name": "Strict hanging L-sit hold",
+          "sets": 3,
+          "reps": "20 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Legs locked parallel to the floor. Stops the energy leak through the core during the pull."
+        },
+        {
+          "id": "scap-shrug",
+          "name": "Scapular dip shrugs",
+          "sets": 3,
+          "reps": "10",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": ""
+        }
+      ]
+    },
+    {
+      "id": "W10-Thu",
+      "week": "W10",
+      "weekLabel": "Week 10",
+      "weekDates": "16–22 Nov",
+      "block": "B3",
+      "muPhase": "P3",
+      "deload": false,
+      "day": "Thu",
+      "date": "2026-11-19",
+      "name": "D — Posterior Chain & Elastic",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "pogo",
+          "name": "Single-leg pogo",
+          "sets": 5,
+          "reps": "10 reps",
+          "tempo": "Minimal contact",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "FIRST. From W10 switch to 5 × 10 reps with contact-time focus and full rest. Stop the set the moment contacts get heavy.",
+          "track": "pogo",
+          "note": "Contact-time focus, full rest between sets."
+        },
+        {
+          "id": "nordic",
+          "name": "Nordic curl",
+          "sets": 4,
+          "reps": "5",
+          "tempo": "5s lower",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "W9 unassisted eccentric. W10 add the push-back. W11 weighted at +2.5 kg.",
+          "track": "nordic",
+          "note": "Add the push-back from the floor."
+        },
+        {
+          "id": "achilles-iso",
+          "name": "Achilles isometric hold",
+          "sets": 4,
+          "reps": "30 s",
+          "tempo": "Static, 90%",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Superset with the Copenhagen."
+        },
+        {
+          "id": "copenhagen",
+          "name": "Copenhagen plank",
+          "sets": 3,
+          "reps": "30 s / side",
+          "tempo": "Static",
+          "restSec": 0,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": ""
+        },
+        {
+          "id": "kb-light",
+          "name": "KB shoulder-health circuit",
+          "sets": 2,
+          "reps": "rounds",
+          "tempo": "Easy",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Light bell"
+          },
+          "cue": ""
+        }
+      ]
+    },
+    {
+      "id": "W10-Fri",
+      "week": "W10",
+      "weekLabel": "Week 10",
+      "weekDates": "16–22 Nov",
+      "block": "B3",
+      "muPhase": "P3",
+      "deload": false,
+      "day": "Fri",
+      "date": "2026-11-20",
+      "name": "E — Light Band Singles & Power Peaking",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "light-band-mu",
+          "name": "Light band muscle-up",
+          "sets": 5,
+          "reps": "1–2",
+          "tempo": "100% intent",
+          "restSec": 180,
+          "load": {
+            "type": "text",
+            "text": "Light band"
+          },
+          "cue": "Minimal assistance band. Pull down to the navel, pop over."
+        },
+        {
+          "id": "neg-mu",
+          "name": "6-second straight-bar negative muscle-up",
+          "sets": 3,
+          "reps": "2",
+          "tempo": "6s down",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Jump to top support, descend agonisingly slow through the dip. Feel the transition angle in reverse."
+        },
+        {
+          "id": "explosive-dips",
+          "name": "Explosive straight-bar dips",
+          "sets": 3,
+          "reps": "4–5",
+          "tempo": "Explosive",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Drive up violently out of the lowest dip angle.",
+          "track": "dips",
+          "note": "Film a light-band muscle-up this week."
+        },
+        {
+          "id": "bar-swings",
+          "name": "Dynamic arch-to-hollow bar swings",
+          "sets": 3,
+          "reps": "8",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Controlled gymnastic beat swings. Sharpens timing for the unassisted pull."
+        }
+      ]
+    },
+    {
+      "id": "W11-Mon",
+      "week": "W11",
+      "weekLabel": "Week 11",
+      "weekDates": "23–29 Nov",
+      "block": "B3",
+      "muPhase": "P3",
+      "deload": false,
+      "day": "Mon",
+      "date": "2026-11-23",
+      "name": "A — Banded Reps & Heavy Pull",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "band-mu",
+          "name": "Band-assisted bar muscle-ups",
+          "sets": 4,
+          "reps": "2–3",
+          "tempo": "Explosive",
+          "restSec": 180,
+          "load": {
+            "type": "text",
+            "text": "Medium band"
+          },
+          "cue": "Full hang → explosive C-pull → wrist snap → full dip lockout. Snap the knuckles over simultaneously."
+        },
+        {
+          "id": "wtd-c2b",
+          "name": "Weighted chest-to-bar pull-up",
+          "sets": 4,
+          "reps": "3",
+          "tempo": "2s up / 3s down",
+          "restSec": 210,
+          "load": {
+            "type": "pct5RM",
+            "value": 0.88
+          },
+          "cue": "Doubles as your plan's “+5 kg weighted pull-up”. Do not add them again on Wednesday.",
+          "track": "pullup"
+        },
+        {
+          "id": "bar-dips",
+          "name": "Straight-bar dips (unassisted or light band)",
+          "sets": 4,
+          "reps": "5",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "fixedKg",
+            "value": 5
+          },
+          "cue": "Touch the lower chest to the pipe, drive straight up. Chest leaned forward 25° throughout.",
+          "track": "dips"
+        },
+        {
+          "id": "face-pull",
+          "name": "Band face pulls + external rotation",
+          "sets": 3,
+          "reps": "15",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Light band"
+          },
+          "cue": "High tension, pull to the forehead."
+        }
+      ]
+    },
+    {
+      "id": "W11-Tue",
+      "week": "W11",
+      "weekLabel": "Week 11",
+      "weekDates": "23–29 Nov",
+      "block": "B3",
+      "muPhase": "P3",
+      "deload": false,
+      "day": "Tue",
+      "date": "2026-11-24",
+      "name": "B — Sprint, Hinge & Press",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "sprint",
+          "name": "Sprints",
+          "sets": 6,
+          "reps": "40 m",
+          "tempo": "95% effort",
+          "restSec": 150,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Full recovery. This is the fastest you will run in the block.",
+          "track": "sprint"
+        },
+        {
+          "id": "hinge",
+          "name": "Trap-bar deadlift (or back squat)",
+          "sets": 4,
+          "reps": "3",
+          "tempo": "2s eccentric",
+          "restSec": 180,
+          "load": {
+            "type": "text",
+            "text": "RPE 8"
+          },
+          "cue": "Heaviest hinge work of the plan.",
+          "track": "hinge"
+        },
+        {
+          "id": "heel-raise",
+          "name": "Single-leg heel raise, loaded",
+          "sets": 4,
+          "reps": "8 / side",
+          "tempo": "3s up / 3s down",
+          "restSec": 120,
+          "load": {
+            "type": "pctBW",
+            "value": 0.32
+          },
+          "cue": "Do not shorten the range to chase load. Superset with the KB press.",
+          "track": "heelRaise"
+        },
+        {
+          "id": "kb-press",
+          "name": "KB single-arm strict press",
+          "sets": 5,
+          "reps": "5 / arm",
+          "tempo": "Controlled",
+          "restSec": 0,
+          "load": {
+            "type": "text",
+            "text": "Moderate bell"
+          },
+          "cue": "Alternate with the heel raise sets.",
+          "track": "kbPress"
+        },
+        {
+          "id": "kb-power",
+          "name": "KB push press or bottoms-up press",
+          "sets": 3,
+          "reps": "5 / arm",
+          "tempo": "Explosive / static",
+          "restSec": 90,
+          "load": {
+            "type": "text",
+            "text": "Moderate or light bell"
+          },
+          "cue": "Alternate weeks: push press with the moderate bell for overload, bottoms-up with the light bell for stability."
+        }
+      ]
+    },
+    {
+      "id": "W11-Wed",
+      "week": "W11",
+      "weekLabel": "Week 11",
+      "weekDates": "23–29 Nov",
+      "block": "B3",
+      "muPhase": "P3",
+      "deload": false,
+      "day": "Wed",
+      "date": "2026-11-25",
+      "name": "C — Pressing Strength Reserve",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "wtd-dips",
+          "name": "Weighted parallel bar dips",
+          "sets": 4,
+          "reps": "5",
+          "tempo": "Controlled",
+          "restSec": 150,
+          "load": {
+            "type": "fixedKg",
+            "value": 5
+          },
+          "cue": "Deep, strict, weight vest or belt. +2.5 kg W9–W10, +5 kg W11.",
+          "track": "dips"
+        },
+        {
+          "id": "lockout-hold",
+          "name": "Straight-bar support lockout hold",
+          "sets": 3,
+          "reps": "25 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Arms locked, chest tall, core hollow."
+        },
+        {
+          "id": "lsit-hold",
+          "name": "Strict hanging L-sit hold",
+          "sets": 3,
+          "reps": "20 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Legs locked parallel to the floor. Stops the energy leak through the core during the pull."
+        },
+        {
+          "id": "scap-shrug",
+          "name": "Scapular dip shrugs",
+          "sets": 3,
+          "reps": "10",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": ""
+        }
+      ]
+    },
+    {
+      "id": "W11-Thu",
+      "week": "W11",
+      "weekLabel": "Week 11",
+      "weekDates": "23–29 Nov",
+      "block": "B3",
+      "muPhase": "P3",
+      "deload": false,
+      "day": "Thu",
+      "date": "2026-11-26",
+      "name": "D — Posterior Chain & Elastic",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "pogo",
+          "name": "Single-leg pogo",
+          "sets": 5,
+          "reps": "12 reps",
+          "tempo": "Minimal contact",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "FIRST. From W10 switch to 5 × 10 reps with contact-time focus and full rest. Stop the set the moment contacts get heavy.",
+          "track": "pogo"
+        },
+        {
+          "id": "nordic",
+          "name": "Weighted Nordic curl",
+          "sets": 3,
+          "reps": "3",
+          "tempo": "5s lower",
+          "restSec": 150,
+          "load": {
+            "type": "fixedKg",
+            "value": 2.5
+          },
+          "cue": "W9 unassisted eccentric. W10 add the push-back. W11 weighted at +2.5 kg.",
+          "track": "nordic"
+        },
+        {
+          "id": "achilles-iso",
+          "name": "Achilles isometric hold",
+          "sets": 4,
+          "reps": "30 s",
+          "tempo": "Static, 90%",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Superset with the Copenhagen."
+        },
+        {
+          "id": "copenhagen",
+          "name": "Copenhagen plank",
+          "sets": 3,
+          "reps": "30 s / side",
+          "tempo": "Static",
+          "restSec": 0,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": ""
+        },
+        {
+          "id": "kb-light",
+          "name": "KB shoulder-health circuit",
+          "sets": 2,
+          "reps": "rounds",
+          "tempo": "Easy",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Light bell"
+          },
+          "cue": ""
+        }
+      ]
+    },
+    {
+      "id": "W11-Fri",
+      "week": "W11",
+      "weekLabel": "Week 11",
+      "weekDates": "23–29 Nov",
+      "block": "B3",
+      "muPhase": "P3",
+      "deload": false,
+      "day": "Fri",
+      "date": "2026-11-27",
+      "name": "E — Light Band Singles & Power Peaking",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "light-band-mu",
+          "name": "Light band muscle-up",
+          "sets": 5,
+          "reps": "1–2",
+          "tempo": "100% intent",
+          "restSec": 180,
+          "load": {
+            "type": "text",
+            "text": "Light band"
+          },
+          "cue": "Minimal assistance band. Pull down to the navel, pop over."
+        },
+        {
+          "id": "neg-mu",
+          "name": "6-second straight-bar negative muscle-up",
+          "sets": 3,
+          "reps": "2",
+          "tempo": "6s down",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Jump to top support, descend agonisingly slow through the dip. Feel the transition angle in reverse."
+        },
+        {
+          "id": "explosive-dips",
+          "name": "Explosive straight-bar dips",
+          "sets": 3,
+          "reps": "4–5",
+          "tempo": "Explosive",
+          "restSec": 90,
+          "load": {
+            "type": "fixedKg",
+            "value": 5
+          },
+          "cue": "Drive up violently out of the lowest dip angle.",
+          "track": "dips"
+        },
+        {
+          "id": "bar-swings",
+          "name": "Dynamic arch-to-hollow bar swings",
+          "sets": 3,
+          "reps": "8",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Controlled gymnastic beat swings. Sharpens timing for the unassisted pull."
+        }
+      ]
+    },
+    {
+      "id": "W12-Mon",
+      "week": "W12",
+      "weekLabel": "Week 12",
+      "weekDates": "30 Nov – 6 Dec",
+      "block": "B3",
+      "muPhase": "P3",
+      "deload": true,
+      "day": "Mon",
+      "date": "2026-11-30",
+      "name": "A — Banded Reps & Heavy Pull",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "band-mu",
+          "name": "Band-assisted bar muscle-ups",
+          "sets": 4,
+          "reps": "2–3",
+          "tempo": "Explosive",
+          "restSec": 180,
+          "load": {
+            "type": "text",
+            "text": "Medium band"
+          },
+          "cue": "Full hang → explosive C-pull → wrist snap → full dip lockout. Snap the knuckles over simultaneously."
+        },
+        {
+          "id": "wtd-c2b",
+          "name": "Weighted chest-to-bar pull-up",
+          "sets": 3,
+          "reps": "2",
+          "tempo": "2s up / 3s down",
+          "restSec": 210,
+          "load": {
+            "type": "pct5RM",
+            "value": 0.78
+          },
+          "cue": "Doubles as your plan's “+5 kg weighted pull-up”. Do not add them again on Wednesday.",
+          "track": "pullup"
+        },
+        {
+          "id": "bar-dips",
+          "name": "Straight-bar dips (unassisted or light band)",
+          "sets": 4,
+          "reps": "5",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Touch the lower chest to the pipe, drive straight up. Chest leaned forward 25° throughout.",
+          "track": "dips",
+          "note": "DELOAD — 50% volume Mon/Wed. FRIDAY = P3 TEST: 1 clean single with the light band + 5 straight-bar dips. Then retest pull-up 5RM."
+        },
+        {
+          "id": "face-pull",
+          "name": "Band face pulls + external rotation",
+          "sets": 3,
+          "reps": "15",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Light band"
+          },
+          "cue": "High tension, pull to the forehead."
+        }
+      ]
+    },
+    {
+      "id": "W12-Tue",
+      "week": "W12",
+      "weekLabel": "Week 12",
+      "weekDates": "30 Nov – 6 Dec",
+      "block": "B3",
+      "muPhase": "P3",
+      "deload": true,
+      "day": "Tue",
+      "date": "2026-12-01",
+      "name": "B — Sprint, Hinge & Press",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "sprint",
+          "name": "Sprints",
+          "sets": 4,
+          "reps": "30 m",
+          "tempo": "95% effort",
+          "restSec": 150,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Full recovery. This is the fastest you will run in the block.",
+          "track": "sprint"
+        },
+        {
+          "id": "hinge",
+          "name": "Trap-bar deadlift (or back squat)",
+          "sets": 3,
+          "reps": "3",
+          "tempo": "2s eccentric",
+          "restSec": 180,
+          "load": {
+            "type": "text",
+            "text": "RPE 6"
+          },
+          "cue": "Heaviest hinge work of the plan.",
+          "track": "hinge"
+        },
+        {
+          "id": "heel-raise",
+          "name": "Single-leg heel raise, loaded",
+          "sets": 2,
+          "reps": "6 / side",
+          "tempo": "3s up / 3s down",
+          "restSec": 120,
+          "load": {
+            "type": "pctBW",
+            "value": 0.25
+          },
+          "cue": "Do not shorten the range to chase load. Superset with the KB press.",
+          "track": "heelRaise"
+        },
+        {
+          "id": "kb-press",
+          "name": "KB single-arm strict press",
+          "sets": 3,
+          "reps": "5 / arm",
+          "tempo": "Controlled",
+          "restSec": 0,
+          "load": {
+            "type": "text",
+            "text": "Moderate bell"
+          },
+          "cue": "Alternate with the heel raise sets.",
+          "track": "kbPress"
+        },
+        {
+          "id": "kb-power",
+          "name": "KB push press or bottoms-up press",
+          "sets": 3,
+          "reps": "5 / arm",
+          "tempo": "Explosive / static",
+          "restSec": 90,
+          "load": {
+            "type": "text",
+            "text": "Moderate or light bell"
+          },
+          "cue": "Alternate weeks: push press with the moderate bell for overload, bottoms-up with the light bell for stability."
+        }
+      ]
+    },
+    {
+      "id": "W12-Wed",
+      "week": "W12",
+      "weekLabel": "Week 12",
+      "weekDates": "30 Nov – 6 Dec",
+      "block": "B3",
+      "muPhase": "P3",
+      "deload": true,
+      "day": "Wed",
+      "date": "2026-12-02",
+      "name": "C — Pressing Strength Reserve",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "wtd-dips",
+          "name": "Weighted parallel bar dips",
+          "sets": 4,
+          "reps": "5",
+          "tempo": "Controlled",
+          "restSec": 150,
+          "load": {
+            "type": "fixedKg",
+            "value": 2.5
+          },
+          "cue": "Deep, strict, weight vest or belt. +2.5 kg W9–W10, +5 kg W11.",
+          "track": "dips",
+          "note": "DELOAD — 50% volume Mon/Wed. FRIDAY = P3 TEST: 1 clean single with the light band + 5 straight-bar dips. Then retest pull-up 5RM."
+        },
+        {
+          "id": "lockout-hold",
+          "name": "Straight-bar support lockout hold",
+          "sets": 3,
+          "reps": "25 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Arms locked, chest tall, core hollow."
+        },
+        {
+          "id": "lsit-hold",
+          "name": "Strict hanging L-sit hold",
+          "sets": 3,
+          "reps": "20 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Legs locked parallel to the floor. Stops the energy leak through the core during the pull."
+        },
+        {
+          "id": "scap-shrug",
+          "name": "Scapular dip shrugs",
+          "sets": 3,
+          "reps": "10",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": ""
+        }
+      ]
+    },
+    {
+      "id": "W12-Thu",
+      "week": "W12",
+      "weekLabel": "Week 12",
+      "weekDates": "30 Nov – 6 Dec",
+      "block": "B3",
+      "muPhase": "P3",
+      "deload": true,
+      "day": "Thu",
+      "date": "2026-12-03",
+      "name": "D — Posterior Chain & Elastic",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "pogo",
+          "name": "Single-leg pogo",
+          "sets": 3,
+          "reps": "10 reps",
+          "tempo": "Minimal contact",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "FIRST. From W10 switch to 5 × 10 reps with contact-time focus and full rest. Stop the set the moment contacts get heavy.",
+          "track": "pogo"
+        },
+        {
+          "id": "nordic",
+          "name": "Nordic curl",
+          "sets": 2,
+          "reps": "4",
+          "tempo": "5s lower",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "W9 unassisted eccentric. W10 add the push-back. W11 weighted at +2.5 kg.",
+          "track": "nordic"
+        },
+        {
+          "id": "achilles-iso",
+          "name": "Achilles isometric hold",
+          "sets": 4,
+          "reps": "30 s",
+          "tempo": "Static, 90%",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Superset with the Copenhagen."
+        },
+        {
+          "id": "copenhagen",
+          "name": "Copenhagen plank",
+          "sets": 3,
+          "reps": "30 s / side",
+          "tempo": "Static",
+          "restSec": 0,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": ""
+        },
+        {
+          "id": "kb-light",
+          "name": "KB shoulder-health circuit",
+          "sets": 2,
+          "reps": "rounds",
+          "tempo": "Easy",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Light bell"
+          },
+          "cue": ""
+        }
+      ]
+    },
+    {
+      "id": "W12-Fri",
+      "week": "W12",
+      "weekLabel": "Week 12",
+      "weekDates": "30 Nov – 6 Dec",
+      "block": "B3",
+      "muPhase": "P3",
+      "deload": true,
+      "day": "Fri",
+      "date": "2026-12-04",
+      "name": "E — Light Band Singles & Power Peaking",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "light-band-mu",
+          "name": "Light band muscle-up",
+          "sets": 5,
+          "reps": "1–2",
+          "tempo": "100% intent",
+          "restSec": 180,
+          "load": {
+            "type": "text",
+            "text": "Light band"
+          },
+          "cue": "Minimal assistance band. Pull down to the navel, pop over."
+        },
+        {
+          "id": "neg-mu",
+          "name": "6-second straight-bar negative muscle-up",
+          "sets": 3,
+          "reps": "2",
+          "tempo": "6s down",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Jump to top support, descend agonisingly slow through the dip. Feel the transition angle in reverse."
+        },
+        {
+          "id": "explosive-dips",
+          "name": "Explosive straight-bar dips",
+          "sets": 3,
+          "reps": "4–5",
+          "tempo": "Explosive",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Drive up violently out of the lowest dip angle.",
+          "track": "dips",
+          "note": "DELOAD — 50% volume Mon/Wed. FRIDAY = P3 TEST: 1 clean single with the light band + 5 straight-bar dips. Then retest pull-up 5RM."
+        },
+        {
+          "id": "bar-swings",
+          "name": "Dynamic arch-to-hollow bar swings",
+          "sets": 3,
+          "reps": "8",
+          "tempo": "Controlled",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Controlled gymnastic beat swings. Sharpens timing for the unassisted pull."
+        }
+      ]
+    },
+    {
+      "id": "W13-Mon",
+      "week": "W13",
+      "weekLabel": "Week 13",
+      "weekDates": "7–13 Dec",
+      "block": "B4",
+      "muPhase": "P4",
+      "deload": false,
+      "day": "Mon",
+      "date": "2026-12-07",
+      "name": "A — Micro-band Singles",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "micro-mu",
+          "name": "Micro-band muscle-up singles",
+          "sets": 5,
+          "reps": "1",
+          "tempo": "100% intent",
+          "restSec": 210,
+          "load": {
+            "type": "text",
+            "text": "Micro band"
+          },
+          "cue": "Shed band assistance completely. Groove sub-100% velocity."
+        },
+        {
+          "id": "wtd-c2b",
+          "name": "Weighted chest-to-bar pull-up",
+          "sets": 4,
+          "reps": "2",
+          "tempo": "Explosive up / 2s down",
+          "restSec": 240,
+          "load": {
+            "type": "pct5RM",
+            "value": 0.9
+          },
+          "cue": "Near-maximal. Intent is maximal regardless of bar speed.",
+          "track": "pullup"
+        },
+        {
+          "id": "sternum-pull",
+          "name": "Sternum pulls",
+          "sets": 3,
+          "reps": "2",
+          "tempo": "Explosive",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": ""
+        },
+        {
+          "id": "bar-dips",
+          "name": "Straight-bar dips",
+          "sets": 3,
+          "reps": "5",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "",
+          "track": "dips"
+        }
+      ]
+    },
+    {
+      "id": "W13-Tue",
+      "week": "W13",
+      "weekLabel": "Week 13",
+      "weekDates": "7–13 Dec",
+      "block": "B4",
+      "muPhase": "P4",
+      "deload": false,
+      "day": "Tue",
+      "date": "2026-12-08",
+      "name": "★ TENDON TEST DAY",
+      "tag": "test",
+      "exercises": [
+        {
+          "id": "test-heel",
+          "name": "TEST — Loaded single-leg heel raise",
+          "sets": 1,
+          "reps": "8 / side",
+          "tempo": "3s down",
+          "restSec": 600,
+          "load": {
+            "type": "pctBW",
+            "value": 0.35
+          },
+          "cue": "Full range, 3 s down. This is the December target. Warm up thoroughly first.",
+          "track": "heelRaise"
+        },
+        {
+          "id": "test-pogo",
+          "name": "TEST — Continuous single-leg pogo",
+          "sets": 1,
+          "reps": "20 / side",
+          "tempo": "Minimal contact",
+          "restSec": 300,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "FILM IT. You cannot judge contact time by feel. Target under ~200 ms.",
+          "track": "pogo"
+        },
+        {
+          "id": "nothing",
+          "name": "Nothing else today",
+          "sets": 1,
+          "reps": "—",
+          "tempo": "—",
+          "restSec": 0,
+          "load": {
+            "type": "none"
+          },
+          "cue": "No hinge, no press, no sprints. Go home."
+        }
+      ]
+    },
+    {
+      "id": "W13-Wed",
+      "week": "W13",
+      "weekLabel": "Week 13",
+      "weekDates": "7–13 Dec",
+      "block": "B4",
+      "muPhase": "P4",
+      "deload": false,
+      "day": "Wed",
+      "date": "2026-12-09",
+      "name": "C — Transition Maintenance",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "russian-dip",
+          "name": "Russian dips",
+          "sets": 3,
+          "reps": "4",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "",
+          "track": "dips"
+        },
+        {
+          "id": "strict-pull",
+          "name": "Strict dead-hang pull-ups",
+          "sets": 3,
+          "reps": "4",
+          "tempo": "2s down",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": ""
+        },
+        {
+          "id": "core",
+          "name": "Core hold",
+          "sets": 3,
+          "reps": "15 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Hollow body or L-sit."
+        }
+      ]
+    },
+    {
+      "id": "W13-Thu",
+      "week": "W13",
+      "weekLabel": "Week 13",
+      "weekDates": "7–13 Dec",
+      "block": "B4",
+      "muPhase": "P4",
+      "deload": false,
+      "day": "Thu",
+      "date": "2026-12-10",
+      "name": "D — Light Posterior",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "nordic",
+          "name": "Weighted Nordic curl",
+          "sets": 3,
+          "reps": "3",
+          "tempo": "4s lower + push-back",
+          "restSec": 150,
+          "load": {
+            "type": "fixedKg",
+            "value": 5
+          },
+          "cue": "Hold the plate high on the chest, not on the belly.",
+          "track": "nordic"
+        },
+        {
+          "id": "achilles-iso",
+          "name": "Achilles isometric hold",
+          "sets": 3,
+          "reps": "30 s",
+          "tempo": "Static, 90%",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": ""
+        },
+        {
+          "id": "kb-light",
+          "name": "KB shoulder-health circuit",
+          "sets": 1,
+          "reps": "round",
+          "tempo": "Easy",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Light bell"
+          },
+          "cue": ""
+        },
+        {
+          "id": "no-pogo",
+          "name": "No pogo today",
+          "sets": 1,
+          "reps": "—",
+          "tempo": "—",
+          "restSec": 0,
+          "load": {
+            "type": "none"
+          },
+          "cue": "You tested it on Tuesday."
+        }
+      ]
+    },
+    {
+      "id": "W13-Fri",
+      "week": "W13",
+      "weekLabel": "Week 13",
+      "weekDates": "7–13 Dec",
+      "block": "B4",
+      "muPhase": "P4",
+      "deload": false,
+      "day": "Fri",
+      "date": "2026-12-11",
+      "name": "E — Micro-band Singles",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "micro-mu",
+          "name": "Micro-band muscle-up singles",
+          "sets": 4,
+          "reps": "1",
+          "tempo": "100% intent",
+          "restSec": 180,
+          "load": {
+            "type": "text",
+            "text": "Micro band"
+          },
+          "cue": ""
+        },
+        {
+          "id": "neg-mu",
+          "name": "Slow negative muscle-ups",
+          "sets": 2,
+          "reps": "1",
+          "tempo": "6s down",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": ""
+        }
+      ]
+    },
+    {
+      "id": "W14-Mon",
+      "week": "W14",
+      "weekLabel": "Week 14",
+      "weekDates": "14–20 Dec",
+      "block": "B4",
+      "muPhase": "P4",
+      "deload": false,
+      "day": "Mon",
+      "date": "2026-12-14",
+      "name": "A — First Unassisted Attempt",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "unassisted",
+          "name": "Unassisted muscle-up attempt",
+          "sets": 1,
+          "reps": "1",
+          "tempo": "100% intent",
+          "restSec": 240,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Fully fresh. Rest 4 minutes after the warm-up before the attempt. Listen to your shoulders."
+        },
+        {
+          "id": "micro-mu",
+          "name": "Micro-band singles",
+          "sets": 3,
+          "reps": "1",
+          "tempo": "100% intent",
+          "restSec": 180,
+          "load": {
+            "type": "text",
+            "text": "Micro band"
+          },
+          "cue": ""
+        },
+        {
+          "id": "bar-dips",
+          "name": "Straight-bar dips",
+          "sets": 2,
+          "reps": "4",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "",
+          "track": "dips"
+        }
+      ]
+    },
+    {
+      "id": "W14-Tue",
+      "week": "W14",
+      "weekLabel": "Week 14",
+      "weekDates": "14–20 Dec",
+      "block": "B4",
+      "muPhase": "P4",
+      "deload": false,
+      "day": "Tue",
+      "date": "2026-12-15",
+      "name": "★ NORDIC TEST",
+      "tag": "test",
+      "exercises": [
+        {
+          "id": "test-nordic",
+          "name": "TEST — Weighted Nordic curl",
+          "sets": 1,
+          "reps": "1",
+          "tempo": "Full range + push-back",
+          "restSec": 300,
+          "load": {
+            "type": "fixedKg",
+            "value": 5
+          },
+          "cue": "Two attempts maximum. Controlled all the way to the floor, then push back up.",
+          "track": "nordic"
+        },
+        {
+          "id": "heel-raise",
+          "name": "Loaded single-leg heel raise (easy)",
+          "sets": 2,
+          "reps": "8 / side",
+          "tempo": "3s down",
+          "restSec": 120,
+          "load": {
+            "type": "pctBW",
+            "value": 0.25
+          },
+          "cue": "Deliberately submaximal.",
+          "track": "heelRaise"
+        },
+        {
+          "id": "sprint",
+          "name": "Sprints",
+          "sets": 3,
+          "reps": "30 m",
+          "tempo": "85% effort",
+          "restSec": 120,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Easy. No hinge, no press today.",
+          "track": "sprint"
+        }
+      ]
+    },
+    {
+      "id": "W14-Wed",
+      "week": "W14",
+      "weekLabel": "Week 14",
+      "weekDates": "14–20 Dec",
+      "block": "B4",
+      "muPhase": "P4",
+      "deload": false,
+      "day": "Wed",
+      "date": "2026-12-16",
+      "name": "Active Recovery",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "dislocates",
+          "name": "Band dislocates",
+          "sets": 2,
+          "reps": "10",
+          "tempo": "Slow",
+          "restSec": 45,
+          "load": {
+            "type": "text",
+            "text": "Light band"
+          },
+          "cue": ""
+        },
+        {
+          "id": "scap-shrug",
+          "name": "Scapular shrugs",
+          "sets": 2,
+          "reps": "10",
+          "tempo": "Controlled",
+          "restSec": 45,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": ""
+        },
+        {
+          "id": "hangs",
+          "name": "Bar hangs",
+          "sets": 3,
+          "reps": "15 s",
+          "tempo": "Static",
+          "restSec": 45,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "20 minutes total. Zero fatigue."
+        }
+      ]
+    },
+    {
+      "id": "W14-Thu",
+      "week": "W14",
+      "weekLabel": "Week 14",
+      "weekDates": "14–20 Dec",
+      "block": "B4",
+      "muPhase": "P4",
+      "deload": false,
+      "day": "Thu",
+      "date": "2026-12-17",
+      "name": "D — Very Light",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "pogo",
+          "name": "Single-leg pogo",
+          "sets": 3,
+          "reps": "10",
+          "tempo": "Easy",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Easy. Nothing heavy today.",
+          "track": "pogo"
+        },
+        {
+          "id": "kb-light",
+          "name": "KB shoulder-health circuit",
+          "sets": 1,
+          "reps": "round",
+          "tempo": "Easy",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "Light bell"
+          },
+          "cue": ""
+        }
+      ]
+    },
+    {
+      "id": "W14-Fri",
+      "week": "W14",
+      "weekLabel": "Week 14",
+      "weekDates": "14–20 Dec",
+      "block": "B4",
+      "muPhase": "P4",
+      "deload": false,
+      "day": "Fri",
+      "date": "2026-12-18",
+      "name": "E — Fresh Attempts",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "unassisted",
+          "name": "Fresh unassisted attempts",
+          "sets": 2,
+          "reps": "1",
+          "tempo": "100% intent",
+          "restSec": 240,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "4 min rest each. If you are unusually sore from Tuesday, skip this — it is a rehearsal, not the test."
+        },
+        {
+          "id": "neg-mu",
+          "name": "Slow negatives",
+          "sets": 2,
+          "reps": "1",
+          "tempo": "6s down",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Stop there."
+        }
+      ]
+    },
+    {
+      "id": "W15-Mon",
+      "week": "W15",
+      "weekLabel": "Week 15",
+      "weekDates": "21–27 Dec",
+      "block": "B4",
+      "muPhase": "P4",
+      "deload": true,
+      "day": "Mon",
+      "date": "2026-12-21",
+      "name": "Neural Primer",
+      "tag": "mu",
+      "exercises": [
+        {
+          "id": "sternum-pull",
+          "name": "Sternum pulls",
+          "sets": 1,
+          "reps": "2",
+          "tempo": "Explosive",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "You are potentiating, not training."
+        },
+        {
+          "id": "bar-dips",
+          "name": "Straight-bar dips",
+          "sets": 1,
+          "reps": "2",
+          "tempo": "Controlled",
+          "restSec": 0,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "STOP IMMEDIATELY after this.",
+          "track": "dips"
+        }
+      ]
+    },
+    {
+      "id": "W15-Tue",
+      "week": "W15",
+      "weekLabel": "Week 15",
+      "weekDates": "21–27 Dec",
+      "block": "B4",
+      "muPhase": "P4",
+      "deload": true,
+      "day": "Tue",
+      "date": "2026-12-22",
+      "name": "Optional Easy",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "pogo",
+          "name": "Double-leg pogo",
+          "sets": 2,
+          "reps": "10",
+          "tempo": "Easy",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Optional. Then a walk. Nothing else.",
+          "track": "pogo"
+        }
+      ]
+    },
+    {
+      "id": "W15-Wed",
+      "week": "W15",
+      "weekLabel": "Week 15",
+      "weekDates": "21–27 Dec",
+      "block": "B4",
+      "muPhase": "P4",
+      "deload": true,
+      "day": "Wed",
+      "date": "2026-12-23",
+      "name": "Mobility Only",
+      "tag": "ten",
+      "exercises": [
+        {
+          "id": "mobility",
+          "name": "Dynamic stretching + wrist mobility",
+          "sets": 1,
+          "reps": "15 min",
+          "tempo": "Easy",
+          "restSec": 0,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Zero fatigue."
+        }
+      ]
+    },
+    {
+      "id": "W15-Thu",
+      "week": "W15",
+      "weekLabel": "Week 15",
+      "weekDates": "21–27 Dec",
+      "block": "B4",
+      "muPhase": "P4",
+      "deload": true,
+      "day": "Thu",
+      "date": "2026-12-24",
+      "name": "REST",
+      "tag": "rest",
+      "exercises": [
+        {
+          "id": "rest",
+          "name": "Complete rest",
+          "sets": 1,
+          "reps": "—",
+          "tempo": "—",
+          "restSec": 0,
+          "load": {
+            "type": "none"
+          },
+          "cue": "High-quality protein and carbohydrate. 8.5+ hours of sleep."
+        }
+      ]
+    },
+    {
+      "id": "W15-Fri",
+      "week": "W15",
+      "weekLabel": "Week 15",
+      "weekDates": "21–27 Dec",
+      "block": "B4",
+      "muPhase": "P4",
+      "deload": true,
+      "day": "Fri",
+      "date": "2026-12-25",
+      "name": "REST",
+      "tag": "rest",
+      "exercises": [
+        {
+          "id": "rest",
+          "name": "Complete rest",
+          "sets": 1,
+          "reps": "—",
+          "tempo": "—",
+          "restSec": 0,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Do not \"just test it once\". That is how people arrive flat."
+        }
+      ]
+    },
+    {
+      "id": "TEST-Dec29",
+      "week": "TEST",
+      "weekLabel": "Test Day",
+      "weekDates": "29 Dec",
+      "block": "B4",
+      "muPhase": "P4",
+      "deload": false,
+      "day": "Tue",
+      "date": "2026-12-29",
+      "name": "★★★ OFFICIAL BAR MUSCLE-UP TEST ★★★",
+      "tag": "test",
+      "exercises": [
+        {
+          "id": "prime",
+          "name": "Preparation & priming",
+          "sets": 1,
+          "reps": "—",
+          "tempo": "—",
+          "restSec": 240,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Light carb snack and coffee 45 min prior. 8 min wrist and shoulder dynamic prep. 2 jumping chest pulls + 2 bar dips. Rest 4 full minutes before the rep."
+        },
+        {
+          "id": "attempt",
+          "name": "THE ATTEMPT",
+          "sets": 1,
+          "reps": "1",
+          "tempo": "100% intent",
+          "restSec": 300,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Heavy chalk on hands and bar. Deep false-overhand palm grip. Gaze forward, jump into a slight hollow. Violent C-curve arc to the navel. Snap the knuckles forward; push to lockout."
+        },
+        {
+          "id": "contingency",
+          "name": "If you miss",
+          "sets": 1,
+          "reps": "—",
+          "tempo": "—",
+          "restSec": 0,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Do NOT retry immediately. Walk around, shake the arms out, 5 minutes. Attempt #2: pull with more backward arc. Still short? Use the 31 December backup."
+        }
+      ]
+    },
+    {
+      "id": "TEST-Dec31",
+      "week": "TEST",
+      "weekLabel": "Backup Test Day",
+      "weekDates": "31 Dec",
+      "block": "B4",
+      "muPhase": "P4",
+      "deload": false,
+      "day": "Thu",
+      "date": "2026-12-31",
+      "name": "★ BACKUP TEST DAY",
+      "tag": "test",
+      "exercises": [
+        {
+          "id": "attempt",
+          "name": "THE ATTEMPT",
+          "sets": 1,
+          "reps": "1",
+          "tempo": "100% intent",
+          "restSec": 300,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Same protocol as 29 December. Only if the 29th was missed."
+        }
+      ]
+    },
+    {
+      "id": "JAN-pullup",
+      "week": "JAN",
+      "weekLabel": "January",
+      "weekDates": "w/c 4 Jan",
+      "block": "B4",
+      "muPhase": "—",
+      "deload": false,
+      "day": "Mon",
+      "date": "2027-01-04",
+      "name": "★ Weighted Pull-up Feat Test",
+      "tag": "test",
+      "exercises": [
+        {
+          "id": "test-pullup",
+          "name": "TEST — Weighted pull-up",
+          "sets": 1,
+          "reps": "1",
+          "tempo": "Strict",
+          "restSec": 300,
+          "load": {
+            "type": "pctBW",
+            "value": 0.25
+          },
+          "cue": "Ramp in singles at 70%, 80%, 88% of your 5RM added load, then attempt +25% bodyweight. Two attempts maximum, five minutes apart.",
+          "track": "pullup"
+        }
+      ]
+    }
+  ]
+}
