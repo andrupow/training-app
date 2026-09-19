@@ -415,6 +415,21 @@ function badge(text, cls) {
   return el('span', { class: 'badge ' + (cls || ''), text: text });
 }
 
+/* ------------------------------------------------------------- schedule */
+/* A session has two dates: the one the plan was written with, and the one
+   you actually trained it on. Everything that cares about WHEN — loads,
+   Today, ordering, red-light windows — must read the effective date.
+
+   Two things deliberately keep the plan date instead:
+     - week identity and week windows, because check-ins are real calendar
+       mornings and re-deriving weeks from moved sessions would make the
+       amber-holds-next-week rule circular;
+     - checkpoints, which are fixed diary entries. */
+
+function sessionDate(s) {
+  return s ? s.date : null;
+}
+
 /* ------------------------------------------------------------ plan lookups */
 
 /* plan.weeks covers W2–W15. Three sessions live outside it (TEST, JAN),
@@ -444,6 +459,15 @@ function allWeeks() {
 
   list.sort(function (a, b) { return a.start < b.start ? -1 : a.start > b.start ? 1 : 0; });
   return list;
+}
+
+/* plan.sessions is stored in plan order. Once a session can be moved, the
+   order you will actually do them in is a different thing. */
+function sessionsByDate() {
+  return plan.sessions.slice().sort(function (a, b) {
+    var da = sessionDate(a), db = sessionDate(b);
+    return da < db ? -1 : da > db ? 1 : 0;
+  });
 }
 
 function weekById(id) {
@@ -481,7 +505,7 @@ function currentWeekId() {
 
 function nextSession() {
   var today = todayISO();
-  return plan.sessions.filter(function (s) { return s.date >= today; })[0] || null;
+  return sessionsByDate().filter(function (s) { return sessionDate(s) >= today; })[0] || null;
 }
 
 /* ------------------------------------------------------------------ views */
@@ -571,7 +595,7 @@ function renderWeek(id) {
   });
 
   sessionsForWeek(w.id).forEach(function (s) {
-    var isToday = s.date === today;
+    var isToday = sessionDate(s) === today;
     nodes.push(el('a', {
       class: 'card' + (isToday ? ' is-now' : ''),
       href: '#/session/' + s.id
@@ -585,7 +609,7 @@ function renderWeek(id) {
           badge(TAG_LABEL[s.tag] || s.tag, tagClass('badge', s.tag))
         ])
       ]),
-      el('div', { class: 'card-sub', text: fmtDateShort(s.date) + ' · ' + s.name })
+      el('div', { class: 'card-sub', text: fmtDateShort(sessionDate(s)) + ' · ' + s.name })
     ]));
   });
 
@@ -609,7 +633,7 @@ function renderSession(id) {
         s.muPhase && s.muPhase !== '—' ? badge('Phase ' + s.muPhase) : null
       ]),
       el('h2', { text: s.name }),
-      el('div', { class: 'meta', text: s.day + ' ' + fmtDate(s.date) })
+      el('div', { class: 'meta', text: s.day + ' ' + fmtDate(sessionDate(s)) })
     ])
   ];
 
@@ -631,7 +655,7 @@ function renderSession(id) {
     nodes.push(exerciseCard(ex, s, mode, gate));
   });
 
-  setView(s.day + ' · ' + fmtDateShort(s.date), s.weekLabel || s.week, nodes);
+  setView(s.day + ' · ' + fmtDateShort(sessionDate(s)), s.weekLabel || s.week, nodes);
   window.scrollTo(0, 0);
 }
 
@@ -661,7 +685,7 @@ function exerciseCard(ex, session, mode, gate) {
      If last week has no counterpart, the badge still stands and its own
      load is shown — there is nothing better to fall back to. */
   var load = held ? heldLoad(ex, session, gate.prevWeek) : null;
-  if (!load) load = resolveLoad(ex.load, session ? session.date : todayISO());
+  if (!load) load = resolveLoad(ex.load, session ? sessionDate(session) : todayISO());
 
   if (load.text !== '—') {
     if (spec.childNodes.length) spec.appendChild(el('span', { class: 'sep', text: '·' }));
@@ -1017,7 +1041,7 @@ document.addEventListener('visibilitychange', function () {
 function openSetSheet(ex, session, i, btn, logged) {
   var entry = getLog(session.id, ex.id, i) || {};
 
-  var loadIn = el('input', { type: 'text', inputmode: 'decimal', id: 'f-load', placeholder: resolveLoad(ex.load, session.date).text });
+  var loadIn = el('input', { type: 'text', inputmode: 'decimal', id: 'f-load', placeholder: resolveLoad(ex.load, sessionDate(session)).text });
   var repsIn = el('input', { type: 'text', inputmode: 'numeric', id: 'f-reps', placeholder: String(ex.reps || '') });
   var rpeIn  = el('input', { type: 'text', inputmode: 'decimal', id: 'f-rpe',  placeholder: '1–10' });
 
@@ -1114,13 +1138,13 @@ var DAY_NAME = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday
 
 function nextTrainingSession(afterDate) {
   return plan.sessions.filter(function (s) {
-    return s.date > afterDate && s.tag !== 'rest';
+    return sessionDate(s) > afterDate && s.tag !== 'rest';
   })[0] || null;
 }
 
 function renderToday() {
   var today = todayISO();
-  var scheduled = plan.sessions.filter(function (s) { return s.date === today; })[0] || null;
+  var scheduled = plan.sessions.filter(function (s) { return sessionDate(s) === today; })[0] || null;
   var s = scheduled || nextSession();
 
   todaySession = null;
@@ -1165,7 +1189,7 @@ function renderToday() {
       s.muPhase && s.muPhase !== '—' ? badge('Phase ' + s.muPhase) : null
     ]),
     el('h2', { text: s.name }),
-    el('div', { class: 'meta', text: s.day + ' ' + fmtDate(s.date) + ' · ' + (s.weekLabel || s.week) })
+    el('div', { class: 'meta', text: s.day + ' ' + fmtDate(sessionDate(s)) + ' · ' + (s.weekLabel || s.week) })
   ]));
 
   if (s.deload) {
@@ -1217,7 +1241,7 @@ function sessionLinkCard(s) {
   return el('a', { class: 'card is-now', href: '#/session/' + s.id }, [
     el('div', { class: 'card-top' }, [
       el('span', { class: 'dot ' + tagClass('dot', s.tag) }),
-      el('span', { class: 'card-title', text: s.day + ' ' + fmtDateShort(s.date) }),
+      el('span', { class: 'card-title', text: s.day + ' ' + fmtDateShort(sessionDate(s)) }),
       el('span', { class: 'chev', text: '›' })
     ]),
     el('div', { class: 'card-sub', text: s.name })
@@ -1741,7 +1765,7 @@ function paintRunner() {
   var gate = sessionGate(s);
   var held = !!(ex.track && gate.holds[ex.track]);
   var load = held ? heldLoad(ex, s, gate.prevWeek) : null;
-  if (!load) load = resolveLoad(ex.load, s.date);
+  if (!load) load = resolveLoad(ex.load, sessionDate(s));
 
   var target = el('div', { class: 'run-target' });
   if (load.text !== '—') target.appendChild(el('div', { class: 'run-load', text: load.text }));
@@ -2245,12 +2269,12 @@ function tracksOf(areaMap) {
 function sessionGate(session) {
   var prev = previousWeek(session.week);
   var heldAreas = heldAreasFromWeek(prev);
-  var redAreas = redAreasOn(session.date);
+  var redAreas = redAreasOn(sessionDate(session));
 
   var holds = tracksOf(heldAreas);
   var suppressed = tracksOf(redAreas);
 
-  if (elbowHoldsPullup(session.date)) holds.pullup = true;
+  if (elbowHoldsPullup(sessionDate(session))) holds.pullup = true;
 
   /* A suppressed track is already off the page; no need to badge it too. */
   Object.keys(suppressed).forEach(function (t) { delete holds[t]; });
@@ -2286,7 +2310,7 @@ function heldLoad(ex, session, prevWeek) {
     });
   }
 
-  return match ? resolveLoad(match.e.load, match.s.date) : null;
+  return match ? resolveLoad(match.e.load, sessionDate(match.s)) : null;
 }
 
 /* The red banner, naming what has been pulled and why. */
@@ -2483,9 +2507,9 @@ function trackSeries(track) {
     sessionsForWeek(w.id).forEach(function (s) {
       s.exercises.forEach(function (e) {
         if (e.track !== track) return;
-        var r = resolveLoad(e.load, s.date);
+        var r = resolveLoad(e.load, sessionDate(s));
         if (r.kg === null || r.missing) return;
-        if (!best || r.kg > best.kg) best = { kg: r.kg, date: s.date, exId: e.id, exName: e.name };
+        if (!best || r.kg > best.kg) best = { kg: r.kg, date: sessionDate(s), exId: e.id, exName: e.name };
       });
     });
     if (best) points.push({ week: w.id, label: w.label, kg: best.kg, date: best.date,
