@@ -1058,3 +1058,21 @@ body.in-run .restbar { display: none; }
   .run-load, .run-dur-val { font-size: 28px; }
   .run-action { min-height: 60px; margin-top: 12px; }
 }
+
+/* ---------- rescheduling (Milestone 10) ---------- */
+
+.btn-move { margin-bottom: 12px; color: var(--muted); }
+
+.picklist { max-height: 46vh; overflow-y: auto; margin: 0 -2px 4px; padding: 0 2px; }
+
+.pick {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pick:active { background: var(--surface-2); }
+
+.sheet .btn-block { margin-top: 8px; margin-bottom: 0; }

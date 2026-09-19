@@ -6,17 +6,18 @@
 
 'use strict';
 
-var BUILD = '1.8.0-m9';
+var BUILD = '1.9.0-m10';
 var PLAN_URL = 'data/plan.json';
 var LS_PLAN = 'plan.cache.v1';
 var LS_LOGS = 'setLogs';
 var LS_BASELINES = 'baselines';
 var LS_CHECKINS = 'checkIns';
 var LS_SETTINGS = 'settings';
+var LS_SCHEDULE = 'schedule';
 
 /* Everything the app owns, in one list. Export walks it, import restores it,
    and Milestone 5 gets checkIns backed up without touching this file. */
-var COLLECTIONS = [LS_BASELINES, LS_LOGS, LS_CHECKINS, LS_SETTINGS];
+var COLLECTIONS = [LS_BASELINES, LS_LOGS, LS_CHECKINS, LS_SCHEDULE, LS_SETTINGS];
 
 var EXPORT_NAG_DAYS = 7;
 var LS_TIMER = 'restTimer';
@@ -426,8 +427,119 @@ function badge(text, cls) {
        amber-holds-next-week rule circular;
      - checkpoints, which are fixed diary entries. */
 
+var schedule = {};        /* sessionId -> 'YYYY-MM-DD' | 'skipped' */
+
+function loadSchedule() {
+  var stored = lsGet(LS_SCHEDULE);
+  schedule = (stored && typeof stored === 'object' && !Array.isArray(stored)) ? stored : {};
+}
+
+function saveSchedule() {
+  try {
+    localStorage.setItem(LS_SCHEDULE, JSON.stringify(schedule));
+    return true;
+  } catch (err) {
+    console.warn('schedule write failed', err);
+    toast('Could not save — phone storage is full or blocked.');
+    return false;
+  }
+}
+
 function sessionDate(s) {
-  return s ? s.date : null;
+  if (!s) return null;
+  var v = schedule[s.id];
+  return (v && v !== 'skipped') ? v : s.date;
+}
+
+function isSkipped(s) {
+  return !!s && schedule[s.id] === 'skipped';
+}
+
+function isMoved(s) {
+  var v = s && schedule[s.id];
+  return !!v && v !== 'skipped' && v !== s.date;
+}
+
+function movedCount() {
+  return plan.sessions.filter(function (s) { return isMoved(s) || isSkipped(s); }).length;
+}
+
+function setSessionDate(s, date) {
+  if (date === s.date) delete schedule[s.id];
+  else schedule[s.id] = date;
+}
+
+/* Whatever is sitting on a date, ignoring anything abandoned. */
+function sessionOn(date, exceptId) {
+  return plan.sessions.filter(function (s) {
+    return s.id !== exceptId && !isSkipped(s) && sessionDate(s) === date;
+  })[0] || null;
+}
+
+/* --- the three moves ---------------------------------------------------- */
+
+/* Trade places. Nothing else in the block shifts. */
+function rescheduleSwap(sourceId, targetDate) {
+  var src = sessionById(sourceId);
+  if (!src) return;
+  var from = sessionDate(src);
+  var occupant = sessionOn(targetDate, sourceId);
+
+  setSessionDate(src, targetDate);
+  if (occupant) setSessionDate(occupant, from);
+  saveSchedule();
+}
+
+/* Insert at the target date; everything from there on slides one slot later.
+   The slots are the dates already in use, so the block keeps its rhythm
+   rather than being smeared across weekends. */
+function reschedulePush(sourceId, targetDate) {
+  var src = sessionById(sourceId);
+  if (!src) return;
+
+  var affected = sessionsByDate().filter(function (s) {
+    return s.id !== sourceId && !isSkipped(s) && sessionDate(s) >= targetDate;
+  });
+
+  /* The slot pool is every date in use from the target onwards — INCLUDING
+     the one the source is vacating. Leave that out and everything after it
+     shifts a day further than it should. */
+  var slots = [];
+  sessionsByDate().forEach(function (s) {
+    if (isSkipped(s)) return;
+    var d = sessionDate(s);
+    if (d >= targetDate && slots.indexOf(d) < 0) slots.push(d);
+  });
+  if (slots.indexOf(targetDate) < 0) slots.push(targetDate);
+  slots.sort();
+
+  /* One short whenever the target was already occupied: extend by the gap
+     the plan was last using (1 day midweek, 3 across a weekend). */
+  while (slots.length < affected.length + 1) {
+    var n = slots.length;
+    var gap = n >= 2 ? daysBetween(slots[n - 2], slots[n - 1]) : 1;
+    slots.push(addDays(slots[n - 1], Math.max(1, gap)));
+  }
+
+  setSessionDate(src, slots[0]);
+  affected.forEach(function (s, i) { setSessionDate(s, slots[i + 1]); });
+  saveSchedule();
+}
+
+/* Take the slot and abandon whatever was in it. */
+function rescheduleSkip(sourceId, targetDate) {
+  var src = sessionById(sourceId);
+  if (!src) return;
+  var occupant = sessionOn(targetDate, sourceId);
+
+  setSessionDate(src, targetDate);
+  if (occupant) schedule[occupant.id] = 'skipped';
+  saveSchedule();
+}
+
+function resetSchedule() {
+  schedule = {};
+  saveSchedule();
 }
 
 /* ------------------------------------------------------------ plan lookups */
@@ -505,7 +617,7 @@ function currentWeekId() {
 
 function nextSession() {
   var today = todayISO();
-  return sessionsByDate().filter(function (s) { return sessionDate(s) >= today; })[0] || null;
+  return sessionsByDate().filter(function (s) { return !isSkipped(s) && sessionDate(s) >= today; })[0] || null;
 }
 
 /* ------------------------------------------------------------------ views */
@@ -595,7 +707,7 @@ function renderWeek(id) {
   });
 
   sessionsForWeek(w.id).forEach(function (s) {
-    var isToday = sessionDate(s) === today;
+    var isToday = !isSkipped(s) && sessionDate(s) === today;
     nodes.push(el('a', {
       class: 'card' + (isToday ? ' is-now' : ''),
       href: '#/session/' + s.id
@@ -605,6 +717,7 @@ function renderWeek(id) {
         el('span', { class: 'card-title', text: s.day }),
         el('div', { class: 'badges' }, [
           isToday ? badge('Today', 'badge-now') : null,
+          moveBadges(s),
           checkpointsOn(s.date).length ? badge('Checkpoint', 'badge-test') : null,
           badge(TAG_LABEL[s.tag] || s.tag, tagClass('badge', s.tag))
         ])
@@ -633,7 +746,9 @@ function renderSession(id) {
         s.muPhase && s.muPhase !== '—' ? badge('Phase ' + s.muPhase) : null
       ]),
       el('h2', { text: s.name }),
-      el('div', { class: 'meta', text: s.day + ' ' + fmtDate(sessionDate(s)) })
+      el('div', { class: 'meta', text: s.day + ' ' + fmtDate(sessionDate(s))
+        + (isMoved(s) ? ' · planned for ' + fmtDateShort(s.date) : '')
+        + (isSkipped(s) ? ' · skipped' : '') })
     ])
   ];
 
@@ -1138,13 +1253,13 @@ var DAY_NAME = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday
 
 function nextTrainingSession(afterDate) {
   return plan.sessions.filter(function (s) {
-    return sessionDate(s) > afterDate && s.tag !== 'rest';
+    return !isSkipped(s) && sessionDate(s) > afterDate && s.tag !== 'rest';
   })[0] || null;
 }
 
 function renderToday() {
   var today = todayISO();
-  var scheduled = plan.sessions.filter(function (s) { return sessionDate(s) === today; })[0] || null;
+  var scheduled = plan.sessions.filter(function (s) { return !isSkipped(s) && sessionDate(s) === today; })[0] || null;
   var s = scheduled || nextSession();
 
   todaySession = null;
@@ -1186,10 +1301,12 @@ function renderToday() {
       badge(TAG_LABEL[s.tag] || s.tag, tagClass('badge', s.tag)),
       s.deload ? badge('Deload') : null,
       badge(s.block),
-      s.muPhase && s.muPhase !== '—' ? badge('Phase ' + s.muPhase) : null
+      s.muPhase && s.muPhase !== '—' ? badge('Phase ' + s.muPhase) : null,
+      moveBadges(s)
     ]),
     el('h2', { text: s.name }),
-    el('div', { class: 'meta', text: s.day + ' ' + fmtDate(sessionDate(s)) + ' · ' + (s.weekLabel || s.week) })
+    el('div', { class: 'meta', text: s.day + ' ' + fmtDate(sessionDate(s)) + ' · ' + (s.weekLabel || s.week)
+      + (isMoved(s) ? ' · planned for ' + fmtDateShort(s.date) : '') })
   ]));
 
   if (s.deload) {
@@ -1211,6 +1328,10 @@ function renderToday() {
       text: doneSets(s) ? '▶ Resume session' : '▶ Start session' });
     nodes.push(start);
   }
+
+  var swap = el('button', { class: 'btn btn-block btn-move', type: 'button', text: 'Do a different session' });
+  swap.addEventListener('click', function () { movePicker(todayISO()); });
+  nodes.push(swap);
 
   nodes.push(el('p', { class: 'hint', text: live
     ? 'Or tap a set to tick it off by hand. Long-press to record what actually happened.'
@@ -1369,7 +1490,7 @@ function inspectBackup(raw) {
     var key = COLLECTIONS[i];
     if (!(key in data)) continue;
     var v = data[key];
-    var wantArray = key !== LS_SETTINGS;
+    var wantArray = key !== LS_SETTINGS && key !== LS_SCHEDULE;
 
     if (wantArray ? !Array.isArray(v) : (typeof v !== 'object' || v === null || Array.isArray(v))) {
       return { error: '“' + key + '” is the wrong shape in that file.' };
@@ -1434,6 +1555,7 @@ function importData(file) {
     loadBaselines();
     loadLogs();
     loadCheckIns();
+    loadSchedule();
     loadSettings();
     renderProgress();
     paintTabBadge();
@@ -2750,6 +2872,154 @@ function chartsSection() {
   return wrap;
 }
 
+/* --- rescheduling, the screen side ------------------------------------- */
+
+function movePicker(targetDate) {
+  var occupant = sessionOn(targetDate, null);
+
+  var list = el('div', { class: 'picklist' });
+  /* A week back and a fortnight forward. Wider than that and the thing you
+     actually want — usually a day or two either side — is buried. Sessions
+     you have already finished are not offered: you do not move those. */
+  var candidates = sessionsByDate().filter(function (s) {
+    if (isSkipped(s) || s.tag === 'rest') return false;
+    if (occupant && s.id === occupant.id) return false;
+    if (doneSets(s) >= totalSets(s)) return false;
+    var d = sessionDate(s);
+    return d >= addDays(targetDate, -7) && d <= addDays(targetDate, 14);
+  });
+
+  if (!candidates.length) {
+    list.appendChild(el('p', { class: 'hint', text: 'Nothing nearby to move.' }));
+  }
+
+  candidates.forEach(function (s) {
+    var btn = el('button', { class: 'card pick', type: 'button' }, [
+      el('div', { class: 'card-top' }, [
+        el('span', { class: 'dot ' + tagClass('dot', s.tag) }),
+        el('span', { class: 'card-title', text: s.day + ' ' + fmtDateShort(sessionDate(s)) }),
+        el('div', { class: 'badges' }, [
+          sessionDate(s) < targetDate ? badge('Missed', 'badge-test') : null,
+          badge(s.weekLabel || s.week)
+        ])
+      ]),
+      el('div', { class: 'card-sub', text: s.name })
+    ]);
+    btn.addEventListener('click', function () {
+      closeSheet();
+      chooseMove(s, targetDate, occupant);
+    });
+    list.appendChild(btn);
+  });
+
+  openSheet('Do a different session', 'Pick what you want to train on ' + fmtDate(targetDate) + '.', [list]);
+}
+
+/* With a session already in the slot there are three honest answers, and
+   which one is right depends on why you are moving it. */
+function chooseMove(src, targetDate, occupant) {
+  if (!occupant) {
+    rescheduleSwap(src.id, targetDate);       /* nothing to displace */
+    afterMove(src, targetDate);
+    return;
+  }
+
+  function opt(label, detail, fn) {
+    var b = el('button', { class: 'card pick', type: 'button' }, [
+      el('div', { class: 'card-top' }, [el('span', { class: 'card-title', text: label })]),
+      el('div', { class: 'card-sub', text: detail })
+    ]);
+    b.addEventListener('click', function () { closeSheet(); fn(); afterMove(src, targetDate); });
+    return b;
+  }
+
+  var srcWhen = fmtDateShort(sessionDate(src));
+
+  openSheet(src.name, fmtDate(targetDate) + ' already has “' + occupant.name + '”. What happens to it?', [
+    el('div', { class: 'picklist' }, [
+      opt('Swap them', 'It moves to ' + srcWhen + '. Nothing else in the block changes.',
+        function () { rescheduleSwap(src.id, targetDate); }),
+      opt('Push everything back', 'It and everything after it slide one slot later.',
+        function () { reschedulePush(src.id, targetDate); }),
+      opt('Skip it', 'It is abandoned unlogged. Nothing else moves.',
+        function () { rescheduleSkip(src.id, targetDate); })
+    ])
+  ]);
+}
+
+function afterMove(src, targetDate) {
+  route();
+  paintTabBadge();
+  toast(src.name.split('—')[0].trim() + ' moved to ' + fmtDateShort(targetDate) + '.');
+}
+
+/* A small generic sheet, so the picker and the three-way choice share one. */
+function openSheet(title, sub, nodes) {
+  closeSheet();
+
+  var form = el('div', { class: 'sheet' }, [
+    el('h3', { text: title }),
+    el('p', { class: 'sheet-sub', text: sub })
+  ].concat(nodes));
+
+  var cancel = el('button', { type: 'button', class: 'btn btn-quiet btn-block', text: 'Cancel' });
+  cancel.addEventListener('click', closeSheet);
+  form.appendChild(cancel);
+
+  var backdrop = el('div', { class: 'sheet-backdrop', id: 'move-sheet' }, [form]);
+  backdrop.addEventListener('click', function (e) { if (e.target === backdrop) closeSheet(); });
+  document.addEventListener('keydown', sheetEsc);
+  document.body.appendChild(backdrop);
+}
+
+function sheetEsc(e) { if (e.key === 'Escape') closeSheet(); }
+
+function closeSheet() {
+  var s = document.getElementById('move-sheet');
+  if (s) s.remove();
+  document.removeEventListener('keydown', sheetEsc);
+}
+
+/* Shown wherever a session is listed, so a moved block is never a mystery. */
+function moveBadges(s) {
+  if (isSkipped(s)) return badge('Skipped', 'badge-test');
+  if (isMoved(s)) return badge('Moved', 'badge-now');
+  return null;
+}
+
+function scheduleSection() {
+  var n = movedCount();
+  var wrap = el('div', {}, [el('p', { class: 'section-label', text: 'Schedule' })]);
+
+  if (!n) {
+    wrap.appendChild(el('p', { class: 'hint', text: 'Running exactly as planned. Move a session from the Today tab if a day goes sideways.' }));
+    return wrap;
+  }
+
+  var rows = el('div', { class: 'kv' });
+  plan.sessions.forEach(function (s) {
+    if (!isMoved(s) && !isSkipped(s)) return;
+    rows.appendChild(el('div', { class: 'kv-row' }, [
+      el('span', { class: 'kv-key', text: s.day + ' · ' + s.name.split('—')[0].trim() }),
+      el('span', { class: 'kv-val kv-quiet', text: isSkipped(s)
+        ? 'skipped (' + fmtDateShort(s.date) + ')'
+        : fmtDateShort(s.date) + ' → ' + fmtDateShort(sessionDate(s)) })
+    ]));
+  });
+  wrap.appendChild(rows);
+
+  var reset = el('button', { class: 'btn btn-block', type: 'button', text: 'Reset to the original plan' });
+  reset.addEventListener('click', function () {
+    if (!confirm('Put all ' + n + ' moved sessions back where the plan had them?\n\nLogged sets are not affected.')) return;
+    resetSchedule();
+    renderProgress();
+    toast('Schedule reset.');
+  });
+  wrap.appendChild(reset);
+
+  return wrap;
+}
+
 /* --- Progress: baselines --- */
 /* Recalibrate appends a dated row. It never edits an old one: the history
    is precisely what lets a session from six weeks ago still resolve to the
@@ -2812,6 +3082,7 @@ function renderProgress() {
     });
   }
 
+  nodes.push(scheduleSection());
   nodes.push(installSection());
   nodes.push(chartsSection());
   nodes.push(backupSection());
@@ -3141,6 +3412,7 @@ loadPlan().then(function (json) {
   loadBaselines();
   loadSettings();
   loadCheckIns();
+  loadSchedule();
   restoreTimer();
   scheduleReminder();
   if (!location.hash) location.replace('#/today');
