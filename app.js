@@ -7,7 +7,7 @@
 
 'use strict';
 
-var BUILD = '1.16.0-sound';
+var BUILD = '1.17.0-weekplan';
 var PLAN_URL = 'data/plan.json';
 var LS_PLAN = 'plan.cache.v1';
 var LS_LOGS = 'setLogs';
@@ -1935,6 +1935,48 @@ function ensureDayPlan(date, days) {
   if (!settings.menuSince) { settings.menuSince = date; saveSettings(); }
   saveDayPlans();
   return dayPlans[date];
+}
+
+/* The rest of this week, day by day, as the recommender would see it: for each day
+   from today to Sunday, today's menu if it has one, otherwise what it would suggest in
+   that day's usual minutes. Each day is worked out as if the days before it had been
+   done as suggested, so the same area is not offered twice inside its gap and the week's
+   targets are spread out. It is a forecast, not a plan: nothing is saved, and the real
+   menu is still made, from what has really happened, the first time a day is opened.
+     { 'YYYY-MM-DD': { real, minutes, picks: [ids], why: { id: text } } }
+   `real` marks a day that already has its own menu. */
+function weekForecast(today, days) {
+  var out = {};
+  if (!areaData) return out;
+  var start = weekStartOf(today);
+  ensureWeekFit(start, days);            /* from what has really happened, not from the forecast */
+
+  var sim = days.slice();
+  for (var i = isoDow(today); i < 7; i++) {
+    var date = addDays(start, i);
+    var plan = dayPlans[date];
+    var picks, minutes, why = {};
+
+    if (plan) {
+      picks = plannedAreaIds(plan);
+      minutes = plan.sittings.reduce(function (n, st) { return n + st.minutes; }, 0);
+    } else {
+      minutes = defaultMinutes(date);
+      var rec = recommendFor(date, [minutes], sim);
+      picks = rec.picked.slice();
+      why = whyOf(rec, picks);
+    }
+    out[date] = { real: !!plan, minutes: minutes, picks: picks, why: why };
+
+    /* the next day sees this one as done, except what a red light would stop */
+    picks.forEach(function (id) {
+      var a = areaById(id);
+      if (!a || heldReason(a, date)) return;
+      var have = sim.some(function (r) { return r.date === date && r.area === id; });
+      if (!have) sim.push({ date: date, area: id, done: 1, total: 1, full: true });
+    });
+  }
+  return out;
 }
 
 /* A new sitting is a new question: what is still worth doing, given what is on
@@ -6007,13 +6049,14 @@ var areaLoad = 'loading';                    /* loading | ready | failed */
 var areasView = { week: null, day: null };   /* the week and day the tab is showing */
 
 var STATE_TEXT = {
-  full: 'done', partial: 'partial', skipped: 'skipped', planned: 'planned',
+  full: 'done', partial: 'partial', skipped: 'skipped', planned: 'planned', suggested: 'suggested',
   noplan: 'no plan recorded', none: 'not trained', future: 'not yet'
 };
 
 /* One glyph per state. Shape carries the meaning, colour only reinforces it:
-   filled disc done, half disc partial, dashed ring planned, cross skipped,
-   hatching no plan recorded, dot nothing. */
+   filled disc done, half disc partial, dashed ring planned, dotted ring suggested
+   (a forecast for a day with no menu yet), cross skipped, hatching no plan
+   recorded, dot nothing. */
 function stateGlyph(state) {
   var svg = svgEl('svg', { class: 'g', viewBox: '0 0 20 20', 'aria-hidden': 'true' });
   if (state === 'full') {
@@ -6023,6 +6066,8 @@ function stateGlyph(state) {
     svg.appendChild(svgEl('path', { class: 'g-part', d: 'M10 2.5 A7.5 7.5 0 0 0 10 17.5 Z' }));
   } else if (state === 'planned') {
     svg.appendChild(svgEl('circle', { class: 'g-plan', cx: 10, cy: 10, r: 7.5 }));
+  } else if (state === 'suggested') {
+    svg.appendChild(svgEl('circle', { class: 'g-sug', cx: 10, cy: 10, r: 7.5 }));
   } else if (state === 'skipped') {
     svg.appendChild(svgEl('path', { class: 'g-skip', d: 'M5.5 5.5 L14.5 14.5 M14.5 5.5 L5.5 14.5' }));
   } else if (state === 'noplan') {
@@ -6054,9 +6099,22 @@ function repaintAreas() {
   window.scrollTo(0, y);
 }
 
+/* How a day ahead (or today, before its menu exists) reads for one area, if the forecast
+   has something to say: 'suggested' where it would be suggested, 'planned' where that
+   day already has a menu of its own. Anything that has happened (done, partial, skipped)
+   is left as it is. */
+function forecastState(forecast, cell, today, areaId) {
+  var f = forecast && forecast[cell.date];
+  if (!f || f.picks.indexOf(areaId) < 0) return null;
+  var open = cell.state === 'future' || (cell.date === today && cell.state === 'none');
+  if (!open) return null;
+  return f.real ? 'planned' : 'suggested';
+}
+
 /* Areas down the side, Monday to Sunday across. Tap a day to see it. */
 function weekGrid(start, today, days, opts) {
   var live = !(opts && opts.static);                /* static: for reading, nothing to tap */
+  var forecast = opts && opts.forecast || null;     /* the days ahead, if they are to show */
   var grid = el('div', { class: 'wk-grid', role: 'grid', 'aria-label': 'Areas by day' });
   var LETTER = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -6083,12 +6141,13 @@ function weekGrid(start, today, days, opts) {
     ]));
 
     w.cells.forEach(function (c) {
+      var state = forecastState(forecast, c, today, area.id) || c.state;
       var cell = el(live ? 'button' : 'div', {
         class: 'wk-cell' + (c.isToday ? ' is-today' : '') + (c.state === 'future' ? ' is-future' : '')
           + (live && c.date === areasView.day ? ' is-sel' : ''),
         type: live ? 'button' : null,
-        'aria-label': area.name + ', ' + fmtDateShort(c.date) + ': ' + STATE_TEXT[c.state]
-      }, [c.state === 'future' ? null : stateGlyph(c.state)]);
+        'aria-label': area.name + ', ' + fmtDateShort(c.date) + ': ' + STATE_TEXT[state]
+      }, [state === 'future' ? null : stateGlyph(state)]);
       if (live) cell.addEventListener('click', function () { pickDay(c.date); });
       grid.appendChild(cell);
     });
@@ -6099,10 +6158,11 @@ function weekGrid(start, today, days, opts) {
 
 /* Only the shapes this week actually uses, so the legend never explains
    something that is not on screen. */
-function weekLegend(sum, hasNoPlan) {
+function weekLegend(sum, hasNoPlan, hasSuggested) {
   var wrap = el('div', { class: 'wk-legend' });
   var items = [['full', 'Done'], ['partial', 'Partial']];
   if (sum.planned) items.push(['planned', 'Planned']);
+  if (hasSuggested) items.push(['suggested', 'Suggested']);
   if (sum.skipped) items.push(['skipped', 'Skipped']);
   if (hasNoPlan) items.push(['noplan', 'No plan recorded']);
   items.push(['none', 'Not trained']);
@@ -6123,6 +6183,7 @@ function detailRow(item, extra) {
   if (item.record) note = recNote(item.record);
   else if (item.state === 'skipped') note = 'Skipped' + (item.reason ? ' · ' + reasonText(item.reason) : '');
   else if (item.state === 'planned' || item.state === 'future') note = 'Planned';
+  else if (item.state === 'suggested') note = 'Suggested';
 
   if (item.record && item.removed) note += ' · taken off the menu';
   if (extra) note += (note ? ' · ' : '') + extra;
@@ -6136,7 +6197,7 @@ function detailRow(item, extra) {
 
 /* One day: each sitting in turn, then anything logged that was not on the menu.
    A day nobody opened says so, rather than looking like a day off. */
-function dayDetail(date, today, days) {
+function dayDetail(date, today, days, forecast) {
   var d = dayDetailItems(date, today, days);
   var card = el('div', { class: 'card' }, [
     el('div', { class: 'card-top' }, [
@@ -6144,6 +6205,21 @@ function dayDetail(date, today, days) {
       el('div', { class: 'badges' }, [date === today ? badge('Today', 'badge-now') : null])
     ])
   ]);
+
+  /* a day with no menu yet: what would be suggested, if the forecast has it */
+  var f = forecast && forecast[date];
+  if (d.noPlan && date >= today && f && !f.real && !d.extras.length) {
+    if (!f.picks.length) {
+      card.appendChild(el('div', { class: 'card-sub', text: 'Nothing suggested for this day.' }));
+      return card;
+    }
+    card.appendChild(el('div', { class: 'wk-sit', text: 'Suggested · ' + f.minutes + ' min' }));
+    f.picks.forEach(function (id) {
+      card.appendChild(detailRow({ area: areaById(id), state: 'suggested', record: null }));
+    });
+    card.appendChild(el('p', { class: 'hint wk-detail-note', text: 'Worked out from what you have done so far, as if the days before it get done. The real menu is made when you open the day.' }));
+    return card;
+  }
 
   if (d.noPlan) {
     var since = settings.menuSince && date >= settings.menuSince && date < today;
@@ -6203,7 +6279,12 @@ function weekHasNoPlan(start, today, days) {
   });
 }
 
-function weekCard(start, today, days) {
+/* Does the forecast put anything on a day ahead that has no menu of its own? */
+function forecastShows(forecast) {
+  return !!forecast && Object.keys(forecast).some(function (d) { return !forecast[d].real && forecast[d].picks.length; });
+}
+
+function weekCard(start, today, days, forecast) {
   var current = weekStartOf(today);
   var first = firstWeekStart(days);
   var end = addDays(start, 6);
@@ -6226,8 +6307,9 @@ function weekCard(start, today, days) {
       ]),
       next
     ]),
-    weekGrid(start, today, days),
-    weekLegend(sum, weekHasNoPlan(start, today, days)),
+    weekGrid(start, today, days, { forecast: forecast }),
+    weekLegend(sum, weekHasNoPlan(start, today, days), forecastShows(forecast)),
+    forecastShows(forecast) ? el('p', { class: 'hint wk-forecast-note', text: 'Dotted rings are suggestions for the days ahead, as if each day’s menu gets done. They change as you go: the real menu is made when you open Today.' }) : null,
     el('p', { class: 'wk-sum', text: line }),
     skippedList(sum),
     fitBlock(start, today, days)
@@ -6299,9 +6381,11 @@ function renderAreas() {
     areasView.day = (today >= start && today <= end) ? today : start;
   }
 
+  var forecast = start === current ? weekForecast(today, days) : null;     /* only the week that is running */
+
   var nodes = [
-    weekCard(start, today, days),
-    dayDetail(areasView.day, today, days),
+    weekCard(start, today, days, forecast),
+    dayDetail(areasView.day, today, days, forecast),
     el('p', { class: 'section-label', text: 'Areas' })
   ];
   areaList().forEach(function (a) { nodes.push(areaCard(a, days)); });
