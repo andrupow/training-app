@@ -1,0 +1,66 @@
+{
+  "id": "mu",
+  "name": "Muscle-up",
+  "short": "Muscle-up",
+  "priority": 1,
+  "goal": "1 strict unassisted bar muscle-up",
+  "perWeek": {
+    "min": 2,
+    "target": 2,
+    "max": 3
+  },
+  "minGapDays": 2,
+  "minutes": 30,
+  "load": "high",
+  "order": "skill",
+  "guardedBy": [
+    "elbow",
+    "shoulder",
+    "wrist"
+  ],
+  "sessionTypes": [
+    "strength",
+    "skill"
+  ],
+  "stages": [
+    {
+      "id": "M1",
+      "name": "Dip foundation",
+      "askAfter": 12,
+      "work": "Dip negatives (3 s) → band-assisted parallel dips → bodyweight; sternum and strict pull-ups; false-grip hangs; hollow and arch holds; bar support",
+      "ready": [
+        "8 clean parallel dips",
+        "5 strict chest-to-bar pulls"
+      ]
+    },
+    {
+      "id": "M2",
+      "name": "Straight-bar crossing",
+      "askAfter": 12,
+      "work": "Straight-bar dip negatives (5 s), Russian dips, false-grip top holds, low-bar turnovers, speed chest-to-bar, L-sit chins, hanging toes-to-bar",
+      "ready": [
+        "5 s straight-bar negative",
+        "4 Russian dips"
+      ]
+    },
+    {
+      "id": "M3",
+      "name": "Banded integration",
+      "askAfter": 12,
+      "work": "Band-assisted muscle-ups (heavy → light band), 6 s negative muscle-ups, explosive and weighted dips, lockout and L-sit holds",
+      "ready": [
+        "Clean single with a light band"
+      ]
+    },
+    {
+      "id": "M4",
+      "name": "Micro-band → unassisted",
+      "askAfter": 8,
+      "work": "Micro-band singles, unassisted attempts, neural primers",
+      "goal": true,
+      "ready": [
+        "1 strict unassisted bar muscle-up"
+      ]
+    }
+  ]
+}

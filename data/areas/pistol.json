@@ -1,0 +1,81 @@
+{
+  "id": "pistol",
+  "name": "Pistol squat",
+  "short": "Pistol",
+  "priority": 4,
+  "goal": "5 strict pistol squats per leg, heel down, no counterweight",
+  "perWeek": {
+    "min": 2,
+    "target": 2,
+    "max": 3
+  },
+  "minGapDays": 2,
+  "minutes": 18,
+  "load": "medium",
+  "order": "strength",
+  "guardedBy": [
+    "knee"
+  ],
+  "sessionTypes": [
+    "main",
+    "technique"
+  ],
+  "stages": [
+    {
+      "id": "P1",
+      "name": "Squat foundation",
+      "askAfter": 8,
+      "work": "Full-depth bodyweight squat, heels down; deep-squat holds; knee-to-wall ankle rocks; reverse lunges",
+      "ready": [
+        "3 × 20 deep squats",
+        "2 min accumulated deep hold"
+      ]
+    },
+    {
+      "id": "P2",
+      "name": "Single-leg strength",
+      "askAfter": 8,
+      "work": "Bulgarian split squat, step-ups, 3 s down",
+      "ready": [
+        "3 × 10 per leg Bulgarian, bodyweight"
+      ]
+    },
+    {
+      "id": "P3",
+      "name": "Assisted pistol",
+      "askAfter": 10,
+      "work": "Full-depth pistol holding a pole, doorframe or rings",
+      "ready": [
+        "3 × 8 per leg with fingertip-light assist"
+      ]
+    },
+    {
+      "id": "P4",
+      "name": "Box pistol",
+      "askAfter": 10,
+      "work": "Single-leg sit-to-stand, box lowered 60 → 45 → 35 cm",
+      "ready": [
+        "3 × 6 per leg from 35 cm"
+      ]
+    },
+    {
+      "id": "P5",
+      "name": "Negatives",
+      "askAfter": 10,
+      "work": "Pistol negatives, 5 s to full depth, two legs to stand",
+      "ready": [
+        "3 × 5 per leg at 5 s to full depth"
+      ]
+    },
+    {
+      "id": "P6",
+      "name": "Full pistol",
+      "askAfter": 12,
+      "work": "Counterweight held forward (2–5 kg) then dropped; heel flat",
+      "goal": true,
+      "ready": [
+        "5 strict reps per leg, no counterweight"
+      ]
+    }
+  ]
+}

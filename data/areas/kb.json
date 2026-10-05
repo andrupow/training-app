@@ -1,0 +1,167 @@
+{
+  "id": "kb",
+  "name": "Kettlebell (Simple & Sinister)",
+  "short": "Kettlebell",
+  "priority": 6,
+  "goal": "The full Simple & Sinister protocol with a 50 kg (110 lb) bell",
+  "perWeek": {
+    "min": 2,
+    "target": 3,
+    "max": 6,
+    "nominalTarget": 5
+  },
+  "minGapDays": 1,
+  "minutes": 30,
+  "load": "medium",
+  "order": "kettlebell",
+  "guardedBy": [
+    "lowerBack",
+    "shoulder",
+    "hamstring"
+  ],
+  "stages": [
+    {
+      "id": "K1",
+      "name": "Foundation",
+      "askAfter": 8,
+      "work": "KB deadlift, goblet squat, two-hand swings 5 × 10, shoe get-up then 15 lb get-up; a light S&S-style session with what you own",
+      "ready": [
+        "10 × 10 two-hand swings with a clean hinge",
+        "5 get-ups per side with the 15 lb"
+      ],
+      "bells": [
+        {
+          "kg": 6.8,
+          "lb": 15
+        },
+        {
+          "kg": 11.3,
+          "lb": 25
+        }
+      ]
+    },
+    {
+      "id": "K2",
+      "name": "S&S",
+      "askAfter": 12,
+      "work": "Full S&S",
+      "ready": [
+        "Full protocol clean, not wrecked"
+      ],
+      "bells": [
+        {
+          "kg": 16,
+          "lb": 35
+        }
+      ]
+    },
+    {
+      "id": "K3",
+      "name": "S&S",
+      "askAfter": 12,
+      "work": "Full S&S",
+      "ready": [
+        "same"
+      ],
+      "bells": [
+        {
+          "kg": 20,
+          "lb": 44
+        }
+      ]
+    },
+    {
+      "id": "K4",
+      "name": "S&S",
+      "askAfter": 12,
+      "work": "Full S&S",
+      "ready": [
+        "same"
+      ],
+      "bells": [
+        {
+          "kg": 24,
+          "lb": 53
+        }
+      ]
+    },
+    {
+      "id": "K5",
+      "name": "S&S",
+      "askAfter": 12,
+      "work": "Full S&S",
+      "ready": [
+        "same"
+      ],
+      "bells": [
+        {
+          "kg": 28,
+          "lb": 62
+        }
+      ]
+    },
+    {
+      "id": "K6",
+      "name": "Simple",
+      "askAfter": 12,
+      "work": "Full S&S, plus the book's time standard",
+      "milestone": true,
+      "ready": [
+        "Simple standard met"
+      ],
+      "bells": [
+        {
+          "kg": 32,
+          "lb": 70
+        }
+      ]
+    },
+    {
+      "id": "K7",
+      "name": "S&S",
+      "askAfter": 12,
+      "work": "Full S&S",
+      "ready": [
+        "Full protocol clean"
+      ],
+      "bells": [
+        {
+          "kg": 40,
+          "lb": 88
+        }
+      ]
+    },
+    {
+      "id": "K8",
+      "name": "Sinister",
+      "askAfter": 12,
+      "work": "Full S&S, plus the book's time standard",
+      "milestone": true,
+      "ready": [
+        "Sinister standard met"
+      ],
+      "bells": [
+        {
+          "kg": 48,
+          "lb": 106
+        }
+      ]
+    },
+    {
+      "id": "K9",
+      "name": "Target bell",
+      "askAfter": 12,
+      "work": "Full S&S",
+      "goal": true,
+      "ready": [
+        "Full protocol with the 50 kg bell"
+      ],
+      "bells": [
+        {
+          "kg": 50,
+          "lb": 110
+        }
+      ]
+    }
+  ]
+}

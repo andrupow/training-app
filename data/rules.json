@@ -1,0 +1,113 @@
+{
+  "schema": 1,
+  "weekStart": "mon",
+  "defaults": {
+    "dayMinutes": 60,
+    "timeOptions": [
+      30,
+      45,
+      60
+    ],
+    "maxSittings": 3,
+    "maxAreas": 4,
+    "maxHigh": 2,
+    "rampWeeks": 2,
+    "fullAreaPct": 100,
+    "repeatEvery": 4
+  },
+  "dayOrder": [
+    "power",
+    "skill",
+    "strength",
+    "mobility",
+    "kettlebell"
+  ],
+  "bodyAreas": [
+    {
+      "id": "elbow",
+      "label": "Medial elbow",
+      "collected": true
+    },
+    {
+      "id": "shoulder",
+      "label": "Shoulder",
+      "collected": true
+    },
+    {
+      "id": "wrist",
+      "label": "Wrist",
+      "collected": false
+    },
+    {
+      "id": "lowerBack",
+      "label": "Lower back",
+      "collected": false
+    },
+    {
+      "id": "knee",
+      "label": "Knee",
+      "collected": false
+    },
+    {
+      "id": "hamstring",
+      "label": "Hamstring",
+      "collected": true
+    },
+    {
+      "id": "achilles",
+      "label": "Achilles",
+      "collected": true
+    }
+  ],
+  "conflicts": [
+    {
+      "areas": [
+        "mu",
+        "oap"
+      ],
+      "why": "both load the elbow tendons"
+    },
+    {
+      "areas": [
+        "hspu",
+        "mu"
+      ],
+      "why": "both load shoulders and triceps"
+    },
+    {
+      "areas": [
+        "plyo",
+        "nordic"
+      ],
+      "why": "jumping on tired hamstrings"
+    },
+    {
+      "areas": [
+        "nordic",
+        "kb"
+      ],
+      "soft": true,
+      "why": "both load the hamstrings"
+    }
+  ],
+  "budgets": [
+    {
+      "areas": [
+        "mu",
+        "oap"
+      ],
+      "maxPerWeek": 4,
+      "why": "elbow tendon"
+    }
+  ],
+  "verdicts": {
+    "window": 4,
+    "consistentHits": 3,
+    "buildingHits": 3,
+    "slippingMisses": 2,
+    "slippingWindow": 3,
+    "dormantDays": 14,
+    "newWeeks": 2,
+    "mostlyPartialPct": 70
+  }
+}
