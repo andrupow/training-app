@@ -1,5 +1,5 @@
 /* The Integrated Plan — Milestones 1-8, complete; M9-M10 runner and rescheduling;
-   M11 workout areas (read-only)
+   M11 workout areas, M12 the daily menu, M13 the recommender
    Shell + PWA + plan browser + today's session with set logging
    + dated baselines and the load calculator + rest timer + JSON backup
    + morning check-in, the traffic light, HOLD gating and progression charts.
@@ -7,7 +7,7 @@
 
 'use strict';
 
-var BUILD = '1.11.0-m12';
+var BUILD = '1.12.0-m13';
 var PLAN_URL = 'data/plan.json';
 var LS_PLAN = 'plan.cache.v1';
 var LS_LOGS = 'setLogs';
