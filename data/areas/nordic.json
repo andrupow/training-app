@@ -33,6 +33,12 @@
       },
       "minGapDays": 2,
       "draft": true,
+      "equipment": [
+        "bands",
+        "bar",
+        "anchor",
+        "mat"
+      ],
       "exercises": [
         {
           "id": "nordic",
@@ -63,7 +69,42 @@
         "target": 3,
         "max": 3
       },
-      "minGapDays": 2
+      "minGapDays": 2,
+      "draft": true,
+      "equipment": [
+        "bands",
+        "bar",
+        "anchor",
+        "mat"
+      ],
+      "exercises": [
+        {
+          "id": "hip-bridge",
+          "name": "Hip bridge hold",
+          "sets": 2,
+          "reps": "8",
+          "tempo": "3 s hold at the top",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Heels under your knees, squeeze glutes and hamstrings, hips up in one straight line."
+        },
+        {
+          "id": "band-nordic",
+          "name": "Band-assisted Nordic curl",
+          "sets": 3,
+          "reps": "4 → 6",
+          "tempo": "4 s down",
+          "restSec": 120,
+          "load": {
+            "type": "text",
+            "text": "Medium band, then light band"
+          },
+          "cue": "Straight line from knees to head. Make the lowering last a full count of four.",
+          "note": "Move to the light band only once you finish all three sets of 6 cleanly with the medium one. Not while the hamstring is red."
+        }
+      ]
     },
     {
       "id": "N3",
@@ -72,6 +113,38 @@
       "work": "No band; 5 s lowering; hands catch at the floor and push back",
       "ready": [
         "3 × 5, 5 s down"
+      ],
+      "draft": true,
+      "equipment": [
+        "anchor",
+        "mat"
+      ],
+      "exercises": [
+        {
+          "id": "hip-bridge",
+          "name": "Hip bridge hold",
+          "sets": 2,
+          "reps": "8",
+          "tempo": "3 s hold at the top",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Heels under your knees, squeeze glutes and hamstrings, hips up in one straight line."
+        },
+        {
+          "id": "slow-nordic",
+          "name": "Nordic curl, slow lowering",
+          "sets": 3,
+          "reps": "3 → 5",
+          "tempo": "5 s down",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Lower as slowly as you can with a straight body, catch yourself with both hands, then push back up.",
+          "note": "If you are falling faster than about 3 seconds, end the set. A sore back of the thigh for a day or two is normal; sharp pain is not, so stop. Not while the hamstring is red."
+        }
       ]
     },
     {
@@ -81,6 +154,38 @@
       "work": "As N3 with the push-back reduced to fingertips",
       "ready": [
         "3 × 5 with a fingertip push"
+      ],
+      "draft": true,
+      "equipment": [
+        "anchor",
+        "mat"
+      ],
+      "exercises": [
+        {
+          "id": "hip-bridge",
+          "name": "Hip bridge hold",
+          "sets": 2,
+          "reps": "8",
+          "tempo": "3 s hold at the top",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Heels under your knees, squeeze glutes and hamstrings, hips up in one straight line."
+        },
+        {
+          "id": "fingertip-nordic",
+          "name": "Nordic curl, fingertip push",
+          "sets": 3,
+          "reps": "3 → 5",
+          "tempo": "5 s down",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Catch yourself with both hands, then push back with your fingertips only so your hamstrings do the work.",
+          "note": "Push a little lighter each week. If the lowering gets faster than about 3 seconds, end the set. Not while the hamstring is red."
+        }
       ]
     },
     {
@@ -91,6 +196,51 @@
       "goal": true,
       "ready": [
         "5 strict reps"
+      ],
+      "draft": true,
+      "equipment": [
+        "anchor",
+        "mat"
+      ],
+      "exercises": [
+        {
+          "id": "hip-bridge",
+          "name": "Hip bridge hold",
+          "sets": 2,
+          "reps": "8",
+          "tempo": "3 s hold at the top",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Heels under your knees, squeeze glutes and hamstrings, hips up in one straight line."
+        },
+        {
+          "id": "full-nordic",
+          "name": "Full Nordic curl, no hands",
+          "sets": 2,
+          "reps": "2 → 4",
+          "tempo": "5 s down, then pull back up",
+          "restSec": 180,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Lower slowly, then pull yourself back up with your hamstrings, hands off the floor.",
+          "note": "If you cannot pull back up, catch with your hands and use a fingertip push. That rep does not count. Not while the hamstring is red."
+        },
+        {
+          "id": "nordic-test",
+          "name": "Test set: strict Nordic curls",
+          "sets": 1,
+          "reps": "5",
+          "tempo": "5 s down, then pull back up",
+          "restSec": 180,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Straight body, no hands, slow down and smooth up. Stop at the first rep that is not clean.",
+          "note": "Once a week at most, in your freshest session. Five clean reps is the standard for this stage. Not while the hamstring is red."
+        }
       ]
     },
     {
@@ -100,6 +250,40 @@
       "work": "Weighted, +2.5 → +5 kg at the chest (the old feat)",
       "ready": [
         "3 × 3 at 5 kg"
+      ],
+      "draft": true,
+      "equipment": [
+        "anchor",
+        "mat",
+        "weights"
+      ],
+      "exercises": [
+        {
+          "id": "hip-bridge",
+          "name": "Hip bridge hold",
+          "sets": 2,
+          "reps": "8",
+          "tempo": "3 s hold at the top",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Heels under your knees, squeeze glutes and hamstrings, hips up in one straight line."
+        },
+        {
+          "id": "weighted-nordic",
+          "name": "Weighted Nordic curl",
+          "sets": 3,
+          "reps": "3",
+          "tempo": "4 s down, then pull back up",
+          "restSec": 180,
+          "load": {
+            "type": "text",
+            "text": "+2.5 kg at the chest, working up to +5 kg"
+          },
+          "cue": "Hold the weight against your chest, keep a straight body, lower slowly and pull back up with no hands.",
+          "note": "Add weight only once all three sets of 3 are clean. A weighted vest is safer than a plate, because your hands stay free to catch you. Stop at any sharp hamstring pain. Not while the hamstring is red."
+        }
       ]
     }
   ]

@@ -31,6 +31,9 @@
         "3 × 10 strict pull-ups, 2 s down"
       ],
       "draft": true,
+      "equipment": [
+        "bar"
+      ],
       "exercises": [
         {
           "id": "scap-pull",
@@ -88,6 +91,77 @@
       "work": "Weighted pull-ups ramping to +25 % bodyweight (uses your bodyweight rule)",
       "ready": [
         "+25 % BW × 5"
+      ],
+      "draft": true,
+      "equipment": [
+        "bar",
+        "weights"
+      ],
+      "exercises": [
+        {
+          "id": "scap-pull",
+          "name": "Scapular pull-up",
+          "sets": 2,
+          "reps": "6",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Arms straight. Pull the shoulder blades down; the elbows do not bend."
+        },
+        {
+          "id": "wtd-warmup",
+          "name": "Weighted pull-up, warm-up",
+          "sets": 2,
+          "reps": "5",
+          "tempo": "2 s down",
+          "restSec": 60,
+          "load": {
+            "type": "pct5RM",
+            "value": 0.5
+          },
+          "cue": "Easy and smooth. Hang fully at the bottom."
+        },
+        {
+          "id": "wtd-pull",
+          "name": "Weighted pull-up, working sets",
+          "sets": 3,
+          "reps": "3 → 5",
+          "tempo": "2 s down",
+          "restSec": 180,
+          "load": {
+            "type": "pct5RM",
+            "value": 0.75
+          },
+          "cue": "Chin clearly over the bar, no swing, full hang at the bottom.",
+          "note": "Add reps first. When all three sets reach 5 clean reps, re-test your 5RM and the weight follows. Leave a rep in reserve on every set."
+        },
+        {
+          "id": "wtd-top",
+          "name": "Weighted pull-up, +25 % bodyweight",
+          "sets": 1,
+          "reps": "5",
+          "tempo": "2 s down",
+          "restSec": 240,
+          "load": {
+            "type": "pctBW",
+            "value": 0.25
+          },
+          "cue": "Same strict reps as the working sets, with the weight hanging still.",
+          "note": "This is the stage standard. Try it only when the working sets feel easy, and no more than once every two weeks. Stop at any elbow pain."
+        },
+        {
+          "id": "one-arm-hang",
+          "name": "One-arm hang",
+          "sets": 2,
+          "reps": "5 s / arm",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "The other hand takes some weight (on the wrist or a band) if the shoulder complains. Stop at any elbow pain."
+        }
       ]
     },
     {
@@ -97,6 +171,61 @@
       "work": "Archer pull-ups, widening the grip",
       "ready": [
         "3 × 5 per side, assisting arm straight"
+      ],
+      "draft": true,
+      "equipment": [
+        "bar"
+      ],
+      "exercises": [
+        {
+          "id": "scap-pull",
+          "name": "Scapular pull-up",
+          "sets": 2,
+          "reps": "6",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Arms straight. Pull the shoulder blades down; the elbows do not bend."
+        },
+        {
+          "id": "wide-pull",
+          "name": "Wide-grip pull-up",
+          "sets": 2,
+          "reps": "5",
+          "tempo": "2 s down",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Hands wider than the shoulders, elbows out to the sides, chin over the bar.",
+          "note": "Move the hands a little wider each week while the shoulders feel fine."
+        },
+        {
+          "id": "archer",
+          "name": "Archer pull-up",
+          "sets": 3,
+          "reps": "3 → 5 / side",
+          "tempo": "2 s down",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Pull toward one hand. The other arm stays straight and just slides along the bar.",
+          "note": "Start with the helping arm bent a little. Work toward a fully straight helping arm by the end of the stage. Keep that elbow soft, never snapped straight. Stop at any elbow pain."
+        },
+        {
+          "id": "one-arm-hang",
+          "name": "One-arm hang",
+          "sets": 2,
+          "reps": "8 s / arm",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "The other hand takes some weight (on the wrist or a band) if the shoulder complains. Stop at any elbow pain."
+        }
       ]
     },
     {
@@ -106,6 +235,61 @@
       "work": "One-arm with the other hand on the wrist or a towel/band, assist reducing",
       "ready": [
         "3 × 3 per side, fingertip-level assist"
+      ],
+      "draft": true,
+      "equipment": [
+        "bar"
+      ],
+      "exercises": [
+        {
+          "id": "scap-pull",
+          "name": "Scapular pull-up",
+          "sets": 2,
+          "reps": "6",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Arms straight. Pull the shoulder blades down; the elbows do not bend."
+        },
+        {
+          "id": "archer",
+          "name": "Archer pull-up",
+          "sets": 2,
+          "reps": "3 / side",
+          "tempo": "2 s down",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Pull toward one hand. The other arm stays straight and just slides along the bar.",
+          "note": "This is a warm-up for the one-arm work. Skip it on any day the elbow feels warm or sore."
+        },
+        {
+          "id": "assisted-oap",
+          "name": "Assisted one-arm pull-up",
+          "sets": 3,
+          "reps": "2 → 3 / side",
+          "tempo": "2 s down",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Pull with one arm. The other hand holds the working wrist and helps only as much as it has to.",
+          "note": "Reduce the help over the stage: hand on the wrist, then fingers on the wrist, then fingertips only. Add a rep only when the last rep is as clean as the first. Stop at any elbow pain."
+        },
+        {
+          "id": "one-arm-hang",
+          "name": "One-arm hang",
+          "sets": 2,
+          "reps": "8 s / arm",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "The other hand takes some weight (on the wrist or a band) if the shoulder complains. Stop at any elbow pain."
+        }
       ]
     },
     {
@@ -115,6 +299,61 @@
       "work": "6–8 s lowering, ≤ 4 reps per arm per session",
       "ready": [
         "3 × 3 per side at 8 s"
+      ],
+      "draft": true,
+      "equipment": [
+        "bar"
+      ],
+      "exercises": [
+        {
+          "id": "scap-pull",
+          "name": "Scapular pull-up",
+          "sets": 2,
+          "reps": "6",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Arms straight. Pull the shoulder blades down; the elbows do not bend."
+        },
+        {
+          "id": "assisted-oap",
+          "name": "Assisted one-arm pull-up",
+          "sets": 2,
+          "reps": "2 / side",
+          "tempo": "2 s down",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Pull with one arm. Fingertips on the working wrist, no more help than that.",
+          "note": "This is a warm-up for the negatives. Use a little more help if the form slips."
+        },
+        {
+          "id": "oap-negative",
+          "name": "One-arm negative",
+          "sets": 4,
+          "reps": "1 / side",
+          "tempo": "6 → 8 s down",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Chin over the bar to start, then lower with one arm in one slow, steady motion.",
+          "note": "Pull up with both hands or jump to the top, let one hand go, then lower. No more than 4 reps per arm in a session. Start at 6 s and stretch toward 8 s. If you cannot control the lowering, stop and rest. Stop at any elbow pain."
+        },
+        {
+          "id": "one-arm-hang",
+          "name": "One-arm hang",
+          "sets": 2,
+          "reps": "10 s / arm",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "The other hand takes some weight (on the wrist or a band) if the shoulder complains. Stop at any elbow pain."
+        }
       ]
     },
     {
@@ -125,6 +364,61 @@
       "goal": true,
       "ready": [
         "1 strict rep each arm"
+      ],
+      "draft": true,
+      "equipment": [
+        "bar",
+        "step"
+      ],
+      "exercises": [
+        {
+          "id": "scap-pull",
+          "name": "Scapular pull-up",
+          "sets": 2,
+          "reps": "6",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Arms straight. Pull the shoulder blades down; the elbows do not bend."
+        },
+        {
+          "id": "one-arm-hang",
+          "name": "One-arm hang",
+          "sets": 2,
+          "reps": "8 s / arm",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "The other hand takes some weight (on the wrist or a band) if the shoulder complains. Stop at any elbow pain."
+        },
+        {
+          "id": "oap-partial",
+          "name": "One-arm partial, from 90°",
+          "sets": 2,
+          "reps": "2 → 3 / side",
+          "tempo": "3 s down",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Elbow bent at 90°, other hand off the bar, then pull until the chin is over.",
+          "note": "Stand on a step to set up the 90° start. Once these feel solid, start a little lower each week until you start from a full hang. Stop at any elbow pain."
+        },
+        {
+          "id": "oap-attempt",
+          "name": "Full one-arm pull-up attempt",
+          "sets": 3,
+          "reps": "1 / side",
+          "restSec": 180,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Hang fully, no swing, no kick, chin over the bar.",
+          "note": "Strict means a full hang at the bottom and the chin clearly over the bar. Heavy days only: on a light day, stop after the partials. Rest fully between attempts and stop early if the elbow aches."
+        }
       ]
     }
   ]

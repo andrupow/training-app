@@ -20,8 +20,8 @@ const AREA_KEYS = ['id', 'name', 'short', 'priority', 'goal', 'perWeek', 'minGap
   'guardedBy', 'sessionTypes', 'tests', 'stages'];
 const STAGE_KEYS = ['id', 'name', 'askAfter', 'optional', 'work', 'maxContacts', 'maxDepthContacts', 'goal',
   'milestone', 'ready', 'note', 'requires', 'bells', 'perWeek', 'minGapDays', 'draft',
-  'exercises', 'equipment', 'types'];                      /* equipment and types arrive with the stage engine */
-const EXERCISE_KEYS = ['id', 'name', 'sets', 'reps', 'tempo', 'restSec', 'load', 'type', 'cue', 'note'];
+  'exercises', 'equipment', 'types'];
+const EXERCISE_KEYS = ['id', 'name', 'sets', 'reps', 'tempo', 'restSec', 'load', 'type', 'cue', 'note', 'contacts'];
 const LOAD_TYPES = ['pct5RM', 'pctBW', 'fixedKg', 'bodyweight', 'text', 'none'];
 const isInt = n => Number.isInteger(n);
 const bodyIds = rules.bodyAreas.map(b => b.id);
@@ -85,16 +85,46 @@ areas.forEach(a => {
       });
       ok(`${s.id}: either every exercise has a type or none does`, ex.every(e => !!e.type) || ex.every(e => !e.type));
 
+      /* Plyometrics: every jump rep is a ground contact, and the stage caps them. */
+      const contacts = ex.filter(e => e.contacts).reduce((n, e) => n + e.sets * (parseInt(e.reps, 10) || 0), 0);
+      if (s.maxContacts) {
+        ok(`${s.id}: has jumping work counted in contacts`, ex.some(e => e.contacts === true));
+        ok(`${s.id}: ${contacts} ground contacts is within the cap of ${s.maxContacts}`, contacts <= s.maxContacts);
+      } else {
+        ok(`${s.id}: no contacts counted where there is no cap`, !ex.some(e => e.contacts));
+      }
+
       /* A rough clock, to catch a block that is five minutes or two hours. */
       const secs = r => { const m = String(r).match(/^(\d+)(?:\s*[–-]\s*\d+)?\s*(s|min)\b/); return m ? Number(m[1]) * (m[2] === 'min' ? 60 : 1) : 45; };
       const minutes = list => list.reduce((n, e) => n + e.sets * (secs(e.reps) + e.restSec), 0) / 60;
       const groups = ex.some(e => e.type) ? [...new Set(ex.map(e => e.type))].map(ty => ex.filter(e => e.type === ty)) : [ex];
       groups.forEach(g => ok(`${s.id}: a block takes roughly the area's ${a.minutes} min (${Math.round(minutes(g))})`, minutes(g) >= a.minutes * 0.4 && minutes(g) <= a.minutes * 1.6));
     }
+    if (s.equipment !== undefined) {
+      ok(`${s.id}: equipment is a list`, Array.isArray(s.equipment));
+      ok(`${s.id}: every piece of equipment is in the rules' list`, (s.equipment || []).every(id => rules.equipment.some(q => q.id === id)));
+      eq(`${s.id}: equipment has no repeats`, new Set(s.equipment).size, (s.equipment || []).length);
+    }
     if (s.perWeek) ok(`${s.id}: stage perWeek is min <= target <= max`, s.perWeek.min <= s.perWeek.target && s.perWeek.target <= s.perWeek.max);
     if (s.minGapDays !== undefined) ok(`${s.id}: stage gap is a positive integer`, isInt(s.minGapDays) && s.minGapDays >= 1);
     (s.requires || []).forEach(r => ok(`${s.id}: requires ${r.area} ${r.stage}, which exists`, byId[r.area] && byId[r.area].stages.some(x => x.id === r.stage)));
   });
+});
+
+console.log('the equipment list:');
+ok('every piece has an id, a label and whether you own it by default', rules.equipment.every(q => /^[a-z-]+$/.test(q.id) && q.label && typeof q.owned === 'boolean'));
+eq('ids are unique', new Set(rules.equipment.map(q => q.id)).size, rules.equipment.length);
+
+console.log('every stage is runnable, so a level-up never lands on an empty stage:');
+areas.forEach(a => a.stages.forEach(s => {
+  ok(`${s.id}: has exercises`, Array.isArray(s.exercises) && s.exercises.length > 0);
+  ok(`${s.id}: lists its equipment`, Array.isArray(s.equipment));
+  if (s.id !== a.stages[0].id || a.id !== 'mu') ok(`${s.id}: is marked a draft until it has been read`, s.draft === true);
+  if (a.id === 'kb') ok(`${s.id}: needs the kettlebell`, (s.equipment || []).includes('kettlebell'));
+}));
+areas.forEach(a => {
+  const ids = a.stages.map(s => (s.exercises || []).map(e => e.id));
+  ok(`${a.id}: a stage adds or changes something: no two neighbouring stages are identical`, ids.every((x, i) => i === 0 || JSON.stringify(a.stages[i].exercises) !== JSON.stringify(a.stages[i - 1].exercises)));
 });
 
 console.log('everyone starts at stage 1, so stage 1 has to be runnable:');

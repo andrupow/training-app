@@ -33,6 +33,11 @@
         "arms overhead flat to the wall"
       ],
       "draft": true,
+      "equipment": [
+        "mat",
+        "roller",
+        "wall"
+      ],
       "exercises": [
         {
           "id": "wrist-prep",
@@ -90,6 +95,62 @@
       "work": "Bridge with hands on a high bench, lowering the surface over time",
       "ready": [
         "3 × 8 from about 40 cm, arms straight"
+      ],
+      "draft": true,
+      "equipment": [
+        "bench",
+        "wall",
+        "mat"
+      ],
+      "exercises": [
+        {
+          "id": "wrist-prep",
+          "name": "Wrist extension rocks",
+          "sets": 2,
+          "reps": "10",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Kneeling, palms down, fingers pointing back toward the knees, rock gently back and forth."
+        },
+        {
+          "id": "wall-reach",
+          "name": "Overhead reach against a wall",
+          "sets": 2,
+          "reps": "30 s",
+          "tempo": "Static",
+          "restSec": 30,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Back to the wall, ribs down, arms overhead pressed flat to the wall. Stop where the back starts to arch."
+        },
+        {
+          "id": "chest-opener",
+          "name": "Kneeling chest opener on a bench",
+          "sets": 2,
+          "reps": "8",
+          "tempo": "3 s at the bottom",
+          "restSec": 30,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Kneel, hands on the bench, sink the chest toward the floor with the ribs down and the arms straight."
+        },
+        {
+          "id": "bench-bridge",
+          "name": "Bridge with hands on a bench",
+          "sets": 3,
+          "reps": "5 → 8",
+          "tempo": "2 s hold at the top",
+          "restSec": 75,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Back to the bench, hands on its edge with the fingers toward your feet, press the hips up and let the head drop back between the arms.",
+          "note": "Push the bench against a wall so it cannot slide. Start on the highest surface that feels easy (a sturdy table works), then move to a bench or chair seat, about 40 cm, as 8 reps get comfortable. Stop if the lower back pinches."
+        }
       ]
     },
     {
@@ -99,6 +160,63 @@
       "work": "Bridge from a low platform (20 → 10 cm)",
       "ready": [
         "3 × 8 from ≤ 15 cm"
+      ],
+      "draft": true,
+      "equipment": [
+        "step",
+        "bench",
+        "wall",
+        "mat"
+      ],
+      "exercises": [
+        {
+          "id": "wrist-prep",
+          "name": "Wrist extension rocks",
+          "sets": 2,
+          "reps": "10",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Kneeling, palms down, fingers pointing back toward the knees, rock gently back and forth."
+        },
+        {
+          "id": "wall-reach",
+          "name": "Overhead reach against a wall",
+          "sets": 2,
+          "reps": "30 s",
+          "tempo": "Static",
+          "restSec": 30,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Back to the wall, ribs down, arms overhead pressed flat to the wall. Stop where the back starts to arch."
+        },
+        {
+          "id": "chest-opener",
+          "name": "Kneeling chest opener on a bench",
+          "sets": 2,
+          "reps": "8",
+          "tempo": "3 s at the bottom",
+          "restSec": 30,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Kneel, hands on the bench, sink the chest toward the floor with the ribs down and the arms straight."
+        },
+        {
+          "id": "low-bridge",
+          "name": "Bridge with hands on a low step",
+          "sets": 3,
+          "reps": "5 → 8",
+          "tempo": "2 s hold at the top",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Lie back with the step above your head, hands on it with the fingers toward your feet, press up until the arms are straight.",
+          "note": "Start at about 20 cm and drop toward 10 cm as 8 reps get easy. Take out a book or a layer of the platform rather than rushing. Stop if the lower back pinches."
+        }
       ]
     },
     {
@@ -108,6 +226,62 @@
       "work": "Press up from lying to a full bridge, controlled",
       "ready": [
         "3 × 8 and one 30 s hold, arms and legs straight"
+      ],
+      "draft": true,
+      "equipment": [
+        "wall",
+        "mat"
+      ],
+      "exercises": [
+        {
+          "id": "wrist-prep",
+          "name": "Wrist extension rocks",
+          "sets": 2,
+          "reps": "10",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Kneeling, palms down, fingers pointing back toward the knees, rock gently back and forth."
+        },
+        {
+          "id": "wall-reach",
+          "name": "Overhead reach against a wall",
+          "sets": 2,
+          "reps": "30 s",
+          "tempo": "Static",
+          "restSec": 30,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Back to the wall, ribs down, arms overhead pressed flat to the wall. Stop where the back starts to arch."
+        },
+        {
+          "id": "floor-bridge",
+          "name": "Full bridge press-up",
+          "sets": 3,
+          "reps": "5 → 8",
+          "tempo": "2 s hold at the top",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Lie back, hands by the ears, press up through the hands and feet, push the chest toward the wall behind you.",
+          "note": "Straighten the arms and legs only as far as the lower back stays comfortable. Lower with control, do not drop."
+        },
+        {
+          "id": "bridge-hold",
+          "name": "Full bridge hold",
+          "sets": 2,
+          "reps": "15–30 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Arms and legs straight, head relaxed between the arms, breathe slowly.",
+          "note": "Add a few seconds each session until one hold reaches 30 s."
+        }
       ]
     },
     {
@@ -117,6 +291,61 @@
       "work": "Stand near a wall, walk the hands down into a bridge and back up",
       "ready": [
         "2 × 8, smooth, no collapse"
+      ],
+      "draft": true,
+      "equipment": [
+        "wall",
+        "mat"
+      ],
+      "exercises": [
+        {
+          "id": "wrist-prep",
+          "name": "Wrist extension rocks",
+          "sets": 2,
+          "reps": "10",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Kneeling, palms down, fingers pointing back toward the knees, rock gently back and forth."
+        },
+        {
+          "id": "wall-reach",
+          "name": "Overhead reach against a wall",
+          "sets": 2,
+          "reps": "30 s",
+          "tempo": "Static",
+          "restSec": 30,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Back to the wall, ribs down, arms overhead pressed flat to the wall. Stop where the back starts to arch."
+        },
+        {
+          "id": "floor-bridge",
+          "name": "Full bridge press-up",
+          "sets": 2,
+          "reps": "5",
+          "tempo": "2 s hold at the top",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Warm-up for the wall work: press up from the floor, arms and legs straight."
+        },
+        {
+          "id": "wall-walk-down",
+          "name": "Wall walk-down",
+          "sets": 3,
+          "reps": "4 → 8",
+          "tempo": "Slow, smooth hand steps",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Back to the wall, reach back, walk the hands down the wall into a bridge, then walk back up.",
+          "note": "Use a mat and clear the floor around you. Stand closer to the wall first, then step further out as it gets easy. If the hands slap or you collapse, go back one step closer. Stop if you feel dizzy."
+        }
       ]
     },
     {
@@ -126,6 +355,61 @@
       "work": "From a full bridge, walk the hands toward the feet, shoulders over hands",
       "ready": [
         "2 × 8 to ≤ 30 cm hands-to-feet"
+      ],
+      "draft": true,
+      "equipment": [
+        "wall",
+        "mat"
+      ],
+      "exercises": [
+        {
+          "id": "wrist-prep",
+          "name": "Wrist extension rocks",
+          "sets": 2,
+          "reps": "10",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Kneeling, palms down, fingers pointing back toward the knees, rock gently back and forth."
+        },
+        {
+          "id": "wall-reach",
+          "name": "Overhead reach against a wall",
+          "sets": 2,
+          "reps": "30 s",
+          "tempo": "Static",
+          "restSec": 30,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Back to the wall, ribs down, arms overhead pressed flat to the wall. Stop where the back starts to arch."
+        },
+        {
+          "id": "wall-walk-down",
+          "name": "Wall walk-down",
+          "sets": 2,
+          "reps": "5",
+          "tempo": "Slow, smooth hand steps",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Warm-up: walk the hands down the wall into the bridge and back up, smooth."
+        },
+        {
+          "id": "bridge-walk-in",
+          "name": "Bridge hand walk-in",
+          "sets": 3,
+          "reps": "4 → 8",
+          "tempo": "Small steps, 2 s at the closest point",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "From a full bridge, walk the hands toward the feet a few centimetres at a time, shoulders over the hands, then walk back out.",
+          "note": "Measure the gap from fingertips to heels now and then. Close it a hand-width at a time only when the last gap feels easy. Stop if the lower back pinches."
+        }
       ]
     },
     {
@@ -136,6 +420,62 @@
       "goal": true,
       "ready": [
         "3 consecutive free reps, no momentum drop"
+      ],
+      "draft": true,
+      "equipment": [
+        "wall",
+        "mat"
+      ],
+      "exercises": [
+        {
+          "id": "wrist-prep",
+          "name": "Wrist extension rocks",
+          "sets": 2,
+          "reps": "10",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Kneeling, palms down, fingers pointing back toward the knees, rock gently back and forth."
+        },
+        {
+          "id": "wall-reach",
+          "name": "Overhead reach against a wall",
+          "sets": 2,
+          "reps": "30 s",
+          "tempo": "Static",
+          "restSec": 30,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Back to the wall, ribs down, arms overhead pressed flat to the wall. Stop where the back starts to arch."
+        },
+        {
+          "id": "wall-stand-to-stand",
+          "name": "Wall-assisted stand-to-stand bridge",
+          "sets": 2,
+          "reps": "3 → 5",
+          "tempo": "Slow down, no bounce up",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Stand a short step from the wall, lean back, lower into the bridge with the hands near the wall, and stand up pushing lightly off it.",
+          "note": "Use a mat and keep the space behind you clear. Do these only after the wall walk-down and the bridge walk-in feel easy. Use less wall each week."
+        },
+        {
+          "id": "free-stand-to-stand",
+          "name": "Free stand-to-stand bridge",
+          "sets": 3,
+          "reps": "1 → 3",
+          "tempo": "Slow down, no bounce up",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Stand, reach back, lower to a full bridge, push the hips up, then stand back up in one smooth line without rocking.",
+          "note": "This is the test. Build toward 3 clean reps in a row. Stop if the back is sore, the wrists are tired, or you feel dizzy, and rest longer between attempts if you need to."
+        }
       ]
     }
   ]

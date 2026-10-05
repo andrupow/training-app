@@ -14,7 +14,8 @@
     "rampWeeks": 2,
     "tightRatio": 0.8,
     "fullAreaPct": 100,
-    "repeatEvery": 4
+    "repeatEvery": 4,
+    "deloadFactor": 0.6
   },
   "dayOrder": [
     "power",
@@ -119,5 +120,92 @@
     "dormantDays": 14,
     "newWeeks": 2,
     "mostlyPartialPct": 70
-  }
+  },
+  "equipment": [
+    {
+      "id": "bar",
+      "label": "Pull-up bar",
+      "owned": true
+    },
+    {
+      "id": "parallel-bars",
+      "label": "Parallel bars or dip bars",
+      "owned": true
+    },
+    {
+      "id": "bands",
+      "label": "Resistance bands",
+      "owned": true
+    },
+    {
+      "id": "rings",
+      "label": "Gymnastic rings",
+      "owned": false
+    },
+    {
+      "id": "wall",
+      "label": "A free wall",
+      "owned": true
+    },
+    {
+      "id": "box",
+      "label": "Plyo box or sturdy platform (20 to 60 cm)",
+      "owned": false
+    },
+    {
+      "id": "step",
+      "label": "A step or stairs to stand on",
+      "owned": true
+    },
+    {
+      "id": "bench",
+      "label": "A bench or chair",
+      "owned": true
+    },
+    {
+      "id": "pole",
+      "label": "A pole or doorframe to hold",
+      "owned": true
+    },
+    {
+      "id": "anchor",
+      "label": "Something to anchor your heels (partner, strap, couch)",
+      "owned": false
+    },
+    {
+      "id": "roller",
+      "label": "Foam roller",
+      "owned": false
+    },
+    {
+      "id": "mat",
+      "label": "A mat",
+      "owned": true
+    },
+    {
+      "id": "weights",
+      "label": "Dip belt or weighted vest, with plates",
+      "owned": true
+    },
+    {
+      "id": "hurdle",
+      "label": "Low hurdles or cones (up to 30 cm)",
+      "owned": false
+    },
+    {
+      "id": "kettlebell",
+      "label": "Kettlebells (the bell for each stage is listed)",
+      "owned": true
+    },
+    {
+      "id": "parallettes",
+      "label": "Parallettes or two sturdy blocks",
+      "owned": false
+    },
+    {
+      "id": "low-bar",
+      "label": "A bar at hip to chest height (adjustable bar, rack or rings set low)",
+      "owned": false
+    }
+  ]
 }

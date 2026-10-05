@@ -40,6 +40,10 @@
         }
       ],
       "draft": true,
+      "equipment": [
+        "kettlebell",
+        "mat"
+      ],
       "exercises": [
         {
           "id": "kb-deadlift",
@@ -106,6 +110,65 @@
           "kg": 16,
           "lb": 35
         }
+      ],
+      "draft": true,
+      "equipment": [
+        "kettlebell",
+        "mat"
+      ],
+      "exercises": [
+        {
+          "id": "pry-goblet-squat",
+          "name": "Prying goblet squat",
+          "sets": 2,
+          "reps": "5",
+          "tempo": "3 s at the bottom",
+          "restSec": 15,
+          "load": {
+            "type": "text",
+            "text": "Light bell (your 25 lb is fine)"
+          },
+          "cue": "Sit deep, push the knees out with your elbows, and rock gently side to side."
+        },
+        {
+          "id": "halo",
+          "name": "Halo",
+          "sets": 2,
+          "reps": "5 / direction",
+          "restSec": 15,
+          "load": {
+            "type": "text",
+            "text": "Light bell (your 25 lb is fine)"
+          },
+          "cue": "Circle the bell close around your head, ribs down, glutes tight, no leaning."
+        },
+        {
+          "id": "kb-swing-1h",
+          "name": "One-arm swing",
+          "sets": 10,
+          "reps": "5 → 10",
+          "restSec": 45,
+          "load": {
+            "type": "text",
+            "text": "35 lb (16 kg) bell"
+          },
+          "cue": "Hips snap, arm stays loose, and the bell floats to chest height. Switch hands every set.",
+          "note": "Start at 5 a set and add a rep to every set once all ten sets feel smooth. Aim for 10 × 10 by the end of the stage. The book's way: one get-up between swing sets."
+        },
+        {
+          "id": "tgu",
+          "name": "Turkish get-up",
+          "sets": 5,
+          "reps": "1 / side",
+          "tempo": "Slow",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "35 lb (16 kg) bell"
+          },
+          "cue": "Eyes on the bell, one move at a time, and pause at each step.",
+          "note": "If the 35 lb is not smooth yet, do the first sessions with your 25 lb and move up as soon as it is. Five per side, 10 in all."
+        }
       ]
     },
     {
@@ -120,6 +183,65 @@
         {
           "kg": 20,
           "lb": 44
+        }
+      ],
+      "draft": true,
+      "equipment": [
+        "kettlebell",
+        "mat"
+      ],
+      "exercises": [
+        {
+          "id": "pry-goblet-squat",
+          "name": "Prying goblet squat",
+          "sets": 2,
+          "reps": "5",
+          "tempo": "3 s at the bottom",
+          "restSec": 15,
+          "load": {
+            "type": "text",
+            "text": "Light bell (your 25 lb is fine)"
+          },
+          "cue": "Sit deep, push the knees out with your elbows, and rock gently side to side."
+        },
+        {
+          "id": "halo",
+          "name": "Halo",
+          "sets": 2,
+          "reps": "5 / direction",
+          "restSec": 15,
+          "load": {
+            "type": "text",
+            "text": "Light bell (your 25 lb is fine)"
+          },
+          "cue": "Circle the bell close around your head, ribs down, glutes tight, no leaning."
+        },
+        {
+          "id": "kb-swing-1h",
+          "name": "One-arm swing",
+          "sets": 10,
+          "reps": "8 → 10",
+          "restSec": 45,
+          "load": {
+            "type": "text",
+            "text": "44 lb (20 kg) bell"
+          },
+          "cue": "Hips snap, arm stays loose, and the bell floats to chest height. Switch hands every set.",
+          "note": "New bell, so start at 8 a set and build to 10. The book's way: one get-up between swing sets."
+        },
+        {
+          "id": "tgu",
+          "name": "Turkish get-up",
+          "sets": 5,
+          "reps": "1 / side",
+          "tempo": "Slow",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "44 lb (20 kg) bell"
+          },
+          "cue": "Eyes on the bell, one move at a time, and pause at each step.",
+          "note": "If the new bell is not smooth yet, do the get-ups with your last bell and move up when they are."
         }
       ]
     },
@@ -136,6 +258,65 @@
           "kg": 24,
           "lb": 53
         }
+      ],
+      "draft": true,
+      "equipment": [
+        "kettlebell",
+        "mat"
+      ],
+      "exercises": [
+        {
+          "id": "pry-goblet-squat",
+          "name": "Prying goblet squat",
+          "sets": 2,
+          "reps": "5",
+          "tempo": "3 s at the bottom",
+          "restSec": 15,
+          "load": {
+            "type": "text",
+            "text": "Light bell (your 25 lb is fine)"
+          },
+          "cue": "Sit deep, push the knees out with your elbows, and rock gently side to side."
+        },
+        {
+          "id": "halo",
+          "name": "Halo",
+          "sets": 2,
+          "reps": "5 / direction",
+          "restSec": 15,
+          "load": {
+            "type": "text",
+            "text": "Light bell (your 25 lb is fine)"
+          },
+          "cue": "Circle the bell close around your head, ribs down, glutes tight, no leaning."
+        },
+        {
+          "id": "kb-swing-1h",
+          "name": "One-arm swing",
+          "sets": 10,
+          "reps": "8 → 10",
+          "restSec": 45,
+          "load": {
+            "type": "text",
+            "text": "53 lb (24 kg) bell"
+          },
+          "cue": "Hips snap, arm stays loose, and the bell floats to chest height. Switch hands every set.",
+          "note": "New bell, so start at 8 a set and build to 10. The book's way: one get-up between swing sets."
+        },
+        {
+          "id": "tgu",
+          "name": "Turkish get-up",
+          "sets": 5,
+          "reps": "1 / side",
+          "tempo": "Slow",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "53 lb (24 kg) bell"
+          },
+          "cue": "Eyes on the bell, one move at a time, and pause at each step.",
+          "note": "If the new bell is not smooth yet, do the get-ups with your last bell and move up when they are."
+        }
       ]
     },
     {
@@ -150,6 +331,65 @@
         {
           "kg": 28,
           "lb": 62
+        }
+      ],
+      "draft": true,
+      "equipment": [
+        "kettlebell",
+        "mat"
+      ],
+      "exercises": [
+        {
+          "id": "pry-goblet-squat",
+          "name": "Prying goblet squat",
+          "sets": 2,
+          "reps": "5",
+          "tempo": "3 s at the bottom",
+          "restSec": 15,
+          "load": {
+            "type": "text",
+            "text": "Light bell (your 25 lb is fine)"
+          },
+          "cue": "Sit deep, push the knees out with your elbows, and rock gently side to side."
+        },
+        {
+          "id": "halo",
+          "name": "Halo",
+          "sets": 2,
+          "reps": "5 / direction",
+          "restSec": 15,
+          "load": {
+            "type": "text",
+            "text": "Light bell (your 25 lb is fine)"
+          },
+          "cue": "Circle the bell close around your head, ribs down, glutes tight, no leaning."
+        },
+        {
+          "id": "kb-swing-1h",
+          "name": "One-arm swing",
+          "sets": 10,
+          "reps": "10",
+          "restSec": 45,
+          "load": {
+            "type": "text",
+            "text": "62 lb (28 kg) bell"
+          },
+          "cue": "Hips snap, arm stays loose, and the bell floats to chest height. Switch hands every set.",
+          "note": "Stop a set early if the hips stop snapping. The book's way: one get-up between swing sets."
+        },
+        {
+          "id": "tgu",
+          "name": "Turkish get-up",
+          "sets": 5,
+          "reps": "1 / side",
+          "tempo": "Slow",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "62 lb (28 kg) bell"
+          },
+          "cue": "Eyes on the bell, one move at a time, and pause at each step.",
+          "note": "If the new bell is not smooth yet, do the get-ups with your last bell and move up when they are."
         }
       ]
     },
@@ -167,6 +407,65 @@
           "kg": 32,
           "lb": 70
         }
+      ],
+      "draft": true,
+      "equipment": [
+        "kettlebell",
+        "mat"
+      ],
+      "exercises": [
+        {
+          "id": "pry-goblet-squat",
+          "name": "Prying goblet squat",
+          "sets": 2,
+          "reps": "5",
+          "tempo": "3 s at the bottom",
+          "restSec": 15,
+          "load": {
+            "type": "text",
+            "text": "Light bell (your 25 lb is fine)"
+          },
+          "cue": "Sit deep, push the knees out with your elbows, and rock gently side to side."
+        },
+        {
+          "id": "halo",
+          "name": "Halo",
+          "sets": 2,
+          "reps": "5 / direction",
+          "restSec": 15,
+          "load": {
+            "type": "text",
+            "text": "Light bell (your 25 lb is fine)"
+          },
+          "cue": "Circle the bell close around your head, ribs down, glutes tight, no leaning."
+        },
+        {
+          "id": "kb-swing-1h",
+          "name": "One-arm swing",
+          "sets": 10,
+          "reps": "10",
+          "restSec": 45,
+          "load": {
+            "type": "text",
+            "text": "70 lb (32 kg) bell"
+          },
+          "cue": "Hips snap, arm stays loose, and the bell floats to chest height. Switch hands every set.",
+          "note": "The Simple standard, as I remember the book: all 100 swings and 10 get-ups in 30 minutes, warm-up not counted. Time one clean session, not every one."
+        },
+        {
+          "id": "tgu",
+          "name": "Turkish get-up",
+          "sets": 5,
+          "reps": "1 / side",
+          "tempo": "Slow",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "70 lb (32 kg) bell"
+          },
+          "cue": "Eyes on the bell, one move at a time, and pause at each step.",
+          "note": "For the standard, all 10 get-ups are with the 32 kg bell."
+        }
       ]
     },
     {
@@ -181,6 +480,65 @@
         {
           "kg": 40,
           "lb": 88
+        }
+      ],
+      "draft": true,
+      "equipment": [
+        "kettlebell",
+        "mat"
+      ],
+      "exercises": [
+        {
+          "id": "pry-goblet-squat",
+          "name": "Prying goblet squat",
+          "sets": 2,
+          "reps": "5",
+          "tempo": "3 s at the bottom",
+          "restSec": 15,
+          "load": {
+            "type": "text",
+            "text": "Light bell (your 25 lb is fine)"
+          },
+          "cue": "Sit deep, push the knees out with your elbows, and rock gently side to side."
+        },
+        {
+          "id": "halo",
+          "name": "Halo",
+          "sets": 2,
+          "reps": "5 / direction",
+          "restSec": 15,
+          "load": {
+            "type": "text",
+            "text": "Light bell (your 25 lb is fine)"
+          },
+          "cue": "Circle the bell close around your head, ribs down, glutes tight, no leaning."
+        },
+        {
+          "id": "kb-swing-1h",
+          "name": "One-arm swing",
+          "sets": 10,
+          "reps": "8 → 10",
+          "restSec": 45,
+          "load": {
+            "type": "text",
+            "text": "88 lb (40 kg) bell"
+          },
+          "cue": "Hips snap, arm stays loose, and the bell floats to chest height. Switch hands every set.",
+          "note": "Big jump, so start at 8 a set and build to 10. The book's way: one get-up between swing sets."
+        },
+        {
+          "id": "tgu",
+          "name": "Turkish get-up",
+          "sets": 5,
+          "reps": "1 / side",
+          "tempo": "Slow",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "88 lb (40 kg) bell"
+          },
+          "cue": "Eyes on the bell, one move at a time, and pause at each step.",
+          "note": "If the new bell is not smooth yet, do the get-ups with your last bell and move up when they are."
         }
       ]
     },
@@ -198,6 +556,65 @@
           "kg": 48,
           "lb": 106
         }
+      ],
+      "draft": true,
+      "equipment": [
+        "kettlebell",
+        "mat"
+      ],
+      "exercises": [
+        {
+          "id": "pry-goblet-squat",
+          "name": "Prying goblet squat",
+          "sets": 2,
+          "reps": "5",
+          "tempo": "3 s at the bottom",
+          "restSec": 15,
+          "load": {
+            "type": "text",
+            "text": "Light bell (your 25 lb is fine)"
+          },
+          "cue": "Sit deep, push the knees out with your elbows, and rock gently side to side."
+        },
+        {
+          "id": "halo",
+          "name": "Halo",
+          "sets": 2,
+          "reps": "5 / direction",
+          "restSec": 15,
+          "load": {
+            "type": "text",
+            "text": "Light bell (your 25 lb is fine)"
+          },
+          "cue": "Circle the bell close around your head, ribs down, glutes tight, no leaning."
+        },
+        {
+          "id": "kb-swing-1h",
+          "name": "One-arm swing",
+          "sets": 10,
+          "reps": "8 → 10",
+          "restSec": 45,
+          "load": {
+            "type": "text",
+            "text": "106 lb (48 kg) bell"
+          },
+          "cue": "Hips snap, arm stays loose, and the bell floats to chest height. Switch hands every set.",
+          "note": "The Sinister standard, as I remember the book: all 100 swings and 10 get-ups in 30 minutes, warm-up not counted. Time one clean session, not every one."
+        },
+        {
+          "id": "tgu",
+          "name": "Turkish get-up",
+          "sets": 5,
+          "reps": "1 / side",
+          "tempo": "Slow",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "106 lb (48 kg) bell"
+          },
+          "cue": "Eyes on the bell, one move at a time, and pause at each step.",
+          "note": "For the standard, all 10 get-ups are with the 48 kg bell."
+        }
       ]
     },
     {
@@ -213,6 +630,65 @@
         {
           "kg": 50,
           "lb": 110
+        }
+      ],
+      "draft": true,
+      "equipment": [
+        "kettlebell",
+        "mat"
+      ],
+      "exercises": [
+        {
+          "id": "pry-goblet-squat",
+          "name": "Prying goblet squat",
+          "sets": 2,
+          "reps": "5",
+          "tempo": "3 s at the bottom",
+          "restSec": 15,
+          "load": {
+            "type": "text",
+            "text": "Light bell (your 25 lb is fine)"
+          },
+          "cue": "Sit deep, push the knees out with your elbows, and rock gently side to side."
+        },
+        {
+          "id": "halo",
+          "name": "Halo",
+          "sets": 2,
+          "reps": "5 / direction",
+          "restSec": 15,
+          "load": {
+            "type": "text",
+            "text": "Light bell (your 25 lb is fine)"
+          },
+          "cue": "Circle the bell close around your head, ribs down, glutes tight, no leaning."
+        },
+        {
+          "id": "kb-swing-1h",
+          "name": "One-arm swing",
+          "sets": 10,
+          "reps": "10",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "110 lb (50 kg) bell"
+          },
+          "cue": "Hips snap, arm stays loose, and the bell floats to chest height. Switch hands every set.",
+          "note": "The standard is all 100 swings with the 50 kg, every one clean. End a set early rather than let your back round."
+        },
+        {
+          "id": "tgu",
+          "name": "Turkish get-up",
+          "sets": 5,
+          "reps": "1 / side",
+          "tempo": "Slow",
+          "restSec": 90,
+          "load": {
+            "type": "text",
+            "text": "110 lb (50 kg) bell"
+          },
+          "cue": "Eyes on the bell, one move at a time, and pause at each step.",
+          "note": "Clear the space around you and know how to drop the bell safely: step away and let it fall to the side. Stop if a get-up stops being smooth."
         }
       ]
     }
