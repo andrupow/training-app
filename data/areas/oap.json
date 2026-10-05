@@ -29,6 +29,56 @@
       "work": "Strict pull-ups, scapular pulls, dead hangs, short one-arm hangs",
       "ready": [
         "3 × 10 strict pull-ups, 2 s down"
+      ],
+      "draft": true,
+      "exercises": [
+        {
+          "id": "scap-pull",
+          "name": "Scapular pull-up",
+          "sets": 3,
+          "reps": "8",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Arms straight. Pull the shoulder blades down; the elbows do not bend."
+        },
+        {
+          "id": "strict-pull-oap",
+          "name": "Strict pull-up",
+          "sets": 3,
+          "reps": "5",
+          "tempo": "2 s down",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Overhand, chin clearly over the bar, full lockout at the bottom."
+        },
+        {
+          "id": "dead-hang",
+          "name": "Dead hang",
+          "sets": 3,
+          "reps": "30 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Active shoulders, relaxed grip pressure."
+        },
+        {
+          "id": "one-arm-hang",
+          "name": "One-arm hang",
+          "sets": 3,
+          "reps": "5 s / arm",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "The other hand takes some weight (on the wrist or a band) if the shoulder complains. Stop at any elbow pain."
+        }
       ]
     },
     {

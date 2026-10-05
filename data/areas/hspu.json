@@ -29,6 +29,55 @@
       "work": "Pike push-ups, feet on floor → feet elevated; wrist prep; scapular shrugs; hollow hold",
       "ready": [
         "3 × 10 feet-elevated pike push-ups, hips over hands"
+      ],
+      "draft": true,
+      "exercises": [
+        {
+          "id": "wrist-prep",
+          "name": "Wrist extension rocks",
+          "sets": 2,
+          "reps": "10",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Kneeling, palms down, rock forward and back. Warm the wrists before pressing."
+        },
+        {
+          "id": "pike-pushup",
+          "name": "Pike push-up (feet on floor)",
+          "sets": 3,
+          "reps": "6–8",
+          "tempo": "3 s down",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Hips high over the hands; the head travels forward between the hands. Move the feet to a low box once 3 × 10 is clean."
+        },
+        {
+          "id": "pike-shrug",
+          "name": "Pike scapular shrugs",
+          "sets": 2,
+          "reps": "10",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Arms locked. Push the floor away and shrug the shoulders to the ears."
+        },
+        {
+          "id": "hollow",
+          "name": "Hollow body hold",
+          "sets": 3,
+          "reps": "20 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Lower back flat, ribs tucked toward the pelvis."
+        }
       ]
     },
     {

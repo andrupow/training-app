@@ -38,6 +38,59 @@
           "kg": 11.3,
           "lb": 25
         }
+      ],
+      "draft": true,
+      "exercises": [
+        {
+          "id": "kb-deadlift",
+          "name": "Kettlebell deadlift",
+          "sets": 2,
+          "reps": "8",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "25 lb"
+          },
+          "cue": "Hinge, don't squat: hips back, shins near vertical, flat back."
+        },
+        {
+          "id": "goblet-squat",
+          "name": "Goblet squat",
+          "sets": 2,
+          "reps": "8",
+          "tempo": "2 s down",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "25 lb"
+          },
+          "cue": "Bell at the chest, elbows inside the knees, heels down."
+        },
+        {
+          "id": "kb-swing-2h",
+          "name": "Two-hand swing",
+          "sets": 5,
+          "reps": "10",
+          "restSec": 45,
+          "load": {
+            "type": "text",
+            "text": "25 lb"
+          },
+          "cue": "The hips snap; the arms are ropes. The bell floats to chest height."
+        },
+        {
+          "id": "tgu-light",
+          "name": "Turkish get-up (shoe, then 15 lb)",
+          "sets": 3,
+          "reps": "1 / side",
+          "tempo": "Slow",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "15 lb"
+          },
+          "cue": "Slow. Eyes on the bell. Start with a shoe on the fist, move to the 15 lb once it is smooth."
+        }
       ]
     },
     {
