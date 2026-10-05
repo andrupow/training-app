@@ -1,10 +1,15 @@
 /* PAPER PROTOTYPE — not app code, not imported by anything.
    Checks that the daily-recommender rules in AREAS-PLAN.md are satisfiable
-   before they are built: can a 7-day week hit every area's target without
-   breaking spacing, conflict or time-budget rules, and what happens when the
-   user trains less, has less time, or an area is red-lit?
+   before they are built: can a 7-day week hit each area's target without
+   breaking spacing, conflict or time-budget rules, and what gives when the
+   day is short or an area is red-lit?
 
-   Targets, gaps, minutes and conflicts below are the plan's placeholders.
+   Each day it picks the best combination of areas that fits the time budget,
+   spacing, conflict and high-load limits (a brute-force search over at most 256
+   subsets), after a first version that picked greedily starved the second-priority
+   area.
+
+   Targets, gaps, minutes and conflicts are the plan's placeholders.
    Assumes perfect compliance and no partial sessions.
 
    Run:  node prototype/recommender-sim.js */
@@ -13,21 +18,24 @@
 
 /* min / target / max = days per Mon-Sun week. gap = minimum days between
    sessions of the same area (1 = daily is fine, 3 = at least 3 days apart). */
-var AREAS = {
+var BASE = {
   mu:     { pri: 1, min: 2, target: 2, max: 3, gap: 2, mins: 30, load: 'high', name: 'Muscle-up' },
   hspu:   { pri: 2, min: 2, target: 2, max: 3, gap: 2, mins: 20, load: 'high', name: 'Handstand push-up' },
   bridge: { pri: 3, min: 2, target: 3, max: 5, gap: 1, mins: 12, load: 'low',  name: 'Backward bridge' },
   pistol: { pri: 4, min: 2, target: 2, max: 3, gap: 2, mins: 18, load: 'med',  name: 'Pistol squat' },
   nordic: { pri: 5, min: 1, target: 2, max: 2, gap: 3, mins: 10, load: 'high', name: 'Nordic curl' },
   kb:     { pri: 6, min: 3, target: 5, max: 6, gap: 1, mins: 30, load: 'med',  name: 'Kettlebell S&S' },
-  oap:    { pri: 7, min: 1, target: 2, max: 2, gap: 3, mins: 20, load: 'high', name: 'One-arm pull-up' }
+  oap:    { pri: 7, min: 1, target: 2, max: 2, gap: 3, mins: 20, load: 'high', name: 'One-arm pull-up' },
+  plyo:   { pri: 8, min: 1, target: 2, max: 2, gap: 2, mins: 20, load: 'high', name: 'Plyometrics' }
 };
 
-/* Never recommended together on the same day. The user can still add them. */
+/* Pairs never recommended on the same day. soft = allowed when the area
+   would otherwise miss its target (its spacing says it must go today). */
 var CONFLICTS = [
-  ['mu', 'oap',   'both load the elbow tendons'],
-  ['nordic', 'kb', 'both load the hamstrings'],
-  ['hspu', 'mu',  'both load shoulders and triceps']
+  { a: 'mu',     b: 'oap',    why: 'both load the elbow tendons' },
+  { a: 'hspu',   b: 'mu',     why: 'both load shoulders and triceps' },
+  { a: 'nordic', b: 'kb',     why: 'both load the hamstrings' },
+  { a: 'plyo',   b: 'nordic', why: 'jumping on tired hamstrings' }
 ];
 
 /* A cap shared across areas, per week. */
@@ -44,11 +52,11 @@ function addDays(s, n) {
 function dow(s) { return (new Date(s + 'T00:00:00Z').getUTCDay() + 6) % 7; }   /* Mon = 0 */
 function diff(a, b) { return Math.round((new Date(b) - new Date(a)) / 864e5); }
 
-/* ---- the recommender: a pure function of history, rules and the date ---- */
+/* ---- the recommender: a pure function of history, config and the date ---- */
 
-function recommend(date, hist, opts) {
+function recommend(date, hist, cfg, opts) {
   opts = opts || {};
-  var blocked = opts.blocked || {};                       /* area -> reason (red light) */
+  var AREAS = cfg.areas, blocked = opts.blocked || {};
   var dayMin = opts.dayMinutes != null ? opts.dayMinutes : RULES.dayMinutes;
   var weekStart = addDays(date, -dow(date));
   var daysLeft = 7 - dow(date);                           /* including today */
@@ -68,7 +76,7 @@ function recommend(date, hist, opts) {
     else if (wk[a] >= A.max) why = 'at weekly max (' + A.max + ')';
     else if (last[a] && diff(last[a], date) < A.gap) why = 'too soon: last ' + diff(last[a], date) + ' d ago, needs ' + A.gap;
     else BUDGETS.forEach(function (b) {
-      var used = b.areas.reduce(function (n, x) { return n + wk[x]; }, 0);
+      var used = b.areas.reduce(function (n, x) { return n + (wk[x] || 0); }, 0);
       if (b.areas.indexOf(a) >= 0 && used >= b.maxPerWeek) why = 'weekly ' + b.why + ' budget used (' + used + '/' + b.maxPerWeek + ')';
     });
 
@@ -100,105 +108,202 @@ function recommend(date, hist, opts) {
       || (y.stale - x.stale) || (AREAS[x.area].pri - AREAS[y.area].pri);
   });
 
-  var picked = [], reasons = {}, shortfall = [], mins = 0, high = 0;
+  var picked = [], reasons = {}, mins = 0, high = 0;
 
-  cands.forEach(function (c) {
-    var A = AREAS[c.area];
-    if (c.need <= 0) return;                              /* target met: not recommended */
-    if (picked.length >= RULES.maxAreas) return;
-    if (mins + A.mins > dayMin) { shortfall.push(c.area); return; }   /* the time budget is hard */
-    if (A.load === 'high' && high >= RULES.maxHigh) return;
-
-    var clash = CONFLICTS.filter(function (k) {
-      return (k[0] === c.area && picked.indexOf(k[1]) >= 0) || (k[1] === c.area && picked.indexOf(k[0]) >= 0);
+  function clashOf(area, others) {
+    return cfg.conflicts.filter(function (k) {
+      return (k.a === area && others.indexOf(k.b) >= 0) || (k.b === area && others.indexOf(k.a) >= 0);
     })[0];
-    if (clash) { skipped.push({ area: c.area, why: 'not with ' + (clash[0] === c.area ? clash[1] : clash[0]) + ': ' + clash[2] }); return; }
+  }
 
-    picked.push(c.area);
-    reasons[c.area] = (c.must ? 'DUE · ' : '') + c.reason;
-    mins += A.mins;
-    if (A.load === 'high') high++;
-  });
+  if (cfg.mode === 'greedy') {
+    cands.forEach(function (c) {
+      var A = AREAS[c.area];
+      if (c.need <= 0) return;                              /* target met: not recommended */
+      if (picked.length >= RULES.maxAreas) return;
+      if (mins + A.mins > dayMin) return;                   /* the time budget is hard */
+      if (A.load === 'high' && high >= RULES.maxHigh) return;
 
-  return { picked: picked, mins: mins, reasons: reasons, skipped: skipped, shortfall: shortfall };
+      var clash = clashOf(c.area, picked);
+      if (clash && !(clash.soft && (c.must || c.mustMin))) {
+        skipped.push({ area: c.area, why: 'not with ' + (clash.a === c.area ? clash.b : clash.a) + ': ' + clash.why });
+        return;
+      }
+      picked.push(c.area);
+      reasons[c.area] = (c.must ? 'DUE · ' : '') + c.reason + (clash ? ' · after ' + (clash.a === c.area ? clash.b : clash.a) : '');
+      mins += A.mins;
+      if (A.load === 'high') high++;
+    });
+  } else {
+    /* Best combination that fits. With <= 8 areas that is at most 256 subsets a day.
+       Value rewards urgent minimums and tight spacing, weighted by priority, so a
+       high-priority area is not starved by a lower one that merely looks urgent. */
+    var pool = cands.filter(function (c) { return c.need > 0; });
+    var w = function (c) { return 1 + (9 - AREAS[c.area].pri) * 0.12; };
+    pool.forEach(function (c) {
+      c.value = w(c) * (4 * c.mustMin + 2 * c.must + c.pressure + 0.25 * Math.min(c.stale, 4));
+    });
+
+    var best = null;
+    for (var m = 1; m < (1 << pool.length); m++) {
+      var set = [], t = 0, h = 0, ok = true, v = 0;
+      for (var b = 0; b < pool.length && ok; b++) {
+        if (!(m & (1 << b))) continue;
+        var c2 = pool[b], A2 = AREAS[c2.area];
+        t += A2.mins; if (A2.load === 'high') h++;
+        set.push(c2); v += c2.value;
+        if (set.length > RULES.maxAreas || t > dayMin || h > RULES.maxHigh) ok = false;
+      }
+      if (!ok) continue;
+      for (var i = 0; i < set.length && ok; i++) for (var j = i + 1; j < set.length && ok; j++) {
+        var k = cfg.conflicts.filter(function (q) {
+          return (q.a === set[i].area && q.b === set[j].area) || (q.b === set[i].area && q.a === set[j].area);
+        })[0];
+        if (k && !(k.soft && (set[i].must || set[i].mustMin || set[j].must || set[j].mustMin))) ok = false;
+      }
+      if (!ok) continue;
+      if (!best || v > best.v + 1e-9 || (Math.abs(v - best.v) < 1e-9 && t < best.t)) best = { set: set, v: v, t: t };
+    }
+    if (best) best.set.sort(function (x, y) { return AREAS[x.area].pri - AREAS[y.area].pri; }).forEach(function (c) {
+      picked.push(c.area);
+      reasons[c.area] = (c.must ? 'DUE · ' : '') + c.reason;
+      mins += AREAS[c.area].mins;
+    });
+    pool.forEach(function (c) {
+      if (picked.indexOf(c.area) >= 0) return;
+      var cl = clashOf(c.area, picked);
+      skipped.push({ area: c.area, why: cl ? 'not with ' + (cl.a === c.area ? cl.b : cl.a) + ': ' + cl.why : 'does not fit today\'s time' });
+    });
+  }
+
+  return { picked: picked, mins: mins, reasons: reasons, skipped: skipped };
 }
 
 /* ---- simulation ---- */
 
-function simulate(label, weeks, o) {
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+function run(cfg, weeks, o) {
   o = o || {};
   var start = '2026-10-05';                               /* a Monday */
   var hist = {}, log = [];
-  Object.keys(AREAS).forEach(function (a) { hist[a] = []; });
+  Object.keys(cfg.areas).forEach(function (a) { hist[a] = []; });
 
   for (var i = 0; i < weeks * 7; i++) {
-    var d = addDays(start, i);
+    var d = addDays(start, i), minsToday = typeof o.dayMinutes === 'function' ? o.dayMinutes(dow(d)) : o.dayMinutes;
     if (o.restDays && o.restDays.indexOf(dow(d)) >= 0) { log.push({ d: d, rest: true }); continue; }
-    var r = recommend(d, hist, { dayMinutes: o.dayMinutes, blocked: o.blockedOn && o.blockedOn(i) });
+    var r = recommend(d, hist, cfg, { dayMinutes: minsToday, blocked: o.blockedOn && o.blockedOn(i) });
     r.picked.forEach(function (a) { hist[a].push(d); });
     log.push({ d: d, picked: r.picked, mins: r.mins });
   }
 
-  console.log('\n== ' + label + ' ==');
-  console.log('week  ' + Object.keys(AREAS).map(function (a) { return a.padEnd(7); }).join(''));
-  for (var w = 0; w < Math.min(weeks, 3); w++) {
-    var ws = addDays(start, w * 7), we = addDays(ws, 6);
-    console.log(('W' + (w + 1)).padEnd(6) + Object.keys(AREAS).map(function (a) {
-      var n = hist[a].filter(function (d) { return d >= ws && d <= we; }).length;
-      var A = AREAS[a];
-      return (n + (n < A.min ? '!' : n < A.target ? '-' : '')).padEnd(7);
-    }).join(''));
-  }
+  /* steady state: weeks 2..N, average days per area per week */
+  var avg = {}, belowMin = 0, belowTarget = 0;
+  Object.keys(cfg.areas).forEach(function (a) {
+    var tot = 0;
+    for (var w = 1; w < weeks; w++) {
+      var s = addDays(start, w * 7), e = addDays(s, 6);
+      var n = hist[a].filter(function (d) { return d >= s && d <= e; }).length;
+      tot += n;
+      if (n < cfg.areas[a].min) belowMin++;
+      if (n < cfg.areas[a].target) belowTarget++;
+    }
+    avg[a] = tot / (weeks - 1);
+  });
 
-  /* steady state: every week from the second onward */
-  var short = 0, belowMin = 0, total = 0;
-  for (var w2 = 1; w2 < weeks; w2++) {
-    var s2 = addDays(start, w2 * 7), e2 = addDays(s2, 6);
-    Object.keys(AREAS).forEach(function (a) {
-      var n = hist[a].filter(function (d) { return d >= s2 && d <= e2; }).length;
-      total++;
-      if (n < AREAS[a].target) short++;
-      if (n < AREAS[a].min) belowMin++;
-    });
-  }
   var trained = log.filter(function (l) { return !l.rest; });
-  var mins = trained.map(function (l) { return l.mins; });
-  var violations = 0;
-  Object.keys(AREAS).forEach(function (a) {
+  var viol = 0;
+  Object.keys(cfg.areas).forEach(function (a) {
     var h = hist[a];
-    for (var k = 1; k < h.length; k++) if (diff(h[k - 1], h[k]) < AREAS[a].gap) violations++;
+    for (var k = 1; k < h.length; k++) if (diff(h[k - 1], h[k]) < cfg.areas[a].gap) viol++;
   });
   trained.forEach(function (l) {
-    CONFLICTS.forEach(function (c) { if (l.picked.indexOf(c[0]) >= 0 && l.picked.indexOf(c[1]) >= 0) violations++; });
+    cfg.conflicts.forEach(function (c) {
+      if (!c.soft && l.picked.indexOf(c.a) >= 0 && l.picked.indexOf(c.b) >= 0) viol++;
+    });
   });
+  var minsAvg = Math.round(trained.reduce(function (n, l) { return n + l.mins; }, 0) / trained.length);
 
-  console.log('legend: ! below minimum, - below target');
-  console.log('steady state (week 2+): below target ' + short + '/' + total + ' area-weeks, below minimum ' + belowMin +
-    ' | minutes/day ' + Math.min.apply(null, mins) + '-' + Math.max.apply(null, mins) +
-    ' avg ' + Math.round(mins.reduce(function (a, b) { return a + b; }, 0) / mins.length) +
-    ' | rule violations ' + violations);
-  return { hist: hist, log: log };
+  return { hist: hist, log: log, avg: avg, belowMin: belowMin, belowTarget: belowTarget, viol: viol, minsAvg: minsAvg };
 }
 
-var needed = Object.keys(AREAS).reduce(function (n, a) { return n + AREAS[a].target * AREAS[a].mins; }, 0);
-var needMin = Object.keys(AREAS).reduce(function (n, a) { return n + AREAS[a].min * AREAS[a].mins; }, 0);
-console.log('Weekly minutes at target: ' + needed + ' (~' + Math.round(needed / 7) + ' min/day over 7 days); at minimums: ' + needMin);
+function report(label, cfg, weeks, o) {
+  var r = run(cfg, weeks, o);
+  var line = Object.keys(cfg.areas).map(function (a) {
+    var A = cfg.areas[a], v = r.avg[a];
+    var mark = v < A.min - 0.01 ? '!' : v < A.target - 0.01 ? '-' : ' ';
+    return (v.toFixed(1) + mark).padStart(5);
+  }).join('');
+  console.log(label.padEnd(54) + line + ' | ' + String(r.minsAvg).padStart(3) + ' min/day | viol ' + r.viol);
+  return r;
+}
 
-var sim = simulate('A. follows every recommendation, 7 days/week, 60 min/day', 8);
-simulate('E. rests Sundays only (6 days/week)', 8, { restDays: [6] });
-simulate('F. 5 days/week (Wed + Sun off) with 90 min/day', 8, { restDays: [2, 6], dayMinutes: 90 });
-simulate('B. 5 days/week (Wed + Sun off) at 60 min/day  [budget too small: expected to fall short]', 8, { restDays: [2, 6] });
-simulate('C. 30 min/day  [budget too small: expected to fall short]', 8, { dayMinutes: 30 });
-simulate('D. hamstring red for the first 5 days (nordic + kb blocked)', 4, {
-  blockedOn: function (i) { return i < 5 ? { nordic: 'hamstring red', kb: 'hamstring red' } : null; }
-});
+function header() {
+  console.log('\n' + ''.padEnd(54) + Object.keys(BASE).map(function (a) { return a.padStart(5); }).join('') + ' |');
+  console.log(''.padEnd(54) + Object.keys(BASE).map(function (a) { return String(BASE[a].target).padStart(4) + ' '; }).join('') + ' | (nominal)');
+}
 
-/* What the Today screen would show: day 1 of week 3 of scenario A. */
+function cfgWith(mods) {
+  var c = { areas: clone(BASE), conflicts: clone(CONFLICTS), mode: 'subset' };
+  (mods || []).forEach(function (m) { m(c); });
+  return c;
+}
+var greedy = function (c) { c.mode = 'greedy'; };
+var nordic3 = function (c) { c.areas.nordic.min = 2; c.areas.nordic.target = 3; c.areas.nordic.max = 3; c.areas.nordic.gap = 2; };
+var softNordicKb = function (c) { c.conflicts.forEach(function (k) { if (k.a === 'nordic' && k.b === 'kb') k.soft = true; }); };
+var noPlyo = function (c) { delete c.areas.plyo; c.conflicts = c.conflicts.filter(function (k) { return k.a !== 'plyo' && k.b !== 'plyo'; }); };
+
+var MIXED = function (d) { return [45, 45, 30, 45, 45, 60, 60][d]; };     /* Mon..Sun, 330 min/week */
+
+/* Plan defaults after the review: Nordic 3 a week, kettlebell nominal 5 but
+   time-fitted to 3, never on the same day unless the area would miss its target. */
+var KB3 = function (c) { c.areas.kb.target = 3; c.areas.kb.min = 2; };
+var NOW = [nordic3, softNordicKb, KB3];
+
+var cost = function (c, key) { return Object.keys(c.areas).reduce(function (n, a) { return n + c.areas[a][key] * c.areas[a].mins; }, 0); };
+var nominal = cfgWith([nordic3, softNordicKb]), fitted = cfgWith(NOW);
+console.log('Weekly minutes, eight areas: nominal targets (KB 5) ' + cost(nominal, 'target') + ', plan defaults (KB 3) ' +
+            cost(fitted, 'target') + ' (' + Math.round(cost(fitted, 'target') / 7) + ' min/day), minimums ' + cost(fitted, 'min') +
+            ' (' + Math.round(cost(fitted, 'min') / 7) + ' min/day).');
+console.log('Cells: average days per week over weeks 2-10.   ! below minimum   - below target');
+
+console.log('\nHow the day is picked: best combination that fits vs greedy (mixed 30-60 week)');
+header();
+report('greedy, KB 5, Nordic 3', cfgWith([greedy, nordic3, softNordicKb]), 10, { dayMinutes: MIXED });
+report('best combination, KB 5, Nordic 3', cfgWith([nordic3, softNordicKb]), 10, { dayMinutes: MIXED });
+
+console.log('\nNordic 3 a week and KB 5 a week: do they fit?');
+header();
+report('60 min every day, KB 5, Nordic 3', cfgWith([nordic3, softNordicKb]), 10, { dayMinutes: 60 });
+report('60 min every day, KB 5, Nordic 2', cfgWith([]), 10, { dayMinutes: 60 });
+report('60 min every day, KB 3, Nordic 3', cfgWith(NOW), 10, { dayMinutes: 60 });
+report('mixed 30-60, KB 5, Nordic 3', cfgWith([nordic3, softNordicKb]), 10, { dayMinutes: MIXED });
+report('mixed 30-60, KB 3, Nordic 3   <- plan default', cfgWith(NOW), 10, { dayMinutes: MIXED });
+
+console.log('\nThe time you actually have (plan defaults)');
+header();
+report('60 min every day (420 min/week)', cfgWith(NOW), 10, { dayMinutes: 60 });
+report('mixed 30-60: 45 45 30 45 45 60 60 (330 min/week)', cfgWith(NOW), 10, { dayMinutes: MIXED });
+report('45 min every day (315 min/week)', cfgWith(NOW), 10, { dayMinutes: 45 });
+report('30 min every day (210 min/week)', cfgWith(NOW), 10, { dayMinutes: 30 });
+
+console.log('\nSeven areas instead of eight (mixed 30-60 week)');
+header();
+var noPlyoKb5 = [nordic3, softNordicKb, noPlyo];
+report('no plyometrics, KB 5, Nordic 3', cfgWith(noPlyoKb5), 10, { dayMinutes: MIXED });
+
+console.log('\nSafety: hamstring red for the first 5 days (nordic + kb blocked), 60 min');
+header();
+report('red days 1-5, then green', cfgWith(NOW), 4, { dayMinutes: 60, blockedOn: function (i) { return i < 5 ? { nordic: 'hamstring red', kb: 'hamstring red' } : null; } });
+
+/* What the Today screen would show: a 45-minute Thursday in the mixed week. */
+var cfg = fitted;
+var sim = run(cfg, 8, { dayMinutes: MIXED });
 var day = addDays('2026-10-05', 14 + 3);
 var hist2 = {};
 Object.keys(sim.hist).forEach(function (a) { hist2[a] = sim.hist[a].filter(function (d) { return d < day; }); });
-var menu = recommend(day, hist2);
-console.log('\n== Today\'s menu, ' + day + ' ==');
-menu.picked.forEach(function (a) { console.log('  [x] ' + AREAS[a].name.padEnd(20) + String(AREAS[a].mins).padStart(3) + ' min   ' + menu.reasons[a]); });
-menu.skipped.forEach(function (s) { console.log('  [ ] ' + AREAS[s.area].name.padEnd(20) + '         ' + s.why); });
+var menu = recommend(day, hist2, cfg, { dayMinutes: MIXED(dow(day)) });
+console.log('\nToday\'s menu, ' + day + ', budget ' + MIXED(dow(day)) + ' min:');
+menu.picked.forEach(function (a) { console.log('  [x] ' + cfg.areas[a].name.padEnd(20) + String(cfg.areas[a].mins).padStart(3) + ' min   ' + menu.reasons[a]); });
+menu.skipped.forEach(function (x) { console.log('  [ ] ' + cfg.areas[x.area].name.padEnd(20) + '         ' + x.why); });
 console.log('  total ' + menu.mins + ' min');
