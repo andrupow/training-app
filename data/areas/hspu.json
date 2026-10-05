@@ -1,0 +1,80 @@
+{
+  "id": "hspu",
+  "name": "Handstand push-up",
+  "short": "Handstand PU",
+  "priority": 2,
+  "goal": "5 strict full-range wall handstand push-ups",
+  "perWeek": {
+    "min": 2,
+    "target": 2,
+    "max": 3
+  },
+  "minGapDays": 2,
+  "minutes": 20,
+  "load": "high",
+  "order": "skill",
+  "guardedBy": [
+    "shoulder",
+    "wrist"
+  ],
+  "sessionTypes": [
+    "main",
+    "volume"
+  ],
+  "stages": [
+    {
+      "id": "H1",
+      "name": "Pike foundation",
+      "askAfter": 8,
+      "work": "Pike push-ups, feet on floor → feet elevated; wrist prep; scapular shrugs; hollow hold",
+      "ready": [
+        "3 × 10 feet-elevated pike push-ups, hips over hands"
+      ]
+    },
+    {
+      "id": "H2",
+      "name": "Wall handstand",
+      "askAfter": 8,
+      "work": "Chest-to-wall walk-ups and holds, line and breathing",
+      "ready": [
+        "3 × 45 s chest-to-wall hold"
+      ]
+    },
+    {
+      "id": "H3",
+      "name": "Negatives",
+      "askAfter": 10,
+      "work": "Wall HSPU negatives, 5 s lowering to a head-touch on a folded mat",
+      "ready": [
+        "3 × 5 negatives at 5 s"
+      ]
+    },
+    {
+      "id": "H4",
+      "name": "Partial range",
+      "askAfter": 12,
+      "work": "Wall HSPU to a mat stack, depth increasing as the stack shrinks (15 → 10 → 5 cm)",
+      "ready": [
+        "3 × 6 at about 5 cm"
+      ]
+    },
+    {
+      "id": "H5",
+      "name": "Full range",
+      "askAfter": 12,
+      "work": "Wall HSPU, head to the floor, no mat",
+      "goal": true,
+      "ready": [
+        "5 consecutive strict reps"
+      ]
+    },
+    {
+      "id": "H6",
+      "name": "Beyond the goal",
+      "optional": true,
+      "work": "Parallettes, deficit, freestanding holds",
+      "ready": [],
+      "note": "Outside the goal; only if you want it later"
+    }
+  ]
+}

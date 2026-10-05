@@ -2,7 +2,7 @@
    Bump CACHE on every deploy. skipWaiting + clients.claim so the phone
    never keeps serving yesterday's build. */
 
-var CACHE = 'plan-v1.9.0-m10';
+var CACHE = 'plan-v1.10.0-m11';
 
 var PRECACHE = [
   './',
@@ -11,6 +11,9 @@ var PRECACHE = [
   'app.js',
   'manifest.webmanifest',
   'data/plan.json',
+  'data/rules.json',
+  'data/legacy.json',
+  'data/areas/index.json',
   'icons/icon-192.png',
   'icons/icon-512.png'
 ];
@@ -27,7 +30,21 @@ self.addEventListener('install', function (event) {
           return cache.add(url).catch(function (err) {
             console.warn('[sw] could not precache', url, err);
           });
-        }));
+        })).then(function () {
+          /* The areas are listed in their own index, so adding one never
+             means editing this file. */
+          return cache.match('data/areas/index.json')
+            .then(function (res) { return res ? res.json() : { areas: [] }; })
+            .then(function (index) {
+              return Promise.all((index.areas || []).map(function (id) {
+                var url = 'data/areas/' + id + '.json';
+                return cache.add(url).catch(function (err) {
+                  console.warn('[sw] could not precache', url, err);
+                });
+              }));
+            })
+            .catch(function (err) { console.warn('[sw] area index unreadable', err); });
+        });
       })
       .then(function () { return self.skipWaiting(); })
   );

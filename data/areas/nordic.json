@@ -1,0 +1,89 @@
+{
+  "id": "nordic",
+  "name": "Nordic curl",
+  "short": "Nordic",
+  "priority": 5,
+  "goal": "5 strict unassisted Nordic curls",
+  "perWeek": {
+    "min": 1,
+    "target": 2,
+    "max": 3
+  },
+  "minGapDays": 3,
+  "minutes": 10,
+  "load": "high",
+  "order": "strength",
+  "guardedBy": [
+    "hamstring",
+    "knee"
+  ],
+  "stages": [
+    {
+      "id": "N1",
+      "name": "Heavy band",
+      "askAfter": 8,
+      "work": "Band-assisted Nordics, heavy band, 4 s lowering",
+      "ready": [
+        "3 × 8, heavy band, 4 s down"
+      ],
+      "perWeek": {
+        "min": 2,
+        "target": 3,
+        "max": 3
+      },
+      "minGapDays": 2
+    },
+    {
+      "id": "N2",
+      "name": "Lighter band",
+      "askAfter": 8,
+      "work": "Medium → light band",
+      "ready": [
+        "3 × 6, light band, 4 s down"
+      ],
+      "perWeek": {
+        "min": 2,
+        "target": 3,
+        "max": 3
+      },
+      "minGapDays": 2
+    },
+    {
+      "id": "N3",
+      "name": "Unassisted eccentric",
+      "askAfter": 10,
+      "work": "No band; 5 s lowering; hands catch at the floor and push back",
+      "ready": [
+        "3 × 5, 5 s down"
+      ]
+    },
+    {
+      "id": "N4",
+      "name": "Push-back reduction",
+      "askAfter": 10,
+      "work": "As N3 with the push-back reduced to fingertips",
+      "ready": [
+        "3 × 5 with a fingertip push"
+      ]
+    },
+    {
+      "id": "N5",
+      "name": "Full Nordic",
+      "askAfter": 12,
+      "work": "No hands: eccentric and concentric",
+      "goal": true,
+      "ready": [
+        "5 strict reps"
+      ]
+    },
+    {
+      "id": "N6",
+      "name": "Weighted",
+      "optional": true,
+      "work": "Weighted, +2.5 → +5 kg at the chest (the old feat)",
+      "ready": [
+        "3 × 3 at 5 kg"
+      ]
+    }
+  ]
+}

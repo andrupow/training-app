@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Week view mock</title>
+<style>
+/* MOCK ONLY — illustrative data, not wired to the app. Tokens come from style.css;
+   the status colours are the validated "good / warning / serious" steps. State is
+   carried by SHAPE (disc, half disc, cross, ring, hatch) as well as colour. */
+:root {
+  --bg: #f6f7f8; --surface: #ffffff; --surface-2: #eceef1; --line: #d9dde2;
+  --text: #14181c; --muted: #5d6670; --accent: #1667d1;
+  --good: #0ca30c; --warning: #fab219; --serious: #ec835a;
+  --serious-text: #a8461c; --good-text: #08700a; --warn-text: #7a5600;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    --bg: #0e1114; --surface: #171b20; --surface-2: #1f252c; --line: #2a3138;
+    --text: #e8ecf0; --muted: #94a0ac; --accent: #6aa5f5;
+    --serious-text: #f0a182; --good-text: #5cd05c; --warn-text: #f0d79a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1114; --surface: #171b20; --surface-2: #1f252c; --line: #2a3138;
+  --text: #e8ecf0; --muted: #94a0ac; --accent: #6aa5f5;
+  --serious-text: #f0a182; --good-text: #5cd05c; --warn-text: #f0d79a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.wrap { max-width: 480px; margin: 0 auto; padding: 14px 16px 40px; }
+h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
+.note { font-size: 12.5px; color: var(--muted); margin: 4px 0 12px; }
+.bar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
+.seg button, .tool { font: inherit; font-size: 14px; color: var(--text); background: none; border: 0;
+  padding: 0 14px; min-height: 40px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--surface-2); font-weight: 650; }
+.tool { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); margin-left: auto; padding: 0 12px; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 12px 10px; margin-bottom: 12px; }
+.card h2 { font-size: 15px; margin: 0 0 8px; font-weight: 640; }
+.sub { font-size: 13px; color: var(--muted); }
+
+/* grid */
+.grid { display: grid; grid-template-columns: minmax(96px, 1.7fr) repeat(7, minmax(0, 1fr)); gap: 3px; align-items: center; }
+.hd { font-size: 11.5px; color: var(--muted); text-align: center; padding: 4px 0; background: none; border: 0; border-bottom: 2px solid transparent; font-family: inherit; cursor: pointer; line-height: 1.2; }
+.hd b { display: block; color: var(--text); font-size: 13px; font-weight: 640; }
+.hd.today b { color: var(--accent); }
+.hd.sel { border-bottom-color: var(--accent); }
+.hd sup { font-size: 9px; }
+.lab { padding: 5px 4px 5px 0; min-width: 0; }
+.lab .n { font-size: 13.5px; font-weight: 620; line-height: 1.2; }
+.lab .s { font-size: 11.5px; color: var(--muted); line-height: 1.25; }
+.tag { font-weight: 640; }
+.tag.done { color: var(--good-text); } .tag.behind, .tag.due { color: var(--serious-text); } .tag.track { color: var(--muted); } .tag.held { color: var(--warn-text); }
+.cell { aspect-ratio: 1; min-height: 32px; display: grid; place-items: center; border: 0; border-radius: 8px; background: var(--surface-2); cursor: pointer; padding: 0; }
+.cell.today { background: color-mix(in srgb, var(--accent) 14%, var(--surface-2)); }
+.cell.future { background: transparent; border: 1px dashed var(--line); }
+.cell.sel { box-shadow: 0 0 0 2px var(--accent); }
+.row { display: contents; }
+svg.g { width: 18px; height: 18px; display: block; }
+.g-done { fill: var(--good); } .g-part { fill: var(--warning); } .g-ring { fill: none; stroke: var(--muted); stroke-width: 1.8; }
+.g-x { stroke: var(--serious); stroke-width: 2.4; stroke-linecap: round; } .g-dot { fill: var(--line); }
+.g-hatch { fill: url(#hatch); stroke: var(--muted); stroke-width: 1; opacity: .8; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend svg.g { width: 14px; height: 14px; }
+.line { font-size: 14px; margin: 10px 0 2px; }
+.line b { font-weight: 650; }
+.skipped { color: var(--serious-text); }
+
+/* day detail + list */
+.sit { border-top: 1px solid var(--line); padding: 8px 0 2px; }
+.sit:first-of-type { border-top: 0; }
+.sit h3 { font-size: 12.5px; font-weight: 600; color: var(--muted); margin: 0 0 4px; text-transform: none; }
+.it { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 14.5px; }
+.it .st { margin-left: auto; font-size: 12.5px; color: var(--muted); text-align: right; }
+.it .st.x { color: var(--serious-text); } .it .st.p { color: var(--warn-text); } .it .st.d { color: var(--good-text); }
+.empty { font-size: 13.5px; color: var(--muted); padding: 6px 0; }
+.listday { margin-bottom: 10px; } .listday h3 { font-size: 13.5px; margin: 0 0 2px; color: var(--text); }
+
+/* today */
+.chips { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 4px 0 10px; font-size: 13px; color: var(--muted); }
+.chip { font: inherit; font-size: 13.5px; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 0 12px; min-height: 36px; cursor: pointer; }
+.chip[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 640; }
+.tabs { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+.menu label { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--line); cursor: pointer; }
+.menu label:first-of-type { border-top: 0; }
+.menu input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--accent); flex: none; }
+.menu .t { font-size: 15px; font-weight: 620; } .menu .m { font-size: 12.5px; color: var(--muted); }
+.menu .r { font-size: 12.5px; color: var(--muted); }
+.menu .r.due { color: var(--serious-text); font-weight: 600; }
+.total { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 14px; }
+.total .over { color: var(--serious-text); font-weight: 650; }
+.btn { font: inherit; font-size: 15px; font-weight: 640; border-radius: 10px; min-height: 44px; padding: 0 16px; border: 1px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer; }
+.btn.go { background: var(--accent); border-color: var(--accent); color: #fff; }
+[hidden] { display: none !important; }
+@media (max-width: 380px) { .lab .s { font-size: 11px; } .wrap { padding-left: 12px; padding-right: 12px; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="5" stroke="currentColor" stroke-width="1.4"/></pattern>
+</defs></svg>
+
+<div class="wrap">
+  <div class="bar">
+    <h1>Week view</h1>
+    <button class="tool" id="theme" type="button" aria-label="Switch light or dark">Theme</button>
+  </div>
+  <p class="note">Mock with made-up data. Today is <b>Fri 9 Oct</b>. Tap a day to see its sittings.</p>
+
+  <div class="seg" role="group" aria-label="Screen" style="margin-bottom:12px">
+    <button type="button" id="tab-week" aria-pressed="true">Week</button>
+    <button type="button" id="tab-today" aria-pressed="false">Today</button>
+  </div>
+
+  <section id="week">
+    <div class="card">
+      <h2>Mon 5 – Sun 11 Oct <span class="sub">· this week</span></h2>
+      <div class="seg" role="group" aria-label="View" style="margin-bottom:8px">
+        <button type="button" id="v-grid" aria-pressed="true">Grid</button>
+        <button type="button" id="v-list" aria-pressed="false">List</button>
+      </div>
+      <div id="grid" class="grid" role="grid" aria-label="Areas by day"></div>
+      <div id="list" hidden></div>
+      <div class="legend" id="legend"></div>
+      <p class="line" id="sum"></p>
+      <p class="line skipped" id="skipline"></p>
+    </div>
+    <div class="card" id="detail"></div>
+  </section>
+
+  <section id="today" hidden>
+    <div class="card">
+      <h2>Today · Fri 9 Oct</h2>
+      <div class="chips" id="chips"></div>
+      <div class="tabs" id="tabs"></div>
+      <div class="menu" id="menu"></div>
+      <div class="total" id="total"></div>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        <button class="btn go" type="button">Start</button>
+        <button class="btn" type="button">+ Add area</button>
+        <button class="btn" type="button" id="addsit">+ Another sitting today</button>
+      </div>
+      <p class="sub" style="margin:10px 0 0">Untick anything, or tick something the app advised against. Over time shows as “+N min over”, never as a block.</p>
+    </div>
+  </section>
+</div>
+
+<script>
+'use strict';
+/* ---- illustrative data (a week in which Thursday went badly) ---- */
+var AREAS = [
+  { id: 'mu',     name: 'Muscle-up',      stage: 'M1', target: 2, status: ['Done', 'done'] },
+  { id: 'hspu',   name: 'Handstand PU',   stage: 'H1', target: 2, status: ['Due today', 'due'] },
+  { id: 'bridge', name: 'Bridge',         stage: 'B1', target: 3, status: ['Done', 'done'] },
+  { id: 'pistol', name: 'Pistol squat',   stage: 'P1', target: 2, status: ['Due today', 'due'] },
+  { id: 'nordic', name: 'Nordic curl',    stage: 'N1', target: 3, status: ['Held · hamstring red', 'held'] },
+  { id: 'kb',     name: 'Kettlebell',     stage: 'K1', target: 3, status: ['On track', 'track'] },
+  { id: 'oap',    name: 'One-arm pull-up',stage: 'O1', target: 2, status: ['Behind', 'behind'] },
+  { id: 'plyo',   name: 'Plyometrics',    stage: 'Y1', target: 2, status: ['Due today', 'due'] }
+];
+var DAYS = [
+  { k: 'M', n: 5,  full: 'Mon 5 Oct',  sittings: [ { min: 45, items: [ ['mu','done'], ['bridge','done'] ] } ] },
+  { k: 'T', n: 6,  full: 'Tue 6 Oct',  noplan: true, sittings: [ { min: null, items: [ ['hspu','done'], ['bridge','done'] ] } ] },
+  { k: 'W', n: 7,  full: 'Wed 7 Oct',  sittings: [ { min: 30, items: [ ['mu','done'], ['bridge','done'] ] },
+                                                     { min: 30, items: [ ['kb','partial','18 of 30 sets'], ['pistol','done'] ] } ] },
+  { k: 'T', n: 8,  full: 'Thu 8 Oct',  sittings: [ { min: 60, items: [ ['hspu','skipped','no time'], ['pistol','skipped','no time'], ['oap','skipped','no time'] ] } ] },
+  { k: 'F', n: 9,  full: 'Fri 9 Oct',  today: true, sittings: [ { min: 60, items: [ ['hspu','planned'], ['pistol','planned'], ['plyo','planned'] ] } ] },
+  { k: 'S', n: 10, full: 'Sat 10 Oct', future: true, sittings: [] },
+  { k: 'S', n: 11, full: 'Sun 11 Oct', future: true, sittings: [] }
+];
+var SEL = 2;   /* Wednesday: two sittings */
+
+function byId(id) { return AREAS.filter(function (a) { return a.id === id; })[0]; }
+function el(tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
+
+/* One glyph per state. Shape carries the meaning; colour reinforces it. */
+var LABEL = { done: 'done', partial: 'partial', skipped: 'skipped', planned: 'planned', noplan: 'no plan recorded', none: 'nothing planned' };
+function glyph(state) {
+  var s = '<svg class="g" viewBox="0 0 20 20" aria-hidden="true">';
+  if (state === 'done')    s += '<circle class="g-done" cx="10" cy="10" r="7.5"/>';
+  if (state === 'partial') s += '<circle class="g-ring" cx="10" cy="10" r="7.5"/><path class="g-part" d="M10 2.5 A7.5 7.5 0 0 0 10 17.5 Z"/>';
+  if (state === 'skipped') s += '<path class="g-x" d="M4.5 4.5 L15.5 15.5 M15.5 4.5 L4.5 15.5"/>';
+  if (state === 'planned') s += '<circle class="g-ring" cx="10" cy="10" r="6.5"/>';
+  if (state === 'noplan')  s += '<rect class="g-hatch" x="3.5" y="3.5" width="13" height="13" rx="3" style="color:var(--muted)"/>';
+  if (state === 'none')    s += '<circle class="g-dot" cx="10" cy="10" r="1.9"/>';
+  return s + '</svg>';
+}
+function stateOf(day, area) {
+  for (var i = 0; i < day.sittings.length; i++)
+    for (var j = 0; j < day.sittings[i].items.length; j++)
+      if (day.sittings[i].items[j][0] === area.id) return day.sittings[i].items[j];
+  return [area.id, day.noplan ? 'noplan' : 'none'];
+}
+
+function drawGrid() {
+  var g = document.getElementById('grid'); g.textContent = '';
+  g.appendChild(el('div'));
+  DAYS.forEach(function (d, i) {
+    var b = el('button', 'hd' + (d.today ? ' today' : '') + (i === SEL ? ' sel' : ''),
+      d.k + '<b>' + d.n + '</b>' + (d.sittings.length > 1 ? '<sup>' + d.sittings.length + ' sit.</sup>' : ''));
+    b.type = 'button'; b.setAttribute('aria-label', d.full + (d.sittings.length > 1 ? ', ' + d.sittings.length + ' sittings' : ''));
+    b.addEventListener('click', function () { SEL = i; draw(); });
+    g.appendChild(b);
+  });
+  AREAS.forEach(function (a) {
+    var row = el('div', 'row');
+    row.appendChild(el('div', 'lab', '<div class="n">' + a.name + '</div><div class="s">' + a.stage + ' · <span class="tag ' + a.status[1] + '">' + a.status[0] + '</span></div>'));
+    DAYS.forEach(function (d, i) {
+      var st = stateOf(d, a)[1];
+      var c = el('button', 'cell' + (d.today ? ' today' : '') + (d.future ? ' future' : '') + (i === SEL ? ' sel' : ''), d.future && st === 'none' ? '' : glyph(st));
+      c.type = 'button'; c.setAttribute('aria-label', a.name + ', ' + d.full + ': ' + LABEL[st]);
+      c.addEventListener('click', function () { SEL = i; draw(); });
+      row.appendChild(c);
+    });
+    g.appendChild(row);
+  });
+}
+
+function dayBlock(d) {
+  var box = el('div');
+  if (!d.sittings.length) { box.appendChild(el('div', 'empty', 'Nothing planned yet. The menu is built when you open the day.')); return box; }
+  if (d.noplan) box.appendChild(el('div', 'empty', 'No plan was recorded for this day. These were logged afterwards.'));
+  d.sittings.forEach(function (s, i) {
+    var sec = el('div', 'sit');
+    if (d.sittings.length > 1 || s.min) sec.appendChild(el('h3', '', 'Sitting ' + (i + 1) + (s.min ? ' · ' + s.min + ' min' : '')));
+    s.items.forEach(function (it) {
+      var a = byId(it[0]), st = it[1], txt = { done: 'done', partial: 'partial', skipped: 'skipped', planned: 'planned' }[st];
+      var cls = { done: 'd', partial: 'p', skipped: 'x', planned: '' }[st];
+      var row = el('div', 'it', glyph(st) + '<span>' + a.name + ' <span class="sub">' + a.stage + '</span></span><span class="st ' + cls + '">' + txt + (it[2] ? ' · ' + it[2] : '') + '</span>');
+      sec.appendChild(row);
+    });
+    box.appendChild(sec);
+  });
+  return box;
+}
+
+function drawDetail() {
+  var d = DAYS[SEL], box = document.getElementById('detail'); box.textContent = '';
+  box.appendChild(el('h2', '', d.full + (d.sittings.length > 1 ? ' <span class="sub">· ' + d.sittings.length + ' sittings</span>' : '')));
+  box.appendChild(dayBlock(d));
+}
+function drawList() {
+  var l = document.getElementById('list'); l.textContent = '';
+  DAYS.forEach(function (d) { var w = el('div', 'listday'); w.appendChild(el('h3', '', d.full + (d.today ? ' · today' : ''))); w.appendChild(dayBlock(d)); l.appendChild(w); });
+}
+function drawSummary() {
+  var n = { done: 0, partial: 0, skipped: 0, planned: 0 }, sk = {};
+  DAYS.forEach(function (d) { d.sittings.forEach(function (s) { s.items.forEach(function (it) {
+    n[it[1]]++; if (it[1] === 'skipped') (sk[it[0]] = sk[it[0]] || []).push(d.full.split(' ')[0]); }); }); });
+  document.getElementById('sum').innerHTML = '<b>Done ' + n.done + '</b> · Partial ' + n.partial + ' · <b>Skipped ' + n.skipped + '</b> · Planned today ' + n.planned;
+  var parts = Object.keys(sk).map(function (id) { return byId(id).name + ' (' + sk[id].join(', ') + ')'; });
+  document.getElementById('skipline').textContent = parts.length ? 'Skipped: ' + parts.join(' · ') : '';
+}
+function drawLegend() {
+  var lg = document.getElementById('legend'); lg.textContent = '';
+  [['done','Done'],['partial','Partial'],['skipped','Skipped'],['planned','Planned'],['noplan','No plan recorded'],['none','Nothing planned']].forEach(function (p) {
+    lg.appendChild(el('span', '', glyph(p[0]) + p[1]));
+  });
+}
+function draw() { drawGrid(); drawDetail(); }
+
+/* ---- Today ---- */
+var MENU = [
+  { min: 60, chips: [30, 45, 60], rows: [
+    ['hspu','Handstand push-up','H1',20,true,'1/2 this week, 3 d since last','due'],
+    ['pistol','Pistol squat','P1',18,true,'1/2 this week, skipped Thu','due'],
+    ['plyo','Plyometrics','Y1',20,true,'0/2 this week','due'],
+    ['kb','Kettlebell','K1',30,false,'does not fit today’s 60 min',''],
+    ['oap','One-arm pull-up','O1',20,false,'does not fit today’s 60 min',''],
+    ['nordic','Nordic curl','N1',10,false,'held: hamstring red until Sat',''],
+    ['mu','Muscle-up','M1',30,false,'at weekly target (2/2)',''],
+    ['bridge','Backward bridge','B1',12,false,'at weekly target (3/3)','']
+  ] }
+];
+var SITS = [JSON.parse(JSON.stringify(MENU[0]))], CUR = 0;
+function drawToday() {
+  var s = SITS[CUR];
+  var chips = document.getElementById('chips'); chips.textContent = ''; chips.appendChild(el('span', '', 'Time:'));
+  [30, 45, 60].forEach(function (m) { var c = el('button', 'chip', m + ' min'); c.type = 'button'; c.setAttribute('aria-pressed', String(s.min === m));
+    c.addEventListener('click', function () { s.min = m; drawToday(); }); chips.appendChild(c); });
+  var tabs = document.getElementById('tabs'); tabs.textContent = '';
+  SITS.forEach(function (x, i) { var t = el('button', 'chip', 'Sitting ' + (i + 1) + ' · ' + x.min + ' min'); t.type = 'button'; t.setAttribute('aria-pressed', String(i === CUR));
+    t.addEventListener('click', function () { CUR = i; drawToday(); }); tabs.appendChild(t); });
+  var menu = document.getElementById('menu'); menu.textContent = '';
+  s.rows.forEach(function (r) {
+    var lab = el('label'); var cb = el('input'); cb.type = 'checkbox'; cb.checked = r[4];
+    cb.addEventListener('change', function () { r[4] = cb.checked; drawTotal(); });
+    var body = el('div', '', '<div class="t">' + r[1] + ' <span class="sub">' + r[2] + ' · ' + r[3] + ' min</span></div><div class="r ' + r[6] + '">' + (r[6] === 'due' ? 'DUE · ' : '') + r[5] + '</div>');
+    lab.appendChild(cb); lab.appendChild(body); menu.appendChild(lab);
+  });
+  drawTotal();
+}
+function drawTotal() {
+  var s = SITS[CUR], t = s.rows.reduce(function (n, r) { return n + (r[4] ? r[3] : 0); }, 0), over = t - s.min;
+  document.getElementById('total').innerHTML = '<span>Total <b>' + t + ' min</b> of ' + s.min + '</span>' + (over > 0 ? '<span class="over">+' + over + ' min over</span>' : '');
+}
+document.getElementById('addsit').addEventListener('click', function () {
+  if (SITS.length >= 3) return;
+  SITS.push({ min: 30, rows: [
+    ['kb','Kettlebell','K1',30,true,'1/3 this week, 2 d since last',''],
+    ['oap','One-arm pull-up','O1',20,false,'does not fit alongside kettlebell',''],
+    ['mu','Muscle-up','M1',30,false,'at weekly target (2/2)',''],
+    ['nordic','Nordic curl','N1',10,false,'held: hamstring red until Sat',''],
+    ['hspu','Handstand push-up','H1',20,false,'already in sitting 1',''],
+    ['pistol','Pistol squat','P1',18,false,'already in sitting 1',''],
+    ['plyo','Plyometrics','Y1',20,false,'already in sitting 1','']
+  ] });
+  CUR = SITS.length - 1; drawToday();
+});
+
+/* ---- chrome ---- */
+function press(a, b, on) { a.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-pressed', String(!on)); }
+var tw = document.getElementById('tab-week'), tt = document.getElementById('tab-today');
+tw.addEventListener('click', function () { press(tw, tt, true); document.getElementById('week').hidden = false; document.getElementById('today').hidden = true; });
+tt.addEventListener('click', function () { press(tt, tw, true); document.getElementById('week').hidden = true; document.getElementById('today').hidden = false; });
+var vg = document.getElementById('v-grid'), vl = document.getElementById('v-list');
+vg.addEventListener('click', function () { press(vg, vl, true); document.getElementById('grid').hidden = false; document.getElementById('list').hidden = true; });
+vl.addEventListener('click', function () { press(vl, vg, true); document.getElementById('grid').hidden = true; document.getElementById('list').hidden = false; });
+document.getElementById('theme').addEventListener('click', function () {
+  var r = document.documentElement, cur = r.getAttribute('data-theme');
+  r.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
+});
+var q = location.search.match(/theme=(light|dark)/); if (q) document.documentElement.setAttribute('data-theme', q[1]);
+var v = location.search.match(/view=(today|list)/);
+drawLegend(); draw(); drawSummary(); drawList(); drawToday();
+if (v && v[1] === 'today') tt.click(); if (v && v[1] === 'list') vl.click();
+</script>
+</body>
+</html>

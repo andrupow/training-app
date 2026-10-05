@@ -1,0 +1,115 @@
+{
+  "id": "plyo",
+  "name": "Plyometrics",
+  "short": "Plyo",
+  "priority": 8,
+  "goal": "Vertical jump of baseline + X cm (wall-touch)",
+  "perWeek": {
+    "min": 1,
+    "target": 2,
+    "max": 2
+  },
+  "minGapDays": 2,
+  "minutes": 20,
+  "load": "high",
+  "order": "power",
+  "guardedBy": [
+    "achilles",
+    "knee"
+  ],
+  "tests": [
+    {
+      "id": "vertical",
+      "name": "Vertical jump (wall-touch)",
+      "unit": "cm",
+      "baselineStage": "Y1",
+      "retestEveryWeeks": 4,
+      "note": "Best of 3, same warm-up each time. You set X after seeing the baseline."
+    }
+  ],
+  "stages": [
+    {
+      "id": "Y1",
+      "name": "Tendon base and landing",
+      "askAfter": 10,
+      "work": "Slow single-leg heel raises (3 s down), Achilles isometric holds, ankle mobility, low stick landings (20–30 cm), skipping; ≤ 40 contacts",
+      "maxContacts": 40,
+      "ready": [
+        "3 × 12 single-leg heel raises, 3 s down, pain-free",
+        "10 quiet stick landings from 30 cm"
+      ]
+    },
+    {
+      "id": "Y2",
+      "name": "Double-leg elastic",
+      "askAfter": 10,
+      "work": "Double-leg pogos (short, stiff contacts), squat jumps, broad jumps, low box jumps; ≤ 60 contacts",
+      "maxContacts": 60,
+      "ready": [
+        "3 × 20 continuous double-leg pogos",
+        "3 × 5 box jumps to 40 cm, landings stuck"
+      ]
+    },
+    {
+      "id": "Y3",
+      "name": "Single-leg elastic",
+      "askAfter": 12,
+      "work": "Single-leg pogos, in-place and lateral hops, low hurdle hops; ≤ 80 contacts",
+      "maxContacts": 80,
+      "ready": [
+        "20 continuous single-leg pogos per leg with short contacts (film it)"
+      ]
+    },
+    {
+      "id": "Y4",
+      "name": "Bounds and reactive",
+      "askAfter": 12,
+      "work": "Alternate-leg bounds, reactive hurdle hops (30 cm), single-leg box jumps; ≤ 100 contacts",
+      "maxContacts": 100,
+      "ready": [
+        "5 reactive hurdle hops with minimal ground time",
+        "5 single-leg box jumps per leg to 30 cm"
+      ],
+      "requires": [
+        {
+          "area": "pistol",
+          "stage": "P3"
+        }
+      ]
+    },
+    {
+      "id": "Y5",
+      "name": "Depth jumps",
+      "askAfter": 14,
+      "work": "Drop jumps from 20 → 30 → 40 cm (use the height where the rebound is highest), countermovement jumps with arm swing; ≤ 100 contacts, ≤ 30 of them depth",
+      "maxContacts": 100,
+      "maxDepthContacts": 30,
+      "ready": [
+        "5 depth jumps with a rebound at least as high as your countermovement jump"
+      ],
+      "requires": [
+        {
+          "area": "pistol",
+          "stage": "P4"
+        },
+        {
+          "area": "nordic",
+          "stage": "N3"
+        }
+      ],
+      "minGapDays": 3
+    },
+    {
+      "id": "Y6",
+      "name": "Approach jumps",
+      "askAfter": 12,
+      "work": "3–5 step approach, single-leg take-off to a touch target; ≤ 60 maximal contacts",
+      "maxContacts": 60,
+      "goal": true,
+      "ready": [
+        "Vertical jump ≥ baseline + X cm, retested every 4 weeks"
+      ],
+      "minGapDays": 3
+    }
+  ]
+}

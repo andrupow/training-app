@@ -1,0 +1,81 @@
+{
+  "id": "oap",
+  "name": "One-arm pull-up",
+  "short": "One-arm",
+  "priority": 7,
+  "goal": "1 strict one-arm pull-up on each arm",
+  "perWeek": {
+    "min": 1,
+    "target": 2,
+    "max": 2
+  },
+  "minGapDays": 3,
+  "minutes": 20,
+  "load": "high",
+  "order": "strength",
+  "guardedBy": [
+    "elbow",
+    "shoulder"
+  ],
+  "sessionTypes": [
+    "heavy",
+    "light"
+  ],
+  "stages": [
+    {
+      "id": "O1",
+      "name": "Pull-up base",
+      "askAfter": 12,
+      "work": "Strict pull-ups, scapular pulls, dead hangs, short one-arm hangs",
+      "ready": [
+        "3 × 10 strict pull-ups, 2 s down"
+      ]
+    },
+    {
+      "id": "O2",
+      "name": "Weighted",
+      "askAfter": 16,
+      "work": "Weighted pull-ups ramping to +25 % bodyweight (uses your bodyweight rule)",
+      "ready": [
+        "+25 % BW × 5"
+      ]
+    },
+    {
+      "id": "O3",
+      "name": "Archers",
+      "askAfter": 14,
+      "work": "Archer pull-ups, widening the grip",
+      "ready": [
+        "3 × 5 per side, assisting arm straight"
+      ]
+    },
+    {
+      "id": "O4",
+      "name": "Assisted one-arm",
+      "askAfter": 14,
+      "work": "One-arm with the other hand on the wrist or a towel/band, assist reducing",
+      "ready": [
+        "3 × 3 per side, fingertip-level assist"
+      ]
+    },
+    {
+      "id": "O5",
+      "name": "One-arm negatives",
+      "askAfter": 14,
+      "work": "6–8 s lowering, ≤ 4 reps per arm per session",
+      "ready": [
+        "3 × 3 per side at 8 s"
+      ]
+    },
+    {
+      "id": "O6",
+      "name": "One-arm pull-up",
+      "askAfter": 16,
+      "work": "Partials from 90° to the top, then full attempts",
+      "goal": true,
+      "ready": [
+        "1 strict rep each arm"
+      ]
+    }
+  ]
+}

@@ -16,6 +16,11 @@
   --warn-bg:   #fff4d6;
   --warn-line: #e0b34d;
   --warn-text: #6b4c06;
+  --good: #0ca30c;      /* status steps: never themed */
+  --warning: #fab219;
+  --serious: #ec835a;
+  --good-text: #08700a;
+  --serious-text: #a8461c;
   --tap: 44px;
   --tabbar-h: 57px;   /* 56px of link + its 1px top border */
 }
@@ -36,6 +41,8 @@
     --warn-bg:   #2e2611;
     --warn-line: #7a6320;
     --warn-text: #f0d79a;
+    --good-text: #5cd05c;
+    --serious-text: #f0a182;
   }
 }
 
@@ -239,7 +246,7 @@ a.card:active { background: var(--surface-2); }
   left: 0; right: 0; bottom: 0;
   z-index: 10;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   background: var(--surface);
   border-top: 1px solid var(--line);
   padding-bottom: env(safe-area-inset-bottom);
@@ -1076,3 +1083,93 @@ body.in-run .restbar { display: none; }
 .pick:active { background: var(--surface-2); }
 
 .sheet .btn-block { margin-top: 8px; margin-bottom: 0; }
+
+/* ---------- Areas (Milestone 11) ---------- */
+
+.wk-head { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; }
+.wk-title { flex: 1; text-align: center; display: flex; flex-direction: column; }
+.wk-nav {
+  width: var(--tap); height: var(--tap);
+  font: inherit; font-size: 22px; line-height: 1;
+  color: var(--accent); background: none;
+  border: 0; border-radius: 10px; cursor: pointer;
+}
+.wk-nav:disabled { color: var(--line); cursor: default; }
+.wk-nav:focus-visible, .wk-day:focus-visible, .wk-cell:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Areas down the side, Monday to Sunday across. */
+.wk-grid {
+  display: grid;
+  grid-template-columns: minmax(96px, 1.7fr) repeat(7, minmax(0, 1fr));
+  gap: 3px;
+  align-items: center;
+}
+.wk-day {
+  font: inherit; font-size: 11.5px; line-height: 1.2;
+  color: var(--muted); text-align: center;
+  background: none; border: 0; border-bottom: 2px solid transparent;
+  padding: 4px 0; cursor: pointer;
+}
+.wk-day b { display: block; color: var(--text); font-size: 13px; font-weight: 640; }
+.wk-day.is-today b { color: var(--accent); }
+.wk-day.is-sel { border-bottom-color: var(--accent); }
+
+.wk-lab { padding: 5px 4px 5px 0; min-width: 0; }
+.wk-lab .n { font-size: 13.5px; font-weight: 620; line-height: 1.2; }
+.wk-lab .s { font-size: 11.5px; color: var(--muted); line-height: 1.25; }
+
+.wk-cell {
+  aspect-ratio: 1; min-height: 32px;
+  display: grid; place-items: center;
+  padding: 0; border: 0; border-radius: 8px;
+  background: var(--surface-2); cursor: pointer;
+}
+.wk-cell.is-today { background: color-mix(in srgb, var(--accent) 14%, var(--surface-2)); }
+.wk-cell.is-future { background: transparent; border: 1px dashed var(--line); }
+.wk-cell.is-sel { box-shadow: 0 0 0 2px var(--accent); }
+
+svg.g { width: 18px; height: 18px; display: block; }
+.g-done { fill: var(--good); }
+.g-part { fill: var(--warning); }
+.g-ring { fill: none; stroke: var(--muted); stroke-width: 1.8; }
+.g-dot { fill: var(--line); }
+
+/* Status words sit under the area name; text carries it, colour only helps. */
+.st { font-size: 11.5px; font-weight: 640; line-height: 1.25; display: block; }
+.st-done, .st-hit { color: var(--good-text); }
+.st-due, .st-behind, .st-risk, .st-missed { color: var(--serious-text); }
+.st-held, .st-over { color: var(--warn-text); }
+.st-track, .st-met { color: var(--muted); }
+
+.wk-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 10px; font-size: 12.5px; color: var(--muted); }
+.wk-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.wk-legend svg.g { width: 14px; height: 14px; }
+.wk-sum { margin: 10px 0 0; font-size: 14px; }
+
+.wk-item { display: flex; align-items: center; gap: 8px; padding: 6px 0 2px; font-size: 14.5px; }
+.wk-note { margin-left: auto; font-size: 12.5px; color: var(--muted); }
+
+/* The ladder: one chip per stage, where you are filled in. */
+.ladder { display: flex; flex-wrap: wrap; gap: 4px; margin: 9px 0 7px; }
+.rung {
+  font-size: 11px; font-weight: 640; line-height: 1;
+  padding: 5px 7px; border-radius: 6px;
+  color: var(--muted); background: var(--surface-2);
+}
+.rung.is-here { color: var(--surface); background: var(--accent); }
+.rung.is-goal::after { content: " ★"; }
+.rung.is-optional { background: transparent; border: 1px dashed var(--line); }
+
+.stage-ready { margin-top: 8px; font-size: 13.5px; }
+.stage-ready strong { font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.stage-ready ul { margin: 3px 0 0; padding-left: 18px; }
+.stage-fact { margin-top: 5px; font-size: 12.5px; color: var(--muted); }
+.stage-fact.is-unmet { color: var(--warn-text); }
+
+@media (max-width: 380px) {
+  .wk-lab .s { font-size: 11px; }
+}
+
+/* Key/value rows whose values are words, not numbers: let them wrap. */
+.kv-text .kv-key { flex: 0 0 34%; }
+.kv-text .kv-val { flex: 1; min-width: 0; text-align: right; white-space: normal; overflow-wrap: anywhere; font-size: 14.5px; }
