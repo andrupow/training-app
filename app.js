@@ -27,7 +27,6 @@ var LS_TIMER = 'restTimer';
 
 var plan = null;
 var planScroll = 0;     /* remember where the week list was scrolled to */
-var todaySession = null; /* the session the Today tab is currently showing */
 
 /* ---------------------------------------------------------------- storage */
 /* localStorage can throw: private mode, storage pressure, quota. */
@@ -1039,7 +1038,7 @@ function areaReason(area, date, days, week) {
   var last = lastTrainedBefore(area.id, date, days);
   var text = week.touched + '/' + week.target + ' this week, '
     + (last ? daysBetween(last, date) + ' d since last' : 'not trained yet');
-  return (week.status.key === 'due' ? 'DUE · ' : '') + text;
+  return text;
 }
 
 /* Held means a guarding body area is red. It is the one thing the menu will not
@@ -1189,6 +1188,54 @@ function sittingLoad(sitting) {
   var planned = 0;
   sitting.areas.forEach(function (id) { var a = areaById(id); if (a) planned += a.minutes; });
   return { planned: planned, over: Math.max(0, planned - sitting.minutes) };
+}
+
+/* Mark every set of an area's block done for a date, for something you did
+   without the app. Held areas are refused like anywhere else. */
+function logAreaBlock(date, areaId) {
+  var area = areaById(areaId);
+  if (!area) return { ok: false, why: 'No such area.' };
+  var held = heldReason(area, date);
+  if (held) return { ok: false, why: area.name + ' is held: ' + held + '.' };
+  if (!freezeAreaDay(date, areaId)) return { ok: false, why: 'There is nothing to log for ' + area.name + ' yet.' };
+
+  var session = areaDaySession(date, areaId);
+  session.exercises.forEach(function (ex) {
+    for (var i = 0; i < (Number(ex.sets) || 0); i++) {
+      var e = getLog(session.id, ex.id, i);
+      if (!e || !e.done) writeLog(session.id, ex.id, i, { done: true });
+    }
+  });
+  return { ok: true };
+}
+
+/* Where to start in an area-day: the first exercise that still has sets to do. */
+function firstOpenExercise(session) {
+  var list = runnableIndexes(session);
+  for (var i = 0; i < list.length; i++) {
+    var ex = session.exercises[list[i]];
+    if (firstUndoneSet(session, ex) < (Number(ex.sets) || 0)) return list[i];
+  }
+  return list.length ? list[0] : 0;
+}
+
+/* After one area-day in the runner: the next one on the same sitting that still
+   has sets to do, so a sitting runs as one go. */
+function nextAreaDay(session) {
+  var plan = session && session.areaId ? dayPlans[session.date] : null;
+  if (!plan) return null;
+
+  for (var i = 0; i < plan.sittings.length; i++) {
+    var ids = plan.sittings[i].areas;
+    var at = ids.indexOf(session.areaId);
+    if (at < 0) continue;
+    for (var j = at + 1; j < ids.length; j++) {
+      var next = areaDaySession(session.date, ids[j]);
+      if (next && !areaPaused(next) && doneSets(next) < totalSets(next)) return next;
+    }
+    return null;
+  }
+  return null;
 }
 
 /* What the menu shows for one sitting: every area, most urgent first. */
@@ -1695,9 +1742,10 @@ function paintLogged(node, ex, session) {
 }
 
 function paintCount() {
-  if (!todaySession) return;
-  var sub = document.getElementById('appbar-sub');
-  sub.textContent = doneSets(todaySession) + ' of ' + totalSets(todaySession) + ' sets';
+  if (!todaySessions.length) return;
+  var done = 0, total = 0;
+  todaySessions.forEach(function (x) { done += doneSets(x); total += totalSets(x); });
+  document.getElementById('appbar-sub').textContent = fmtDateShort(todayISO()) + ' · ' + done + ' of ' + total + ' sets';
 }
 
 /* --- rest timer -------------------------------------------------------- */
@@ -2006,127 +2054,286 @@ function toast(msg) {
 }
 
 /* --- Today --- */
-/* Today's session, or the next one up. Logging only unlocks on the day
-   itself — anything else is the plan browser, which is read-only. */
+/* The menu for today: one to three sittings, each a list of areas with its own
+   minutes. The areas on a sitting are the ones you will do; everything else is
+   below it, one tap away, with the reason it is or is not a good idea. */
 
-var DAY_NAME = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday' };
+var todaySessions = [];     /* the area-days on screen, for the set count in the app bar */
+var todaySitting = 0;       /* which sitting is showing */
+var todayOpen = {};         /* area-day id -> showing its exercises */
 
-function nextTrainingSession(afterDate) {
-  return plan.sessions.filter(function (s) {
-    return !isSkipped(s) && sessionDate(s) > afterDate && s.tag !== 'rest';
-  })[0] || null;
+var SKIP_REASONS = [['no time', 'No time'], ['tired', 'Tired'], ['pain', 'Pain'], ['other', 'Other']];
+
+function dataLoading(title) {
+  setView(title, '', [el('p', { class: 'empty', text: areaLoad === 'failed'
+    ? 'Could not load the areas. Connect once so they can be cached, then they work offline.'
+    : 'Loading areas…' })]);
+}
+
+/* Re-draw in place, keeping the scroll: a tap on a button should not jump the page. */
+function repaintToday() {
+  var y = window.scrollY;
+  renderToday();
+  window.scrollTo(0, y);
+}
+
+/* One line per red body area: what it has paused, and until when. */
+function heldCallouts(date) {
+  var red = redAreasOn(date);
+  return Object.keys(red).map(function (body) {
+    var paused = areaList().filter(function (a) { return a.guardedBy.indexOf(body) >= 0; })
+      .map(function (a) { return a.name; });
+    if (!paused.length) return null;
+    return el('div', { class: 'callout callout-red' }, [
+      el('strong', { text: 'Red · ' + bodyLabel(body).toLowerCase() }),
+      document.createTextNode('Paused until ' + fmtDateShort(addDays(red[body], 1)) + ': ' + paused.join(', ') + '.')
+    ]);
+  }).filter(Boolean);
+}
+
+/* Sitting tabs, and the time you have for the one showing. */
+function sittingBar(date, plan) {
+  var sitting = plan.sittings[todaySitting];
+  var wrap = el('div', { class: 'sit-bar' });
+
+  if (plan.sittings.length > 1) {
+    var tabs = el('div', { class: 'sit-row' });
+    plan.sittings.forEach(function (st, i) {
+      var b = el('button', {
+        class: 'sit-chip' + (i === todaySitting ? ' is-on' : ''), type: 'button',
+        'aria-pressed': String(i === todaySitting),
+        text: 'Sitting ' + (i + 1) + ' · ' + st.minutes + ' min'
+      });
+      b.addEventListener('click', function () { todaySitting = i; repaintToday(); });
+      tabs.appendChild(b);
+    });
+    wrap.appendChild(tabs);
+  }
+
+  var options = areaData.rules.defaults.timeOptions.slice();
+  if (options.indexOf(sitting.minutes) < 0) { options.push(sitting.minutes); options.sort(function (a, b) { return a - b; }); }
+
+  var times = el('div', { class: 'sit-row' }, [el('span', { class: 'sit-label', text: 'Time:' })]);
+  options.forEach(function (m) {
+    var b = el('button', {
+      class: 'sit-chip' + (m === sitting.minutes ? ' is-on' : ''), type: 'button',
+      'aria-pressed': String(m === sitting.minutes), text: m + ' min'
+    });
+    b.addEventListener('click', function () { setSittingMinutes(date, todaySitting, m); repaintToday(); });
+    times.appendChild(b);
+  });
+  wrap.appendChild(times);
+  return wrap;
+}
+
+/* Take an area off. Something the app suggested becomes a skip, so ask why
+   (you may say nothing); something you added yourself just goes. */
+function takeOff(date, sittingIdx, areaId) {
+  var plan = dayPlans[date];
+  var area = areaById(areaId);
+
+  function go(reason) {
+    var r = removeAreaFromDay(date, sittingIdx, areaId, reason);
+    if (!r.ok) toast(r.why);
+    repaintToday();
+  }
+
+  if (plan.suggested.indexOf(areaId) < 0) { go(''); return; }
+
+  var list = el('div', { class: 'picklist' });
+  SKIP_REASONS.concat([['', 'No reason']]).forEach(function (r) {
+    var b = el('button', { class: 'card pick', type: 'button' }, [el('div', { class: 'card-title', text: r[1] })]);
+    b.addEventListener('click', function () { closeSheet(); go(r[0]); });
+    list.appendChild(b);
+  });
+  openSheet('Take ' + area.name + ' off today?', 'It was suggested, so the week will show it as skipped. A reason is optional.', [list]);
+}
+
+/* One area on one date: its progress, its start button and, when opened, its
+   exercises with the same set chips as ever. */
+function areaDayCard(date, sittingIdx, areaId, plan, onlyOne) {
+  var area = areaById(areaId);
+  var s = areaDaySession(date, areaId);
+  if (!area || !s) {
+    return el('div', { class: 'card' }, [
+      el('div', { class: 'card-title', text: area ? area.name : areaId }),
+      el('div', { class: 'card-sub', text: 'Nothing is written for this stage yet.' })
+    ]);
+  }
+
+  if (!todaySessions.some(function (x) { return x.id === s.id; })) todaySessions.push(s);
+
+  var paused = areaPaused(s);
+  var total = totalSets(s), done = doneSets(s);
+  var finished = !paused && total > 0 && done >= total;
+  var open = s.id in todayOpen ? todayOpen[s.id] : onlyOne;
+
+  var head = el('button', { class: 'ad-head', type: 'button', 'aria-expanded': String(open) }, [
+    el('span', { class: 'ad-title', text: area.name }),
+    el('span', { class: 'ad-prog', text: paused ? 'held' : done + ' / ' + total }),
+    el('span', { class: 'chev', text: open ? '⌃' : '⌄' })
+  ]);
+  head.addEventListener('click', function () { todayOpen[s.id] = !open; repaintToday(); });
+
+  var meta = [s.stageId + (s.type ? ' · ' + s.type : ''), '~' + area.minutes + ' min'];
+  var badges = el('div', { class: 'badges' }, [
+    paused ? badge('Held', 'badge-test') : null,
+    finished ? badge('Done', 'badge-green') : null,
+    s.draft ? badge('Draft') : null
+  ]);
+
+  var card = el('div', { class: 'card ad-card' + (finished ? ' is-done' : '') }, [
+    head,
+    el('div', { class: 'ad-meta' }, [el('span', { text: meta.join(' · ') }), badges])
+  ]);
+
+  var actions = el('div', { class: 'ad-actions' });
+  if (!paused && !finished && total > 0) {
+    actions.appendChild(el('a', { class: 'btn btn-go', href: '#/run/' + s.id + '/' + firstOpenExercise(s), text: done ? '▶ Resume' : '▶ Start' }));
+  }
+  if (!sessionHasLogs(s)) {
+    var off = el('button', { class: 'btn btn-quiet', type: 'button', text: 'Take off' });
+    off.addEventListener('click', function () { takeOff(date, sittingIdx, areaId); });
+    actions.appendChild(off);
+  }
+  if (actions.childNodes.length) card.appendChild(actions);
+
+  if (paused) {
+    card.appendChild(el('div', { class: 'ad-note', text: 'Held: ' + heldReason(area, date) + '. Nothing to do here until it clears.' }));
+  } else if (s.draft && open) {
+    card.appendChild(el('div', { class: 'ad-note', text: 'First-draft prescription: sets and reps for this stage have not been reviewed yet.' }));
+  }
+
+  if (open && !paused) {
+    var gate = sessionGate(s);
+    s.exercises.forEach(function (ex) { card.appendChild(exerciseCard(ex, s, 'live', gate)); });
+  }
+  return card;
+}
+
+/* An area that is not on this sitting, and why you might or might not add it. */
+function addRow(row, date, sittingIdx) {
+  var a = row.area;
+  var lines = [el('div', { class: 'add-why', text: row.held ? 'Held: ' + row.held + '.' : row.reason })];
+  if (row.record) lines.push(el('div', { class: 'add-why', text: 'Done today: ' + row.record.done + ' of ' + row.record.total + ' sets.' }));
+  if (row.elsewhere) lines.push(el('div', { class: 'add-why', text: 'Already on another sitting today.' }));
+  row.warnings.forEach(function (w) { lines.push(el('div', { class: 'add-warn', text: w })); });
+
+  var action;
+  if (row.held) {
+    action = el('span', { class: 'badge badge-test', text: 'Held' });
+  } else {
+    action = el('button', { class: 'btn btn-add', type: 'button', text: 'Add' });
+    action.addEventListener('click', function () {
+      var r = addAreaToDay(date, sittingIdx, a.id);
+      if (!r.ok) toast(r.why);
+      todayOpen[areaDayId(date, a.id)] = true;
+      repaintToday();
+    });
+  }
+
+  return el('div', { class: 'add-row' + (row.held ? ' is-held' : '') }, [
+    el('div', { class: 'add-main' }, [
+      el('div', { class: 'add-name', text: a.name }),
+      el('div', { class: 'add-meta' }, [
+        el('span', { text: currentStage(a).id + ' · ~' + a.minutes + ' min' }),
+        row.held ? null : statusTag(row.week.status)
+      ])
+    ].concat(lines)),
+    action
+  ]);
+}
+
+/* Something done without the app: pick the day and the area; every set of its
+   block is marked done. */
+function openElsewhereSheet(today) {
+  var daySel = el('select', { id: 'log-date' }, [0, 1, 2, 3, 4, 5, 6].map(function (n) {
+    var d = addDays(today, -n);
+    return el('option', { value: d, text: n === 0 ? 'Today' : n === 1 ? 'Yesterday' : DAY_SHORT[isoDow(d)] + ' ' + fmtDateShort(d) });
+  }));
+
+  var list = el('div', { class: 'picklist' });
+  areaList().forEach(function (a) {
+    var b = el('button', { class: 'card pick', type: 'button' }, [
+      el('div', { class: 'card-title', text: a.name }),
+      el('div', { class: 'card-sub', text: 'Marks every set of ' + currentStage(a).id + ' as done.' })
+    ]);
+    b.addEventListener('click', function () {
+      var date = daySel.value;
+      var r = logAreaBlock(date, a.id);
+      closeSheet();
+      toast(r.ok ? a.name + ' logged for ' + fmtDateShort(date) + '.' : r.why);
+      repaintToday();
+    });
+    list.appendChild(b);
+  });
+
+  openSheet('Log something done elsewhere', 'Pick the day, then the area.', [field('Day', daySel), list]);
 }
 
 function renderToday() {
+  if (!areaData) return dataLoading('Today');
+
   var today = todayISO();
-  var scheduled = plan.sessions.filter(function (s) { return !isSkipped(s) && sessionDate(s) === today; })[0] || null;
-  var s = scheduled || nextSession();
+  var days = areaDays();
+  var plan = ensureDayPlan(today, days);
+  if (todaySitting >= plan.sittings.length) todaySitting = 0;
+  var sitting = plan.sittings[todaySitting];
+  todaySessions = [];
 
-  todaySession = null;
+  var nodes = heldCallouts(today);
+  nodes.push(sittingBar(today, plan));
 
-  if (!s) {
-    setView('Today', '', [
-      el('p', { class: 'empty', text: 'The block is finished. Nothing left on the schedule.' }),
-      el('p', { class: 'buildline', text: 'Build ' + BUILD })
-    ]);
-    window.scrollTo(0, 0);
-    return;
-  }
-
-  /* A rest day shows what is coming and nothing else. */
-  if (scheduled && s.tag === 'rest') {
-    var after = nextTrainingSession(today);
-    setView('Today', s.weekLabel || '', [
-      el('div', { class: 'callout' }, [
-        el('strong', { text: 'Rest day · ' + fmtDateShort(today) }),
-        document.createTextNode(s.exercises[0] && s.exercises[0].cue ? s.exercises[0].cue : 'Complete rest.')
-      ]),
-      after ? el('p', { class: 'section-label', text: 'Next session · ' + (DAY_NAME[after.day] || after.day) }) : null,
-      after ? sessionLinkCard(after) : null,
-      el('p', { class: 'buildline', text: 'Build ' + BUILD })
-    ].filter(Boolean));
-    window.scrollTo(0, 0);
-    return;
-  }
-
-  var live = !!scheduled;
-  var nodes = [];
-
-  if (!live) {
-    nodes.push(el('p', { class: 'section-label', text: 'Next session · ' + (DAY_NAME[s.day] || s.day) }));
-  }
-
-  nodes.push(el('div', { class: 'session-head' }, [
-    el('div', { class: 'badges', style: 'justify-content:flex-start;margin:0 0 6px' }, [
-      badge(TAG_LABEL[s.tag] || s.tag, tagClass('badge', s.tag)),
-      s.deload ? badge('Deload') : null,
-      badge(s.block),
-      s.muPhase && s.muPhase !== '—' ? badge('Phase ' + s.muPhase) : null,
-      moveBadges(s)
-    ]),
-    el('h2', { text: s.name }),
-    el('div', { class: 'meta', text: s.day + ' ' + fmtDate(sessionDate(s)) + ' · ' + (s.weekLabel || s.week)
-      + (isMoved(s) ? ' · planned for ' + fmtDateShort(s.date) : '') })
+  var load = sittingLoad(sitting);
+  nodes.push(el('div', { class: 'total-line' }, [
+    el('span', { text: sitting.areas.length ? 'About ' + load.planned + ' min of ' + sitting.minutes : 'Nothing on this sitting yet.' }),
+    load.over ? el('span', { class: 'over', text: '+' + load.over + ' min over' }) : null
   ]));
 
-  if (s.deload) {
-    nodes.push(el('div', { class: 'callout' }, [
-      el('strong', { text: 'Deload week' }),
-      document.createTextNode('Reduced volume. Take it as written — it is part of the plan, not a concession.')
-    ]));
+  var cards = sitting.areas.map(function (id) { return areaDayCard(today, todaySitting, id, plan, sitting.areas.length === 1); });
+
+  var startable = sitting.areas.map(function (id) { return areaDaySession(today, id); })
+    .filter(function (x) { return x && !areaPaused(x) && doneSets(x) < totalSets(x); })[0];
+  if (startable) {
+    nodes.push(el('a', { class: 'btn btn-go btn-block btn-start', href: '#/run/' + startable.id + '/' + firstOpenExercise(startable),
+      text: sitting.areas.some(function (id) { var x = areaDaySession(today, id); return x && doneSets(x) > 0; }) ? '▶ Carry on with this sitting' : '▶ Start this sitting' }));
+  }
+  cards.forEach(function (c) { nodes.push(c); });
+
+  if (!sitting.areas.length) {
+    nodes.push(el('p', { class: 'hint', text: plan.suggested.length
+      ? 'Everything suggested has been taken off. Add what you feel like below.'
+      : 'Nothing is due yet this week. Add what you feel like below.' }));
   }
 
-  checkpointsOn(s.date).forEach(function (c) {
-    nodes.push(el('div', { class: 'callout callout-checkpoint' }, [
-      el('strong', { text: c.label }),
-      document.createTextNode(c.detail)
-    ]));
-  });
-
-  if (live && s.exercises.length) {
-    var start = el('a', { class: 'btn btn-go btn-block btn-start', href: '#/run/' + s.id + '/0',
-      text: doneSets(s) ? '▶ Resume session' : '▶ Start session' });
-    nodes.push(start);
+  var others = menuRows(today, todaySitting, days).filter(function (r) { return !r.selected; });
+  if (others.length) {
+    nodes.push(el('p', { class: 'section-label', text: 'Add to this sitting' }));
+    others.forEach(function (r) { nodes.push(addRow(r, today, todaySitting)); });
   }
 
-  var swap = el('button', { class: 'btn btn-block btn-move', type: 'button', text: 'Do a different session' });
-  swap.addEventListener('click', function () { movePicker(todayISO()); });
-  nodes.push(swap);
+  var more = el('div', { class: 'sheet-actions today-actions' });
+  if (plan.sittings.length < MAX_SITTINGS) {
+    var another = el('button', { class: 'btn', type: 'button', text: '+ Another sitting today' });
+    another.addEventListener('click', function () { todaySitting = addSitting(today, 30); repaintToday(); });
+    more.appendChild(another);
+  }
+  if (plan.sittings.length > 1 && !sitting.areas.length) {
+    var drop = el('button', { class: 'btn btn-quiet', type: 'button', text: 'Remove this sitting' });
+    drop.addEventListener('click', function () { removeSitting(today, todaySitting); todaySitting = 0; repaintToday(); });
+    more.appendChild(drop);
+  }
+  nodes.push(more);
 
-  nodes.push(el('p', { class: 'hint', text: live
-    ? 'Or tap a set to tick it off by hand. Long-press to record what actually happened.'
-    : 'Logging opens on the day.' }));
+  var elsewhere = el('button', { class: 'btn btn-block btn-move', type: 'button', text: 'Log something done elsewhere' });
+  elsewhere.addEventListener('click', function () { openElsewhereSheet(today); });
+  nodes.push(elsewhere);
 
-  var gate = sessionGate(s);
-  if (gate.redAreas.length) nodes.push(redBanner(s, gate));
-  var hb = holdBanner(s, gate);
-  if (hb) nodes.push(hb);
-
-  var mode = live ? 'live' : (sessionHasLogs(s) ? 'review' : 'plain');
-  s.exercises.forEach(function (ex) {
-    if (ex.track && gate.suppressed[ex.track]) return;    /* red: off the page entirely */
-    nodes.push(exerciseCard(ex, s, mode, gate));
-  });
-
+  nodes.push(el('p', { class: 'hint', text: 'The plan from before the areas is still under Plan, to read. Tap a set to tick it off by hand, long-press to record what actually happened.' }));
   nodes.push(el('p', { class: 'buildline', text: 'Build ' + BUILD }));
 
   setView('Today', '', nodes);
-  if (live) {
-    todaySession = s;
-    paintCount();
-  }
-  window.scrollTo(0, 0);
-}
-
-function sessionLinkCard(s) {
-  return el('a', { class: 'card is-now', href: '#/session/' + s.id }, [
-    el('div', { class: 'card-top' }, [
-      el('span', { class: 'dot ' + tagClass('dot', s.tag) }),
-      el('span', { class: 'card-title', text: s.day + ' ' + fmtDateShort(sessionDate(s)) }),
-      el('span', { class: 'chev', text: '›' })
-    ]),
-    el('div', { class: 'card-sub', text: s.name })
-  ]);
+  paintCount();
 }
 
 /* ---------------------------------------------------------------- backup */
@@ -2805,12 +3012,21 @@ function runSummary(s) {
   var finish = el('button', { class: 'run-action', type: 'button', text: 'Finish' });
   finish.addEventListener('click', function () { location.hash = '#/today'; });
 
+  /* A sitting runs as one go: the next area on it that still has sets to do. */
+  var next = nextAreaDay(s);
+  var nextBtn = null;
+  if (next) {
+    nextBtn = el('button', { class: 'run-action', type: 'button', text: 'Next: ' + areaById(next.areaId).name + ' ▶' });
+    nextBtn.addEventListener('click', function () { location.hash = '#/run/' + next.id + '/' + firstOpenExercise(next); });
+  }
+
   return el('div', { class: 'run-body run-done' }, [
     el('div', { class: 'run-ex', text: 'Session done' }),
     el('div', { class: 'run-setline', text: s.name }),
     el('div', { class: 'run-big', text: done + ' / ' + total }),
     el('div', { class: 'run-hint', text: 'sets logged · ' + mins + ' min' }),
-    finish,
+    nextBtn || finish,
+    nextBtn ? finish : null,
     el('div', { class: 'run-cue', text: done < total
       ? 'Some sets were skipped. You can still tick them off on the Today tab.'
       : 'Everything the plan asked for. Check in tomorrow morning.' })
@@ -4424,6 +4640,13 @@ function renderAreaDetail(id) {
   window.scrollTo(0, 0);
 }
 
+/* Today, Areas and the runner all draw from the area data. Everything else
+   (Plan, Check-in, Progress) works without it. An empty hash is Today. */
+function routeNeedsAreas(hash) {
+  var tab = String(hash || '').replace(/^#\/?/, '').split('/')[0] || 'today';
+  return tab === 'today' || tab === 'areas' || tab === 'run';
+}
+
 /* ----------------------------------------------------------------- router */
 
 function route() {
@@ -4447,7 +4670,7 @@ function route() {
   else if (tab === 'areas' && parts[1]) renderAreaDetail(parts[1]);
   else if (tab === 'areas') renderAreas();
   else if (tab === 'session') renderSession(parts[1]);
-  else if (tab === 'today') renderToday();
+  else if (tab === 'today') { renderToday(); window.scrollTo(0, 0); }
   else if (tab === 'checkin') renderCheckIn();
   else if (tab === 'progress') renderProgress();
   else {
@@ -4564,7 +4787,8 @@ loadAreaData().then(function (data) {
 }).catch(function () {
   areaLoad = 'failed';
 }).then(function () {
-  if (plan && /^#\/areas/.test(location.hash)) route();
+  /* The plan usually arrives first, so the screen drawn then said "loading". */
+  if (plan && routeNeedsAreas(location.hash)) route();
 });
 
 loadPlan().then(function (json) {
