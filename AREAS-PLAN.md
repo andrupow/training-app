@@ -1,6 +1,6 @@
 # Areas, stages and the daily menu — draft v4 for review
 
-Status: **built through M15** (section 11). Only M16 is still design. Numbers
+Status: **built through M16** (section 11). Everything in this plan is built. Numbers
 marked *(placeholder)* are mine, not sourced; change them freely.
 
 ---
@@ -767,8 +767,35 @@ export imports and is seeded as above.
      weeks as days over target, last week's completion, and the pace; the Areas
      tab shows a chip and the last weeks on each card. A **Mostly partial** tag
      appears when completion is under 70% for two finished weeks running.
-6. **M16 — adding areas:** track-only areas in the app, area-pack import,
-   units and equipment settings, how-to.
+6. **M16 — adding areas — done (build 1.15.0-m16):** you can add your own areas
+   without touching the files. What shipped:
+   - **Add an area** (Areas tab) has two ways in. **Track something** is a short
+     form (name, days a week, minutes, how hard it is, which body areas guard it)
+     and makes an area with no ladder: one stage, one "done" exercise, and "Mark
+     done" ticks the day. It joins the menu, the week grid, the time fit, the
+     recommender and the verdicts like any other. **Import an area pack** takes a
+     JSON file with a full ladder, runs it through the same validator the built-in
+     eight pass, shows what it found in plain words (errors stop it, warnings do
+     not) and asks before adding.
+   - **Your areas rank after the built-in ones** (priority is top plus one, in the
+     order you added them) and can be removed from their page. Removing one leaves
+     its logged days alone: they count for nothing while it is gone and count
+     again if you add it back with the same id. Your areas are in the backup file,
+     so a restore brings them back. A stored area that no longer passes the check
+     is left out and the Areas tab says which, rather than breaking the app.
+   - **Ids** are made from the name and made unique ("rowing", "rowing-2"); a pack
+     whose id is taken is refused, never merged into the existing area.
+   - **How to** is a page of its own (linked from Add an area): what each field
+     means, the list of allowed values read from the rules file, and a starter
+     pack you can copy. The same starter is `docs/area-pack-example.json`, and a
+     test fails if that file stops passing the validator.
+   - **Units:** a kg / lb switch on the Progress tab changes how loads read in
+     sessions, logged sets, the set sheet (including its limit: 250 kg is 551 lb)
+     and the charts, to the nearest half pound. Everything is still stored in kg,
+     so switching back and forth loses nothing, and baselines are still entered
+     in kg.
+   - **Equipment** was already settled in M14 (the tick list and kettlebells on
+     the Progress tab); M16 only adds the `equipment` ids a custom pack may list.
 
 ---
 

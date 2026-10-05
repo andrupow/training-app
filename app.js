@@ -7,7 +7,7 @@
 
 'use strict';
 
-var BUILD = '1.14.0-m15';
+var BUILD = '1.15.0-m16';
 var PLAN_URL = 'data/plan.json';
 var LS_PLAN = 'plan.cache.v1';
 var LS_LOGS = 'setLogs';
@@ -19,11 +19,12 @@ var LS_DAYPLANS = 'dayPlans';      /* the menu of each day, so the week can say 
 var LS_AREADAYS = 'areaDays';      /* what each area-day contained, fixed when it was first planned */
 var LS_PROGRESS = 'progress';      /* which stage each area is at, and since when */
 var LS_DECISIONS = 'decisions';    /* every move up, step back and "not yet", with the day and the numbers */
+var LS_CUSTOMAREAS = 'customAreas'; /* areas you added: things you track, and packs you imported */
 var LS_WEEKFITS = 'weekFits';      /* each week's targets, fitted to your time and saved when the week is first looked at */
 
 /* Everything the app owns, in one list. Export walks it, import restores it,
    and Milestone 5 gets checkIns backed up without touching this file. */
-var COLLECTIONS = [LS_BASELINES, LS_LOGS, LS_CHECKINS, LS_SCHEDULE, LS_SETTINGS, LS_DAYPLANS, LS_AREADAYS, LS_WEEKFITS, LS_PROGRESS, LS_DECISIONS];
+var COLLECTIONS = [LS_BASELINES, LS_LOGS, LS_CHECKINS, LS_SCHEDULE, LS_SETTINGS, LS_DAYPLANS, LS_AREADAYS, LS_WEEKFITS, LS_PROGRESS, LS_DECISIONS, LS_CUSTOMAREAS];
 
 var EXPORT_NAG_DAYS = 7;
 var LS_TIMER = 'restTimer';
@@ -355,6 +356,21 @@ function fmtKg(kg) {
   return String(Number(kg.toFixed(2)));
 }
 
+/* Weights are stored in kg, always. The switch only changes what is shown. */
+var LB_PER_KG = 2.20462;
+
+function usesLb() { return settings.units === 'lb'; }
+
+/* A weight as you read it: "5 kg", or "11 lb" (to the nearest half pound). */
+function fmtWeight(kg) {
+  return usesLb() ? fmtKg(Math.round(kg * LB_PER_KG * 2) / 2) + ' lb' : fmtKg(kg) + ' kg';
+}
+
+/* The number for an input, in your unit; and back to kg for storage. */
+function toDisplayWeight(kg) { return usesLb() ? Math.round(kg * LB_PER_KG * 2) / 2 : kg; }
+function fromDisplayWeight(n) { return usesLb() ? Math.round(n / LB_PER_KG * 100) / 100 : n; }
+function unitName() { return usesLb() ? 'lb' : 'kg'; }
+
 function usableNumber(v) {
   var n = Number(v);
   return isFinite(n) && n > 0 ? n : null;
@@ -372,7 +388,7 @@ function resolveLoad(load, date) {
     case 'fixedKg': {
       var fixed = Number(load.value);
       if (!isFinite(fixed)) return { text: '—', kg: null, missing: false };
-      return { text: '+' + fmtKg(fixed) + ' kg', kg: fixed, missing: false };
+      return { text: '+' + fmtWeight(fixed), kg: fixed, missing: false };
     }
 
     case 'pct5RM':
@@ -389,7 +405,7 @@ function resolveLoad(load, date) {
       if (!isFinite(pctValue)) return { text: '—', kg: null, missing: false };
 
       var kg = roundToPlate(base * pctValue);
-      return { text: '+' + fmtKg(kg) + ' kg', kg: kg, missing: false };
+      return { text: '+' + fmtWeight(kg), kg: kg, missing: false };
     }
 
     default: return { text: '—', kg: null, missing: false };
@@ -402,7 +418,7 @@ function ruleText(load) {
   switch (load.type) {
     case 'pct5RM':     return pct(load.value) + '% of 5RM added';
     case 'pctBW':      return pct(load.value) + '% bodyweight';
-    case 'fixedKg':    return '+' + load.value + ' kg';
+    case 'fixedKg':    return '+' + fmtWeight(Number(load.value));
     case 'bodyweight': return 'Bodyweight';
     case 'text':       return load.text || '—';
     default:           return '—';
@@ -706,6 +722,283 @@ function cacheAreaData(data) {
   } catch (err) {
     console.warn('area cache write failed', err);
   }
+}
+
+/* --- areas of your own ------------------------------------------------------------ */
+/* Two ways to add to the eight: something you only want to track (a run, climbing,
+   mobility), which has a target and a time but no ladder, and a whole ladder
+   written as a pack (one JSON file). Either is checked before it is accepted, kept
+   with your data, and joins the menu, the week grid and the verdicts like any other
+   area. Nothing here knows an area by name. */
+
+var customAreas = [];     /* as added: a track-only area carries `track: true` and no stages */
+
+var PACK_AREA_KEYS = ['id', 'name', 'short', 'priority', 'goal', 'perWeek', 'minGapDays', 'minutes', 'load', 'order',
+  'guardedBy', 'sessionTypes', 'tests', 'stages', 'track'];
+var PACK_STAGE_KEYS = ['id', 'name', 'askAfter', 'optional', 'work', 'maxContacts', 'maxDepthContacts', 'goal',
+  'milestone', 'ready', 'note', 'requires', 'bells', 'perWeek', 'minGapDays', 'draft', 'exercises', 'equipment', 'types'];
+var PACK_TEST_KEYS = ['id', 'name', 'unit', 'baselineStage', 'retestEveryWeeks', 'note'];
+var PACK_EXERCISE_KEYS = ['id', 'name', 'sets', 'reps', 'tempo', 'restSec', 'load', 'type', 'cue', 'note', 'contacts'];
+var PACK_LOAD_TYPES = ['pct5RM', 'pctBW', 'fixedKg', 'bodyweight', 'text', 'none'];
+
+function isWhole(n) { return typeof n === 'number' && isFinite(n) && Math.floor(n) === n; }
+function isText(s, min, max) { return typeof s === 'string' && s.trim().length >= min && s.length <= max; }
+
+/* { min, target, max } in days: whole numbers, 1 <= min <= target <= max <= 7. */
+function perWeekOk(per) {
+  return !!per && typeof per === 'object' && isWhole(per.min) && isWhole(per.target) && isWhole(per.max)
+    && per.min >= 1 && per.min <= per.target && per.target <= per.max && per.max <= 7;
+}
+
+function loadCustomAreas() {
+  var stored = lsGet(LS_CUSTOMAREAS);
+  customAreas = (Array.isArray(stored) ? stored : []).filter(function (a) { return a && typeof a === 'object' && !Array.isArray(a) && typeof a.id === 'string'; });
+}
+
+function saveCustomAreas() { return saveCollection(LS_CUSTOMAREAS, customAreas); }
+
+/* A short name that fits a grid label. */
+function shortNameOf(name) {
+  var first = String(name || '').trim().split(/\s+/)[0] || '';
+  return first.length > 13 ? first.slice(0, 13) : first;
+}
+
+function slugOf(name) {
+  var s = String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return (/^[a-z]/.test(s) ? s : 'area-' + s).slice(0, 24).replace(/-+$/, '');
+}
+
+/* An area that is only tracked has one stage with one thing to do: do it. */
+function trackStage(area) {
+  return {
+    id: 'T1', name: 'Tracked', work: 'Log it when you have done it.', ready: [],
+    exercises: [{ id: 'done', name: area.name, sets: 1, reps: '1', restSec: 0, load: { type: 'none' }, cue: 'Mark it done when you have done it.' }],
+    equipment: []
+  };
+}
+
+/* Check one area, written by you or imported, against the same rules the built-in
+   eight meet. Returns the problems in plain words, anything worth a second look
+   (warnings), and the area ready to use. `taken` are ids that already exist. */
+function validateAreaPack(input, opts) {
+  opts = opts || {};
+  var rules = opts.rules || (areaData && areaData.rules);
+  var errors = [], warnings = [];
+  var raw = input && typeof input === 'object' && !Array.isArray(input) && input.area && typeof input.area === 'object' ? input.area : input;
+
+  function bad(msg) { errors.push(msg); }
+
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, errors: ['That is not an area: expected an object.'], warnings: [], area: null };
+
+  Object.keys(raw).forEach(function (k) { if (PACK_AREA_KEYS.indexOf(k) < 0) bad('Unknown field "' + k + '".'); });
+
+  var track = raw.track === true;
+  var bodyIds = rules.bodyAreas.filter(function (b) { return b.collected; }).map(function (b) { return b.id; });
+
+  if (typeof raw.id !== 'string' || !/^[a-z][a-z0-9-]{1,23}$/.test(raw.id)) bad('"id" must be 2 to 24 lowercase letters, digits or dashes, starting with a letter.');
+  else if ((opts.taken || []).indexOf(raw.id) >= 0) bad('There is already an area with the id "' + raw.id + '".');
+  if (!isText(raw.name, 2, 40) || !/[A-Za-z0-9]/.test(raw.name)) bad('"name" must be 2 to 40 characters, with at least one letter or digit.');
+  if (raw.short !== undefined && !isText(raw.short, 1, 13)) bad('"short" must be 1 to 13 characters, so it fits a grid label.');
+  if (raw.goal !== undefined && !isText(raw.goal, 1, 200)) bad('"goal" must be a sentence of up to 200 characters.');
+
+  var per = raw.perWeek;
+  if (!perWeekOk(per)) {
+    bad('"perWeek" needs whole numbers with 1 <= min <= target <= max <= 7.');
+  } else if (per.nominalTarget !== undefined && !(isWhole(per.nominalTarget) && per.nominalTarget >= per.target && per.nominalTarget <= 7)) {
+    bad('"perWeek.nominalTarget" must be a whole number from the target up to 7.');
+  }
+  if (!isWhole(raw.minGapDays) || raw.minGapDays < 1 || raw.minGapDays > 7) bad('"minGapDays" must be a whole number from 1 to 7.');
+  if (!isWhole(raw.minutes) || raw.minutes < 5 || raw.minutes > 180) bad('"minutes" must be a whole number from 5 to 180.');
+  if (['low', 'medium', 'high'].indexOf(raw.load) < 0) bad('"load" must be low, medium or high.');
+  if (rules.dayOrder.indexOf(raw.order) < 0) bad('"order" must be one of: ' + rules.dayOrder.join(', ') + '.');
+  if (raw.priority !== undefined && !isWhole(raw.priority)) bad('"priority" must be a whole number.');
+  if (raw.tests !== undefined && !Array.isArray(raw.tests)) bad('"tests" must be a list.');
+  else if (track && (raw.tests || []).length) bad('A tracked area has no ladder, so no baseline tests.');
+
+  if (raw.guardedBy !== undefined) {
+    if (!Array.isArray(raw.guardedBy) || raw.guardedBy.some(function (b) { return bodyIds.indexOf(b) < 0; })) {
+      bad('"guardedBy" must list body areas from: ' + bodyIds.join(', ') + '.');
+    }
+  }
+  if (raw.sessionTypes !== undefined && (!Array.isArray(raw.sessionTypes) || raw.sessionTypes.some(function (s) { return typeof s !== 'string' || !s; }))) {
+    bad('"sessionTypes" must be a list of names.');
+  }
+
+  /* the ladder */
+  var stages = raw.stages;
+  if (track) {
+    if (stages !== undefined && !(Array.isArray(stages) && stages.length === 0)) bad('A tracked area has no stages.');
+  } else if (!Array.isArray(stages) || !stages.length || stages.length > 12) {
+    bad('"stages" must be a list of 1 to 12 stages.');
+  } else {
+    var seen = {}, goals = 0;
+    stages.forEach(function (s, i) {
+      var at = 'Stage ' + (s && s.id ? s.id : '#' + (i + 1)) + ': ';
+      if (!s || typeof s !== 'object' || Array.isArray(s)) { bad(at + 'expected an object.'); return; }
+      Object.keys(s).forEach(function (k) { if (PACK_STAGE_KEYS.indexOf(k) < 0) bad(at + 'unknown field "' + k + '".'); });
+      if (typeof s.id !== 'string' || !/^[A-Za-z][A-Za-z0-9-]{0,7}$/.test(s.id)) bad(at + '"id" must be up to 8 letters or digits, starting with a letter.');
+      else if (seen[s.id]) bad(at + 'the id is used twice.');
+      else seen[s.id] = true;
+      if (!isText(s.name, 2, 40)) bad(at + '"name" must be 2 to 40 characters.');
+      if (!isText(s.work, 3, 400)) bad(at + '"work" must say what the stage trains.');
+      if (!Array.isArray(s.ready) || (!s.optional && !s.ready.length) || s.ready.some(function (r) { return !isText(r, 9, 160); })) {
+        bad(at + '"ready" must list the standard(s) to attest to, each a clear sentence.');
+      }
+      if (s.askAfter !== undefined && (!isWhole(s.askAfter) || s.askAfter < 1)) bad(at + '"askAfter" must be a whole number of full days.');
+      else if (s.askAfter !== undefined && per && isWhole(per.target) && s.askAfter < per.target) bad(at + '"askAfter" is under one week of the area (' + per.target + ' days).');
+      if (s.goal) goals++;
+      ['draft', 'goal', 'optional', 'milestone'].forEach(function (k) {
+        if (s[k] !== undefined && typeof s[k] !== 'boolean') bad(at + '"' + k + '" must be true or false.');
+      });
+      if (s.perWeek !== undefined && !perWeekOk(s.perWeek)) bad(at + '"perWeek" needs whole numbers with 1 <= min <= target <= max <= 7.');
+      if (s.minGapDays !== undefined && (!isWhole(s.minGapDays) || s.minGapDays < 1 || s.minGapDays > 7)) bad(at + '"minGapDays" must be a whole number from 1 to 7.');
+      ['maxContacts', 'maxDepthContacts'].forEach(function (k) {
+        if (s[k] !== undefined && (!isWhole(s[k]) || s[k] < 1 || s[k] > 500)) bad(at + '"' + k + '" must be a whole number from 1 to 500.');
+      });
+      if (s.note !== undefined && !isText(s.note, 1, 400)) bad(at + '"note" must be text of up to 400 characters.');
+      if (s.types !== undefined && (!Array.isArray(s.types) || s.types.some(function (x) { return typeof x !== 'string' || !x; }))) bad(at + '"types" must be a list of names.');
+      if (s.equipment !== undefined) {
+        if (!Array.isArray(s.equipment)) bad(at + '"equipment" must be a list.');
+        else s.equipment.forEach(function (q) {
+          if (!rules.equipment.some(function (x) { return x.id === q; })) bad(at + 'unknown equipment "' + q + '". Known: ' + rules.equipment.map(function (x) { return x.id; }).join(', ') + '.');
+        });
+      }
+      if (s.bells !== undefined && (!Array.isArray(s.bells) || s.bells.some(function (b) { return !b || typeof b.kg !== 'number' || typeof b.lb !== 'number'; }))) bad(at + '"bells" must list { "kg", "lb" } pairs.');
+      if (s.requires !== undefined && !Array.isArray(s.requires)) bad(at + '"requires" must be a list of { "area", "stage" }.');
+      else (s.requires || []).forEach(function (r) {
+        if (!r || typeof r !== 'object' || typeof r.area !== 'string' || typeof r.stage !== 'string') { bad(at + 'each "requires" entry needs an "area" and a "stage".'); return; }
+        var other = areaData && areaById(r.area);
+        if (!other) warnings.push(at + 'asks for ' + r.area + ' first, which is not installed. It will show as not met.');
+        else if (!stageById(other, r.stage)) bad(at + 'asks for ' + r.area + ' ' + r.stage + ', which does not exist.');
+      });
+
+      var ex = s.exercises;
+      if (!Array.isArray(ex) || !ex.length) { bad(at + 'needs at least one exercise, so a level-up never lands on an empty stage.'); return; }
+      var ids = {};
+      ex.forEach(function (e, k) {
+        var ea = at + 'exercise ' + (e && e.id ? '"' + e.id + '"' : '#' + (k + 1)) + ': ';
+        if (!e || typeof e !== 'object' || Array.isArray(e)) { bad(ea + 'expected an object.'); return; }
+        Object.keys(e).forEach(function (key) { if (PACK_EXERCISE_KEYS.indexOf(key) < 0) bad(ea + 'unknown field "' + key + '".'); });
+        if (typeof e.id !== 'string' || !/^[a-z0-9-]+$/.test(e.id)) bad(ea + '"id" must be a lowercase slug.');
+        else if (ids[e.id]) bad(ea + 'the id is used twice in this stage.');
+        else ids[e.id] = true;
+        if (!isText(e.name, 3, 60)) bad(ea + '"name" must be 3 to 60 characters.');
+        if (!isWhole(e.sets) || e.sets < 1 || e.sets > 30) bad(ea + '"sets" must be a whole number from 1 to 30.');
+        if (typeof e.reps !== 'string' || !e.reps) bad(ea + '"reps" must be text, such as "5" or "30 s".');
+        if (!isWhole(e.restSec) || e.restSec < 0 || e.restSec > 900) bad(ea + '"restSec" must be a whole number of seconds from 0 to 900.');
+        if (!e.load || PACK_LOAD_TYPES.indexOf(e.load.type) < 0) bad(ea + '"load.type" must be one of: ' + PACK_LOAD_TYPES.join(', ') + '.');
+        if (e.type !== undefined && (raw.sessionTypes || []).indexOf(e.type) < 0) bad(ea + '"type" must be one of the area’s sessionTypes.');
+      });
+      if (ex.every(function (e) { return e && e.type; }) === false && ex.some(function (e) { return e && e.type; })) bad(at + 'either every exercise has a "type" or none does.');
+
+      /* A rough clock, as a heads-up and nothing more. */
+      var secs = function (r) { var m = String(r).match(/^(\d+)(?:\s*[–-]\s*\d+)?\s*(s|min)\b/); return m ? Number(m[1]) * (m[2] === 'min' ? 60 : 1) : 45; };
+      var minutes = ex.reduce(function (n, e) { return n + (isWhole(e && e.sets) ? e.sets * (secs(e.reps) + (isWhole(e.restSec) ? e.restSec : 0)) : 0); }, 0) / 60;
+      if (isWhole(raw.minutes) && !ex.some(function (e) { return e && e.type; }) && (minutes < raw.minutes * 0.4 || minutes > raw.minutes * 1.6)) {
+        warnings.push(at + 'the exercises add up to about ' + Math.round(minutes) + ' min, against the ' + raw.minutes + ' you gave for the area.');
+      }
+    });
+    if (goals > 1) bad('Only one stage can be the goal.');
+
+    /* a retest is anchored to a stage, so it can only be checked once the stages are known */
+    if (Array.isArray(raw.tests)) raw.tests.slice(0, 10).forEach(function (x, i) {
+      var tt = 'Test ' + (x && x.id ? '"' + x.id + '"' : '#' + (i + 1)) + ': ';
+      if (!x || typeof x !== 'object' || Array.isArray(x)) { bad(tt + 'expected an object.'); return; }
+      Object.keys(x).forEach(function (k) { if (PACK_TEST_KEYS.indexOf(k) < 0) bad(tt + 'unknown field "' + k + '".'); });
+      if (typeof x.id !== 'string' || !/^[a-z0-9-]+$/.test(x.id)) bad(tt + '"id" must be a lowercase slug.');
+      if (!isText(x.name, 2, 60)) bad(tt + '"name" must be 2 to 60 characters.');
+      if (x.unit !== undefined && !isText(x.unit, 1, 8)) bad(tt + '"unit" must be up to 8 characters, such as cm or reps.');
+      if (typeof x.baselineStage !== 'string' || !seen[x.baselineStage]) bad(tt + '"baselineStage" must be the id of one of the stages.');
+      if (!isWhole(x.retestEveryWeeks) || x.retestEveryWeeks < 1 || x.retestEveryWeeks > 52) bad(tt + '"retestEveryWeeks" must be a whole number from 1 to 52.');
+      if (x.note !== undefined && !isText(x.note, 1, 300)) bad(tt + '"note" must be text of up to 300 characters.');
+    });
+    if (Array.isArray(raw.tests) && raw.tests.length > 10) bad('"tests" can list up to 10.');
+  }
+
+  if (errors.length) return { ok: false, errors: errors, warnings: warnings, area: null };
+
+  var area = JSON.parse(JSON.stringify(raw));
+  if (!area.short) area.short = shortNameOf(area.name);
+  if (!area.goal) area.goal = track ? 'Do it ' + area.perWeek.target + ' days a week.' : area.name;
+  area.guardedBy = area.guardedBy || [];
+  area.sessionTypes = area.sessionTypes || [];
+  area.tests = area.tests || [];
+  return { ok: true, errors: [], warnings: warnings, area: area };
+}
+
+/* Put what you added alongside the eight, after them, in the order you added them
+   (or the order a pack asks for). One that no longer passes is skipped, not lost. */
+function mergeCustomAreas() {
+  if (!areaData) return;
+  var base = areaData.list.filter(function (a) { return !a.custom; });
+  var top = base.reduce(function (n, a) { return Math.max(n, a.priority); }, 0);
+  var taken = base.map(function (a) { return a.id; });
+  var added = [];
+  areaData.skipped = [];
+
+  customAreas.forEach(function (raw, i) {
+    var r = validateAreaPack(raw, { taken: taken, rules: areaData.rules });
+    if (!r.ok) { areaData.skipped.push({ id: raw.id, errors: r.errors }); return; }
+    var a = r.area;
+    if (a.track) a.stages = [trackStage(a)];
+    a.custom = true;
+    a.asked = raw.priority === undefined ? 1000 + i : raw.priority;
+    taken.push(a.id);
+    added.push(a);
+  });
+
+  added.sort(function (x, y) { return x.asked - y.asked; });
+  added.forEach(function (a, i) { a.priority = top + 1 + i; delete a.asked; });
+  areaData.list = base.concat(added);
+}
+
+/* Add one (a tracked area, or a pack's area), if it passes. */
+function addCustomArea(input) {
+  if (!areaData) return { ok: false, errors: ['The areas have not loaded yet.'], warnings: [] };
+  var taken = areaList().map(function (a) { return a.id; });
+  var r = validateAreaPack(input, { taken: taken });
+  if (!r.ok) return r;
+  var stored = JSON.parse(JSON.stringify(r.area));
+  delete stored.custom;
+  customAreas.push(stored);
+  saveCustomAreas();
+  mergeCustomAreas();
+  return { ok: true, errors: [], warnings: r.warnings, area: areaById(stored.id) };
+}
+
+/* Take one away. What was logged stays in your history; adding the same area back
+   brings it with it. */
+function removeCustomArea(id) {
+  var before = customAreas.length;
+  customAreas = customAreas.filter(function (a) { return a.id !== id; });
+  if (customAreas.length === before) return false;
+  saveCustomAreas();
+  mergeCustomAreas();
+  return true;
+}
+
+/* A new tracked area from the little form: name, days a week, minutes, what kind of
+   work it is, and what it could hurt. */
+function trackedAreaFrom(form) {
+  var target = Number(form.perWeek);
+  var minutes = Number(form.minutes);
+  return {
+    id: freeId(form.name), name: String(form.name || '').trim(), track: true,
+    perWeek: { min: Math.max(1, target - 1), target: target, max: Math.min(7, target + 1) },
+    minGapDays: target <= 3 ? 2 : 1, minutes: minutes,
+    load: form.load || 'medium', order: form.order || 'strength', guardedBy: form.guardedBy || []
+  };
+}
+
+/* The id for a name, kept clear of every id that exists. */
+function freeId(name) {
+  var base = slugOf(name) || 'area', id = base, n = 2;
+  var taken = areaList().map(function (a) { return a.id; });
+  while (taken.indexOf(id) >= 0) {
+    var suffix = '-' + n++;                    /* cut the name, never the suffix, or a 24-letter id never changes */
+    id = base.slice(0, 24 - suffix.length).replace(/-+$/, '') + suffix;
+  }
+  return id;
 }
 
 /* Monday = 0. Read from the calendar fields, never from a local Date. */
@@ -2718,7 +3011,7 @@ function paintLogged(node, ex, session) {
 /* "20 kg", "5 reps", "RPE 8" — whatever was written down for the set. */
 function setBits(e) {
   var bits = [];
-  if (e.loadKg !== undefined) bits.push(e.loadKg + ' kg');
+  if (e.loadKg !== undefined) bits.push(fmtWeight(e.loadKg));
   if (e.reps !== undefined) bits.push(e.reps + (e.reps === 1 ? ' rep' : ' reps'));
   if (e.rpe !== undefined) bits.push('RPE ' + e.rpe);
   return bits;
@@ -2951,7 +3244,7 @@ function openSetSheet(ex, session, i, btn, logged) {
   var repsIn = el('input', { type: 'text', inputmode: 'numeric', id: 'f-reps', placeholder: String(ex.reps || '') });
   var rpeIn  = el('input', { type: 'text', inputmode: 'decimal', id: 'f-rpe',  placeholder: '1–10' });
 
-  if (entry.loadKg !== undefined) loadIn.value = entry.loadKg;
+  if (entry.loadKg !== undefined) loadIn.value = toDisplayWeight(entry.loadKg);
   if (entry.reps !== undefined) repsIn.value = entry.reps;
   if (entry.rpe !== undefined) rpeIn.value = entry.rpe;
 
@@ -2960,7 +3253,7 @@ function openSetSheet(ex, session, i, btn, logged) {
   var form = el('form', { class: 'sheet' }, [
     el('h3', { text: ex.name }),
     el('p', { class: 'sheet-sub', text: 'Set ' + (i + 1) + ' of ' + ex.sets + ' — what actually happened' }),
-    field('Load (kg)', loadIn),
+    field('Load (' + unitName() + ')', loadIn),
     field('Reps', repsIn),
     field('RPE', rpeIn),
     problem,
@@ -3003,7 +3296,7 @@ function openSetSheet(ex, session, i, btn, logged) {
     e.preventDefault();
 
     var checks = [
-      checkSetValue(loadIn.value, SET_LIMITS[0]),
+      checkSetValue(loadIn.value, loadLimitInUnit()),
       checkSetValue(repsIn.value, SET_LIMITS[1]),
       checkSetValue(rpeIn.value, SET_LIMITS[2])
     ];
@@ -3026,7 +3319,7 @@ function openSetSheet(ex, session, i, btn, logged) {
 
     writeLog(session.id, ex.id, i, {
       done: true,                                  /* you logged it, so you did it */
-      loadKg: checks[0].value,
+      loadKg: loadKgFromInput(checks[0].value, entry.loadKg),
       reps: checks[1].value,
       rpe: checks[2].value
     });
@@ -3052,6 +3345,21 @@ var SET_LIMITS = [
   { key: 'reps',   label: 'Reps', unit: '',    min: 0, max: 300 },
   { key: 'rpe',    label: 'RPE',  unit: '',    min: 1, max: 10 }
 ];
+
+/* What to store for the load you typed: kg, whatever the unit shown. A number you did
+   not touch keeps the kg it came from, so opening a set in lb to fix the reps does not
+   turn 20 kg into 19.96. */
+function loadKgFromInput(value, storedKg) {
+  if (value === undefined) return undefined;
+  if (storedKg !== undefined && value === toDisplayWeight(storedKg)) return storedKg;
+  return fromDisplayWeight(value);
+}
+
+/* The load limit as you type it: 250 kg is 551 lb. */
+function loadLimitInUnit() {
+  var l = SET_LIMITS[0];
+  return usesLb() ? { key: l.key, label: l.label, unit: ' lb', min: 0, max: Math.floor(l.max * LB_PER_KG) } : l;
+}
 
 /* Blank is fine, it means "as planned". Anything else has to be a number in range. */
 function checkSetValue(raw, limit) {
@@ -3279,7 +3587,7 @@ function areaDayCard(date, sittingIdx, areaId, plan, onlyOne) {
   var hold = paused ? null : holdReason(area, date);
   var why = plan.why && plan.why[areaId] ? plan.why[areaId] : (plan.suggested.indexOf(areaId) < 0 ? 'You added this one.' : '');
 
-  var meta = [s.stageId + (s.type ? ' · ' + s.type : ''), '~' + area.minutes + ' min'];
+  var meta = (area.track ? [] : [s.stageId + (s.type ? ' · ' + s.type : '')]).concat(['~' + area.minutes + ' min']);
   var badges = el('div', { class: 'badges' }, [
     paused ? badge('Held', 'badge-test') : null,
     hold ? badge('Hold', 'badge-test') : null,
@@ -3295,7 +3603,15 @@ function areaDayCard(date, sittingIdx, areaId, plan, onlyOne) {
   ]);
 
   var actions = el('div', { class: 'ad-actions' });
-  if (!paused && !finished && total > 0) {
+  if (!paused && !finished && total > 0 && area.track) {
+    var mark = el('button', { class: 'btn btn-go', type: 'button', text: 'Mark done' });
+    mark.addEventListener('click', function () {
+      var r = logAreaBlock(date, areaId);
+      if (!r.ok) toast(r.why);
+      repaintToday();
+    });
+    actions.appendChild(mark);
+  } else if (!paused && !finished && total > 0) {
     actions.appendChild(el('a', { class: 'btn btn-go', href: '#/run/' + s.id + '/' + firstOpenExercise(s), text: done ? '▶ Resume' : '▶ Start' }));
   }
   if (!sessionHasLogs(s)) {
@@ -3673,6 +3989,8 @@ function importData(file) {
     loadWeekFits();
     loadProgress();
     loadDecisions();
+    loadCustomAreas();
+    mergeCustomAreas();
     renderProgress();
     paintTabBadge();
     toast('Restored ' + incoming + '.');
@@ -4925,7 +5243,7 @@ function lineChart(series, actual, track) {
   [hi, lo].forEach(function (v) {
     g.push(svgEl('line', { x1: PAD.l, y1: y(v), x2: CHART_W - PAD.r, y2: y(v), class: 'ch-grid' }));
     g.push(svgEl('text', { x: PAD.l - 5, y: y(v) + 3.5, class: 'ch-ytick', 'text-anchor': 'end',
-      text: fmtKg(Math.round(v / PLATE) * PLATE) }));
+      text: fmtKg(toDisplayWeight(Math.round(v / PLATE) * PLATE)) }));
   });
 
   /* where the 5RM was retested — the reason for any step in the line */
@@ -4950,7 +5268,7 @@ function lineChart(series, actual, track) {
 
   series.forEach(function (p, i) {
     g.push(svgEl('circle', { cx: x(i), cy: y(p.kg), r: 2.6, class: 'ch-dot' }, [
-      svgEl('title', { text: p.label + ': ' + fmtKg(p.kg) + ' kg' })
+      svgEl('title', { text: p.label + ': ' + fmtWeight(p.kg) })
     ]));
   });
 
@@ -4958,7 +5276,7 @@ function lineChart(series, actual, track) {
   series.forEach(function (p, i) {
     if (actual[p.week] === undefined) return;
     g.push(svgEl('circle', { cx: x(i), cy: y(actual[p.week]), r: 3.2, class: 'ch-actual' }, [
-      svgEl('title', { text: p.label + ' actual: ' + fmtKg(actual[p.week]) + ' kg' })
+      svgEl('title', { text: p.label + ' actual: ' + fmtWeight(actual[p.week]) })
     ]));
   });
 
@@ -4972,8 +5290,8 @@ function lineChart(series, actual, track) {
 
   var main = mainSegment(segmentsOf(series));
   var summary = (TRACK_LABEL[track] || track) + ': ' + main[0].p.exName + ', '
-    + fmtKg(main[0].p.kg) + ' kg in ' + main[0].p.label + ' to '
-    + fmtKg(main[main.length - 1].p.kg) + ' kg in ' + main[main.length - 1].p.label + '.';
+    + fmtWeight(main[0].p.kg) + ' in ' + main[0].p.label + ' to '
+    + fmtWeight(main[main.length - 1].p.kg) + ' in ' + main[main.length - 1].p.label + '.';
 
   return svgEl('svg', {
     viewBox: '0 0 ' + CHART_W + ' ' + CHART_H,
@@ -5023,7 +5341,7 @@ function chartsSection() {
     wrap.appendChild(el('div', { class: 'chart-card' }, [
       el('div', { class: 'chart-head' }, [
         el('span', { class: 'chart-title', text: TRACK_LABEL[track] || track }),
-        el('span', { class: 'chart-delta', text: (delta >= 0 ? '+' : '−') + fmtKg(Math.abs(delta)) + ' kg' })
+        el('span', { class: 'chart-delta', text: (delta >= 0 ? '+' : '−') + fmtWeight(Math.abs(delta)) })
       ]),
       el('div', { class: 'chart-sub', text: names.join(' → ') }),
       lineChart(series, actual, track),
@@ -5262,6 +5580,7 @@ function renderProgress() {
     });
   }
 
+  nodes.push(unitsSection());               /* it changes the loads just above, so it sits beside them */
   nodes.push(scheduleSection());
   nodes.push(installSection());
   nodes.push(chartsSection());
@@ -5305,7 +5624,7 @@ function dataCheckSection() {
     el('p', { class: 'section-label', text: 'Check your data' }),
     el('div', { class: 'callout callout-due' }, [
       el('strong', { text: items.length === 1 ? 'One set looks like a typo' : items.length + ' sets look like typos' }),
-      document.createTextNode('A load over 250 kg, more than 300 reps, or an RPE outside 1–10. Clearing removes only the odd numbers; the set stays done.')
+      document.createTextNode('A load over ' + loadLimitInUnit().max + ' ' + unitName() + ', more than 300 reps, or an RPE outside 1–10. Clearing removes only the odd numbers; the set stays done.')
     ])
   ]);
 
@@ -5776,14 +6095,16 @@ function areaCard(area, days) {
     el('div', { class: 'card-top' }, [
       el('span', { class: 'card-title', text: area.name }),
       el('div', { class: 'badges' }, [
+        area.custom ? badge('Yours') : null,
         prog.due ? badge('Review due', 'badge-test') : prog.phase === 'deload' ? badge('Easy block') : null,
         el('span', { class: 'chev', text: '›' })
       ])
     ]),
     el('div', { class: 'card-sub', text: area.goal }),
-    ladderRow(area, prog.stage.id),
-    el('div', { class: 'card-sub', text: 'Stage ' + prog.stage.id + ' · ' + prog.stage.name
-      + (prog.askAfter ? ' · ' + prog.full + ' of ' + prog.askAfter + ' full days' : ' · ' + prog.full + ' full days') }),
+    area.track ? null : ladderRow(area, prog.stage.id),
+    el('div', { class: 'card-sub', text: area.track ? 'Tracked · ' + prog.full + ' full days so far'
+      : 'Stage ' + prog.stage.id + ' · ' + prog.stage.name
+        + (prog.askAfter ? ' · ' + prog.full + ' of ' + prog.askAfter + ' full days' : ' · ' + prog.full + ' full days') }),
     el('div', { class: 'vd-row' }, [
       verdictChip(fb),
       fb.mostlyPartial ? el('span', { class: 'vd vd-partial', text: 'Mostly partial' }) : null,
@@ -5817,6 +6138,10 @@ function renderAreas() {
     el('p', { class: 'section-label', text: 'Areas' })
   ];
   areaList().forEach(function (a) { nodes.push(areaCard(a, days)); });
+  var addBtn = el('button', { class: 'btn btn-block', type: 'button', text: '+ Add an area' });
+  addBtn.addEventListener('click', openAddAreaSheet);
+  nodes.push(addBtn);
+  nodes.push(skippedAreasNote());
 
   if (!decisions.length) nodes.push(el('p', { class: 'hint', text: 'Every area starts at the first rung of its ladder. If you are already further along in one, open it and choose Set the stage yourself.' }));
   nodes.push(el('p', { class: 'hint', text: 'History from before the areas (weighted pull-ups, sprints, hinge, kettlebell press and a few prehab exercises) is kept but not counted here. A day counts as skipped only when it was on that day’s menu, or taken off it, and nothing was logged.' }));
@@ -5900,6 +6225,12 @@ function renderReview(id) {
   if (!areaData) return areasLoading();
   var area = areaById(id);
   if (!area) return renderNotFound('No area "' + id + '".');
+  if (area.track) {
+    return setView('Review', area.short || area.name, [
+      el('a', { class: 'back', href: '#/areas/' + area.id, text: '‹ ' + area.name }),
+      el('p', { class: 'empty', text: area.name + ' is tracked, so there is no ladder to review.' })
+    ]);
+  }
 
   var today = todayISO();
   var days = areaDays();
@@ -6087,6 +6418,26 @@ function reviewCards(today, days) {
   return out;
 }
 
+/* --- units (on the Progress tab) --- */
+
+function unitsSection() {
+  var row = el('div', { class: 'sit-row' }, [el('span', { class: 'sit-label', text: 'Show weights in:' })]);
+  ['kg', 'lb'].forEach(function (u) {
+    var on = unitName() === u;
+    var b = el('button', { class: 'sit-chip' + (on ? ' is-on' : ''), type: 'button', 'aria-pressed': String(on), text: u });
+    b.addEventListener('click', function () {
+      var y = window.scrollY || 0;
+      settings.units = u; saveSettings(); renderProgress();
+      window.scrollTo(0, y);                  /* the chips are mid-page: stay with them */
+    });
+    row.appendChild(b);
+  });
+  return el('div', {}, [
+    el('p', { class: 'section-label', text: 'Units' }), row,
+    el('p', { class: 'hint', text: 'Changes loads in sessions, logged sets and charts. Everything is stored in kg, and baselines are entered in kg.' })
+  ]);
+}
+
 /* --- equipment you own (on the Progress tab) --- */
 
 function equipmentSection() {
@@ -6120,6 +6471,242 @@ function equipmentSection() {
   wrap.appendChild(bells);
   wrap.appendChild(el('div', { class: 'sheet-actions', style: 'margin-top:8px' }, [input, add]));
   return wrap;
+}
+
+/* --- adding an area ---------------------------------------------------------- */
+
+var ORDER_LABEL = { power: 'Power (jumps, sprints)', skill: 'Skill (technique work)', strength: 'Strength', mobility: 'Mobility', kettlebell: 'Kettlebell or conditioning' };
+var LOAD_LABEL = { low: 'Light on the body', medium: 'Moderate', high: 'Hard on the body' };
+
+/* The entry point: three ways to add, and where to read about them. */
+function openAddAreaSheet() {
+  var list = el('div', { class: 'picklist' });
+  [['Track something simple', 'A run, climbing, mobility: a target and a time, no ladder.', openTrackForm],
+   ['Import an area pack', 'A whole ladder, from one JSON file. It is checked before it is added.', pickPackFile],
+   ['How adding areas works', 'The pack format, with a starter you can copy.', function () { closeSheet(); location.hash = '#/howto'; }]
+  ].forEach(function (o) {
+    var b = el('button', { class: 'card pick', type: 'button' }, [el('div', { class: 'card-title', text: o[0] }), el('div', { class: 'card-sub', text: o[1] })]);
+    b.addEventListener('click', o[2]);
+    list.appendChild(b);
+  });
+  openSheet('Add an area', 'The eight stay as they are. What you add joins the menu, the week and the verdicts.', [list]);
+}
+
+/* Something you only want to track. */
+function openTrackForm() {
+  var draft = { name: '', perWeek: 3, minutes: 30, order: 'strength', load: 'medium', guardedBy: [] };
+  var problem = el('p', { class: 'sheet-error', role: 'alert' });
+
+  var name = el('input', { type: 'text', id: 'f-area-name', placeholder: 'Morning run' });
+  var minutes = el('input', { type: 'text', inputmode: 'numeric', id: 'f-area-min', placeholder: '30' });
+  minutes.value = String(draft.minutes);
+  var order = el('select', { id: 'f-area-order' }, areaData.rules.dayOrder.map(function (o) { return el('option', { value: o, text: ORDER_LABEL[o] || o }); }));
+  order.value = draft.order;
+  var load = el('select', { id: 'f-area-load' }, ['low', 'medium', 'high'].map(function (l) { return el('option', { value: l, text: LOAD_LABEL[l] }); }));
+  load.value = draft.load;
+
+  var days = el('div', { class: 'sit-row' }, [el('span', { class: 'sit-label', text: 'Days a week:' })]);
+  [1, 2, 3, 4, 5, 6, 7].forEach(function (n) {
+    var b = el('button', { class: 'sit-chip' + (n === draft.perWeek ? ' is-on' : ''), type: 'button', 'aria-pressed': String(n === draft.perWeek), text: String(n) });
+    b.addEventListener('click', function () {
+      draft.perWeek = n;
+      Array.prototype.forEach.call(days.querySelectorAll('.sit-chip'), function (c) { c.classList.remove('is-on'); c.setAttribute('aria-pressed', 'false'); });
+      b.classList.add('is-on'); b.setAttribute('aria-pressed', 'true');
+    });
+    days.appendChild(b);
+  });
+
+  var hurt = el('div', { class: 'eq-bells' });
+  areas().forEach(function (id) {
+    var b = el('button', { class: 'sit-chip', type: 'button', 'aria-pressed': 'false', text: bodyLabel(id) });
+    b.addEventListener('click', function () {
+      var i = draft.guardedBy.indexOf(id);
+      if (i >= 0) draft.guardedBy.splice(i, 1); else draft.guardedBy.push(id);
+      var on = i < 0;
+      b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on));
+    });
+    hurt.appendChild(b);
+  });
+
+  var add = el('button', { class: 'btn btn-go btn-block', type: 'button', text: 'Add it' });
+  add.addEventListener('click', function () {
+    var r = addCustomArea(trackedAreaFrom({ name: name.value, perWeek: draft.perWeek, minutes: minutes.value, order: order.value, load: load.value, guardedBy: draft.guardedBy }));
+    if (!r.ok) { problem.textContent = r.errors.slice(0, 3).join(' '); return; }
+    closeSheet();
+    toast(r.area.name + ' added.');
+    location.hash = '#/areas/' + r.area.id;
+  });
+
+  openSheet('Track something', 'It gets a target, a time, a place on the menu and a verdict. No ladder.', [
+    field('Name', name), days, field('Minutes', minutes), field('Kind', order), field('Load', load),
+    el('p', { class: 'hint', text: 'Could it hurt anything? A red light on these pauses it:' }), hurt, problem, add
+  ]);
+}
+
+/* An area pack: pick the file, check it, show what is in it. */
+function pickPackFile() {
+  var input = el('input', { type: 'file', accept: 'application/json,.json', class: 'visually-hidden' });
+  input.addEventListener('change', function () {
+    var file = input.files && input.files[0];
+    if (!file) return;
+    if (file.size > 512 * 1024) { showPackProblems(['That file is too big for an area pack (over 500 KB).']); return; }
+    var reader = new FileReader();
+    reader.onerror = function () { showPackProblems(['Could not read that file.']); };
+    reader.onload = function () { reviewPack(String(reader.result || '')); };
+    reader.readAsText(file);
+  });
+  document.body.appendChild(input);
+  input.click();
+  setTimeout(function () { input.remove(); }, 60000);
+}
+
+function showPackProblems(errors, warnings) {
+  var shown = errors.slice(0, 10);
+  var nodes = [el('ul', { class: 'pack-list is-bad' }, shown.map(function (e) { return el('li', { text: e }); }))];
+  if (errors.length > shown.length) nodes.push(el('p', { class: 'hint', text: 'And ' + (errors.length - shown.length) + ' more.' }));
+  nodes.push(el('a', { class: 'rv-link', href: '#/howto', text: 'How an area pack is written' }));
+  openSheet('That pack cannot be added', 'Nothing was changed. Fix these and try again.', nodes);
+}
+
+function reviewPack(text) {
+  var parsed;
+  try { parsed = JSON.parse(text); } catch (err) { showPackProblems(['That file is not valid JSON.']); return; }
+  var r = validateAreaPack(parsed, { taken: areaList().map(function (a) { return a.id; }) });
+  if (!r.ok) { showPackProblems(r.errors); return; }
+
+  var a = r.area;
+  var exercises = (a.stages || []).reduce(function (n, s) { return n + s.exercises.length; }, 0);
+  var kv = el('div', { class: 'kv kv-text' });
+  [['Name', a.name], ['Goal', a.goal], ['Stages', (a.stages || []).length + ' (' + exercises + ' exercises)'],
+   ['Days a week', a.perWeek.min + ' · ' + a.perWeek.target + ' · ' + a.perWeek.max], ['A session takes', 'about ' + a.minutes + ' min'],
+   ['Guarded by', a.guardedBy.length ? a.guardedBy.map(bodyLabel).join(', ') : 'nothing']
+  ].forEach(function (row) {
+    kv.appendChild(el('div', { class: 'kv-row' }, [el('span', { class: 'kv-key', text: row[0] }), el('span', { class: 'kv-val', text: row[1] })]));
+  });
+  var nodes = [kv];
+  if (r.warnings.length) nodes.push(el('ul', { class: 'pack-list' }, r.warnings.slice(0, 6).map(function (w) { return el('li', { text: w }); })));
+
+  var add = el('button', { class: 'btn btn-go btn-block', type: 'button', text: 'Add ' + a.name });
+  add.addEventListener('click', function () {
+    var done = addCustomArea(parsed);
+    if (!done.ok) { showPackProblems(done.errors); return; }
+    closeSheet();
+    toast(done.area.name + ' added.');
+    location.hash = '#/areas/' + done.area.id;
+  });
+  nodes.push(add);
+  openSheet('Add this area?', r.warnings.length ? 'It passes. Worth a look first:' : 'It passes every check.', nodes);
+}
+
+/* --- how adding areas works --------------------------------------------------------- */
+
+/* A small pack that passes every check, for copying and changing. The example file in
+   docs/ is this, and a test keeps the two the same, so it never goes stale. */
+function starterPack() {
+  return {
+    id: 'rowing',
+    name: 'Rowing technique',
+    goal: 'A smooth 2 km row at a steady pace.',
+    perWeek: { min: 2, target: 3, max: 4 },
+    minGapDays: 1,
+    minutes: 25,
+    load: 'medium',
+    order: 'strength',
+    guardedBy: ['lowerBack'],
+    stages: [
+      {
+        id: 'R1', name: 'Catch and drive', askAfter: 6,
+        work: 'Rowing drills and short pieces.',
+        ready: ['5 x 500 m at a steady pace'],
+        equipment: ['mat'],
+        exercises: [
+          { id: 'drill', name: 'Pause drill', sets: 3, reps: '10', restSec: 45, load: { type: 'bodyweight' }, cue: 'Legs, body, arms.' },
+          { id: 'piece', name: 'Steady piece', sets: 4, reps: '4 min', restSec: 90, load: { type: 'text', text: 'Easy pace' }, cue: 'Same stroke rate.' }
+        ]
+      },
+      {
+        id: 'R2', name: 'Steady state', askAfter: 8, goal: true,
+        work: 'Longer steady rows.',
+        ready: ['2 km without stopping'],
+        exercises: [
+          { id: 'steady', name: 'Steady row', sets: 3, reps: '6 min', restSec: 90, load: { type: 'text', text: 'Easy pace' }, cue: 'Relax the shoulders.' }
+        ]
+      }
+    ]
+  };
+}
+
+function renderHowTo() {
+  if (!areaData) return areasLoading();
+  var rules = areaData.rules;
+  var starter = JSON.stringify(starterPack(), null, 2);
+
+  function h(text) { return el('p', { class: 'section-label', text: text }); }
+  function p(text) { return el('p', { class: 'hint', text: text }); }
+  function list(items) { return el('ul', { class: 'howto-list' }, items.map(function (x) { return el('li', { text: x }); })); }
+
+  var copy = el('button', { class: 'btn btn-block', type: 'button', text: 'Copy the starter pack' });
+  copy.addEventListener('click', function () {
+    var done = function () { toast('Copied. Paste it into a text editor, change it, save it as a .json file.'); };
+    var fail = function () { toast('Could not copy. Select the text below and copy it.'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(starter).then(done, fail);
+    else fail();
+  });
+
+  setView('Adding areas', '', [
+    el('a', { class: 'back', href: '#/areas', text: '‹ Areas' }),
+    h('Three ways'),
+    list([
+      'Train an area that was not suggested today: open Today, find it under "Add to this sitting", tap Add.',
+      'Track something with no ladder (a run, climbing, mobility): Areas, "+ Add an area", "Track something simple". It gets a target, a time and a place on the menu and in the week and the verdicts.',
+      'Add a whole ladder: write an area pack, a single JSON file, and import it from the same sheet. It is checked first, and nothing changes if it does not pass.'
+    ]),
+    h('The pack'),
+    p('One area per file. The area has a few settings and a list of stages; each stage says what it trains, the standard you attest to before moving up, and its exercises. Start from this one, which passes every check:'),
+    copy,
+    el('pre', { class: 'howto-code', tabindex: '0' }, [starter]),
+    h('What goes where'),
+    list([
+      'Area: id (lowercase, 2 to 24 characters), name, goal, perWeek { min, target, max } in days (1 to 7), minGapDays (days between sessions), minutes, load (low, medium or high), order, guardedBy, stages. Optional: short (up to 13 characters), priority, sessionTypes.',
+      'Stage: id, name, work (what it trains), ready (the standard, a list of clear sentences), exercises, and askAfter (full area-days before the review, at least one week of the area). Optional: equipment, goal (one stage), optional, draft, requires, bells, maxContacts.',
+      'Exercise: id (lowercase slug), name, sets, reps (text: "5", "30 s", "8 / side"), restSec, load { type }, and optionally tempo, cue, note. load.type is one of bodyweight, fixedKg, pct5RM, pctBW, text, none.',
+      'Every stage needs at least one exercise, so a move up never lands on an empty stage.'
+    ]),
+    h('Values you can use'),
+    list([
+      'order: ' + rules.dayOrder.join(', ') + '. It sets where the area goes in a day.',
+      'guardedBy: ' + rules.bodyAreas.filter(function (b) { return b.collected; }).map(function (b) { return b.id; }).join(', ') + '. A red light on one of these pauses the area.',
+      'equipment: ' + rules.equipment.map(function (q) { return q.id; }).join(', ') + '.'
+    ]),
+    h('Good to know'),
+    list([
+      'What you add is kept with your data and is in the backup. Remove it from its own page; the days you logged stay in your history and come back if you add it again.',
+      'A rough clock compares each stage’s exercises with the minutes you gave and mentions it if they are far apart. It never blocks.',
+      'The eight areas that come with the app are not changed by anything you add.'
+    ]),
+    el('p', { class: 'buildline', text: 'Build ' + BUILD })
+  ]);
+  window.scrollTo(0, 0);
+}
+
+/* One of your own that no longer loads, with why, and a way to clear it. */
+function skippedAreasNote() {
+  var skipped = (areaData && areaData.skipped) || [];
+  if (!skipped.length) return null;
+  return el('div', {}, [
+    el('p', { class: 'section-label', text: 'Could not load' })
+  ].concat(skipped.map(function (s) {
+    var drop = el('button', { class: 'linkbtn', type: 'button', text: 'Remove' });
+    drop.addEventListener('click', function () {
+      if (!confirm('Remove "' + s.id + '"? It cannot be loaded as it is.')) return;
+      removeCustomArea(s.id);
+      renderAreas();
+    });
+    return el('div', { class: 'card hist' }, [
+      el('div', { class: 'card-top' }, [el('span', { class: 'card-title', text: s.id }), drop]),
+      el('div', { class: 'card-sub', text: s.errors.slice(0, 2).join(' ') })
+    ]);
+  })));
 }
 
 /* Which stage of an area, by position — for "you are at P1, this needs P4". */
@@ -6222,13 +6809,17 @@ function renderAreaDetail(id) {
   });
   var pick = el('button', { class: 'btn btn-quiet', type: 'button', text: 'Set the stage yourself' });
   pick.addEventListener('click', function () { openStagePicker(area, function () { renderAreaDetail(id); }); });
-  nodes.push(el('p', { class: 'section-label', text: 'Where you are on the ladder' }), ladderKv,
-    el('div', { class: 'sheet-actions', style: 'margin-top:0' }, [
-      el('a', { class: prog.due ? 'btn btn-go' : 'btn', href: '#/review/' + area.id, text: prog.due ? 'Open the review' : 'Review now' }),
-      pick
-    ]));
-  var decided = decisionList(area);
-  if (decided) nodes.push(decided);
+  if (area.track) {
+    nodes.push(el('p', { class: 'hint', text: 'Tracked: it has a target and a time, and a place on the menu, but no ladder. ' + prog.full + ' full days so far.' }));
+  } else {
+    nodes.push(el('p', { class: 'section-label', text: 'Where you are on the ladder' }), ladderKv,
+      el('div', { class: 'sheet-actions', style: 'margin-top:0' }, [
+        el('a', { class: prog.due ? 'btn btn-go' : 'btn', href: '#/review/' + area.id, text: prog.due ? 'Open the review' : 'Review now' }),
+        pick
+      ]));
+    var decided = decisionList(area);
+    if (decided) nodes.push(decided);
+  }
 
   var fb = areaFeedback(area, today, days);
   var last = fb.weeks.length ? fb.weeks[fb.weeks.length - 1] : null;
@@ -6265,12 +6856,25 @@ function renderAreaDetail(id) {
     rules.forEach(function (line) { nodes.push(el('p', { class: 'hint', text: line })); });
   }
 
-  nodes.push(el('p', { class: 'section-label', text: 'Ladder' }));
-  nodes.push(ladderRow(area, prog.stage.id));
-  area.stages.forEach(function (s) { nodes.push(stageCard(area, s, prog)); });
+  if (!area.track) {
+    nodes.push(el('p', { class: 'section-label', text: 'Ladder' }));
+    nodes.push(ladderRow(area, prog.stage.id));
+    area.stages.forEach(function (s) { nodes.push(stageCard(area, s, prog)); });
+  }
+
+  if (area.custom) {
+    var drop = el('button', { class: 'btn btn-quiet btn-block', type: 'button', text: 'Remove this area' });
+    drop.addEventListener('click', function () {
+      if (!confirm('Remove ' + area.name + '? Its days stay in your history and come back if you add it again.')) return;
+      removeCustomArea(area.id);
+      toast(area.name + ' removed.');
+      location.hash = '#/areas';
+    });
+    nodes.push(drop);
+  }
 
   nodes.push(el('p', { class: 'buildline', text: 'Build ' + BUILD }));
-  setView(area.short, 'Stage ' + prog.stage.id, nodes);
+  setView(area.short, area.track ? 'Tracked' : 'Stage ' + prog.stage.id, nodes);
   window.scrollTo(0, 0);
 }
 
@@ -6279,7 +6883,7 @@ function renderAreaDetail(id) {
    equipment card. Only Plan works without it. An empty hash is Today. */
 function routeNeedsAreas(hash) {
   var tab = String(hash || '').replace(/^#\/?/, '').split('/')[0] || 'today';
-  return tab === 'today' || tab === 'areas' || tab === 'run' || tab === 'checkin' || tab === 'review' || tab === 'progress';
+  return tab === 'today' || tab === 'areas' || tab === 'run' || tab === 'checkin' || tab === 'review' || tab === 'progress' || tab === 'howto';
 }
 
 /* ----------------------------------------------------------------- router */
@@ -6303,6 +6907,7 @@ function route() {
   if (tab === 'plan' && parts[1]) renderWeek(parts[1]);
   else if (tab === 'plan') renderWeekList();
   else if (tab === 'review' && parts[1]) renderReview(parts[1]);
+  else if (tab === 'howto') renderHowTo();
   else if (tab === 'areas' && parts[1]) renderAreaDetail(parts[1]);
   else if (tab === 'areas') renderAreas();
   else if (tab === 'session') renderSession(parts[1]);
@@ -6313,7 +6918,7 @@ function route() {
     renderNotFound('Nothing at "' + hash + '".');
   }
 
-  markTab(tab === 'session' ? 'plan' : tab === 'review' ? 'areas' : tab);
+  markTab(tab === 'session' ? 'plan' : (tab === 'review' || tab === 'howto') ? 'areas' : tab);
   paintTabBadge();
   view().focus({ preventScroll: true });
 }
@@ -6420,6 +7025,8 @@ registerSW();
    and Plan still work and the Areas tab says so. */
 loadAreaData().then(function (data) {
   areaData = data;
+  loadCustomAreas();
+  mergeCustomAreas();
   areaLoad = 'ready';
 }).catch(function () {
   areaLoad = 'failed';

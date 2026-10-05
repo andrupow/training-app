@@ -1,0 +1,80 @@
+{
+  "id": "rowing",
+  "name": "Rowing technique",
+  "goal": "A smooth 2 km row at a steady pace.",
+  "perWeek": {
+    "min": 2,
+    "target": 3,
+    "max": 4
+  },
+  "minGapDays": 1,
+  "minutes": 25,
+  "load": "medium",
+  "order": "strength",
+  "guardedBy": [
+    "lowerBack"
+  ],
+  "stages": [
+    {
+      "id": "R1",
+      "name": "Catch and drive",
+      "askAfter": 6,
+      "work": "Rowing drills and short pieces.",
+      "ready": [
+        "5 x 500 m at a steady pace"
+      ],
+      "equipment": [
+        "mat"
+      ],
+      "exercises": [
+        {
+          "id": "drill",
+          "name": "Pause drill",
+          "sets": 3,
+          "reps": "10",
+          "restSec": 45,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Legs, body, arms."
+        },
+        {
+          "id": "piece",
+          "name": "Steady piece",
+          "sets": 4,
+          "reps": "4 min",
+          "restSec": 90,
+          "load": {
+            "type": "text",
+            "text": "Easy pace"
+          },
+          "cue": "Same stroke rate."
+        }
+      ]
+    },
+    {
+      "id": "R2",
+      "name": "Steady state",
+      "askAfter": 8,
+      "goal": true,
+      "work": "Longer steady rows.",
+      "ready": [
+        "2 km without stopping"
+      ],
+      "exercises": [
+        {
+          "id": "steady",
+          "name": "Steady row",
+          "sets": 3,
+          "reps": "6 min",
+          "restSec": 90,
+          "load": {
+            "type": "text",
+            "text": "Easy pace"
+          },
+          "cue": "Relax the shoulders."
+        }
+      ]
+    }
+  ]
+}
