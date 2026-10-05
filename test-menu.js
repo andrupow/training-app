@@ -9,6 +9,7 @@ const sandbox={console,setTimeout,clearTimeout,Blob:class{},URL:{createObjectURL
 sandbox.globalThis=sandbox; vm.createContext(sandbox);
 /* The runner needs a body with a classList and an interval; the shared fake DOM has neither. */
 sandbox.setInterval=()=>0; sandbox.clearInterval=noop;
+sandbox.document.createElementNS=()=>fakeNode;
 sandbox.document.body=new Proxy({},{get(t,k){return k==='classList'?{add:noop,remove:noop}:fakeNode[k];},set(){return true;}});
 vm.runInContext(fs.readFileSync('app.js','utf8'),sandbox);
 const ctx=sandbox;
@@ -197,6 +198,18 @@ eq('a day with no plan says so and lists what was logged', [dd.noPlan, dd.extras
 dd=ctx.dayDetailItems('2026-10-07','2026-10-08',days());
 eq('a skipped day lists what was planned', dd.sittings[0].items.map(i=>[i.area.id,i.state]), [['pistol','skipped']]);
 eq('and what you took off, with your reason', dd.extras.map(e=>[e.area.id,e.state,e.reason]), [['oap','skipped','no time']]);
+
+console.log('the week card on screen (the fake DOM cannot be read, so these are smoke tests and helpers):');
+eq('a stored reason reads as its label', ['no time','tired','pain','other',''].map(ctx.reasonText), ['No time','Tired','Pain','Other','']);
+eq('a reason from somewhere else is shown as it is', ctx.reasonText('car broke down'), 'car broke down');
+eq('this week has a no-plan day (Tuesday)', ctx.weekHasNoPlan('2026-10-05','2026-10-08',days()), true);
+eq('a week before menus began has none', ctx.weekHasNoPlan('2026-09-28','2026-10-08',days()), false);
+ok('every state draws a glyph without throwing', ['full','partial','planned','skipped','noplan','none','future'].every(s=>{try{ctx.stateGlyph(s);return true;}catch(e){return false;}}));
+ok('the legend draws for a busy week and an empty one', [[sm,true],[{planned:0,skipped:0},false]].every(p=>{try{ctx.weekLegend(p[0],p[1]);return true;}catch(e){return false;}}));
+ok('the skipped list is empty when nothing was skipped', ctx.skippedList({skippedItems:[]})===null);
+ok('and draws when something was', (()=>{try{return ctx.skippedList(sm)!==null;}catch(e){return false;}})());
+ok('the card and each kind of day detail draw', ['2026-10-05','2026-10-06','2026-10-07','2026-10-08','2026-10-09','2026-09-30'].every(d=>{try{ctx.dayDetail(d,'2026-10-08',days());return true;}catch(e){return false;}})
+  && (()=>{try{ctx.weekCard('2026-10-05','2026-10-08',days());return true;}catch(e){return false;}})());
 
 console.log('logging something done elsewhere:');
 reset();

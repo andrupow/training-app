@@ -1297,6 +1297,9 @@ function weekSummary(start, today, days) {
       }
     });
   });
+  out.skippedItems.sort(function (a, b) {
+    return a.date < b.date ? -1 : a.date > b.date ? 1 : a.area.priority - b.area.priority;
+  });
   return out;
 }
 
@@ -4313,9 +4316,14 @@ function renderError(msg) {
 var areaLoad = 'loading';                    /* loading | ready | failed */
 var areasView = { week: null, day: null };   /* the week and day the tab is showing */
 
-var STATE_TEXT = { full: 'done', partial: 'partial', none: 'not trained', future: 'not yet' };
+var STATE_TEXT = {
+  full: 'done', partial: 'partial', skipped: 'skipped', planned: 'planned',
+  noplan: 'no plan recorded', none: 'not trained', future: 'not yet'
+};
 
-/* One glyph per state. Shape carries the meaning, colour only reinforces it. */
+/* One glyph per state. Shape carries the meaning, colour only reinforces it:
+   filled disc done, half disc partial, dashed ring planned, cross skipped,
+   hatching no plan recorded, dot nothing. */
 function stateGlyph(state) {
   var svg = svgEl('svg', { class: 'g', viewBox: '0 0 20 20', 'aria-hidden': 'true' });
   if (state === 'full') {
@@ -4323,11 +4331,21 @@ function stateGlyph(state) {
   } else if (state === 'partial') {
     svg.appendChild(svgEl('circle', { class: 'g-ring', cx: 10, cy: 10, r: 7.5 }));
     svg.appendChild(svgEl('path', { class: 'g-part', d: 'M10 2.5 A7.5 7.5 0 0 0 10 17.5 Z' }));
+  } else if (state === 'planned') {
+    svg.appendChild(svgEl('circle', { class: 'g-plan', cx: 10, cy: 10, r: 7.5 }));
+  } else if (state === 'skipped') {
+    svg.appendChild(svgEl('path', { class: 'g-skip', d: 'M5.5 5.5 L14.5 14.5 M14.5 5.5 L5.5 14.5' }));
+  } else if (state === 'noplan') {
+    svg.appendChild(svgEl('path', { class: 'g-hatch', d: 'M4 12 L12 4 M8 16 L16 8 M12 18 L18 12' }));
   } else if (state === 'none') {
     svg.appendChild(svgEl('circle', { class: 'g-dot', cx: 10, cy: 10, r: 1.9 }));
   }
   return svg;
 }
+
+var REASON_TEXT = {};
+SKIP_REASONS.forEach(function (r) { REASON_TEXT[r[0]] = r[1]; });
+function reasonText(reason) { return reason ? (REASON_TEXT[reason] || reason) : ''; }
 
 function statusTag(status) {
   return status.label ? el('span', { class: 'st st-' + status.key, text: status.label }) : null;
@@ -4388,16 +4406,47 @@ function weekGrid(start, today, days) {
   return grid;
 }
 
-function weekLegend() {
+/* Only the shapes this week actually uses, so the legend never explains
+   something that is not on screen. */
+function weekLegend(sum, hasNoPlan) {
   var wrap = el('div', { class: 'wk-legend' });
-  [['full', 'Done'], ['partial', 'Partial'], ['none', 'Not trained']].forEach(function (p) {
+  var items = [['full', 'Done'], ['partial', 'Partial']];
+  if (sum.planned) items.push(['planned', 'Planned']);
+  if (sum.skipped) items.push(['skipped', 'Skipped']);
+  if (hasNoPlan) items.push(['noplan', 'No plan recorded']);
+  items.push(['none', 'Not trained']);
+  items.forEach(function (p) {
     wrap.appendChild(el('span', {}, [stateGlyph(p[0]), p[1]]));
   });
   return wrap;
 }
 
+/* The line under a logged item: "5 of 5 sets", "3 of 17 sets · partial". */
+function recNote(r) {
+  return r.done + ' of ' + r.total + ' sets' + (r.full ? '' : ' · partial');
+}
+
+function detailRow(item, extra) {
+  var area = item.area;
+  var note = '';
+  if (item.record) note = recNote(item.record);
+  else if (item.state === 'skipped') note = 'Skipped' + (item.reason ? ' · ' + reasonText(item.reason) : '');
+  else if (item.state === 'planned' || item.state === 'future') note = 'Planned';
+
+  if (item.record && item.removed) note += ' · taken off the menu';
+  if (extra) note += (note ? ' · ' : '') + extra;
+
+  return el('div', { class: 'wk-item' }, [
+    stateGlyph(item.state === 'future' ? 'planned' : item.state),
+    el('span', { text: area ? area.name : '' }),
+    el('span', { class: 'wk-note', text: note })
+  ]);
+}
+
+/* One day: each sitting in turn, then anything logged that was not on the menu.
+   A day nobody opened says so, rather than looking like a day off. */
 function dayDetail(date, today, days) {
-  var recs = days.filter(function (r) { return r.date === date; });
+  var d = dayDetailItems(date, today, days);
   var card = el('div', { class: 'card' }, [
     el('div', { class: 'card-top' }, [
       el('span', { class: 'card-title', text: fmtDate(date) }),
@@ -4405,20 +4454,50 @@ function dayDetail(date, today, days) {
     ])
   ]);
 
-  if (!recs.length) {
-    card.appendChild(el('div', { class: 'card-sub', text: date > today ? 'Nothing yet.' : 'Nothing logged for any area.' }));
+  if (d.noPlan) {
+    var since = settings.menuSince && date >= settings.menuSince && date < today;
+    if (!d.extras.length) {
+      card.appendChild(el('div', { class: 'card-sub', text: date > today ? 'Nothing yet.'
+        : since ? 'No plan recorded for this day.' : 'Nothing logged for any area.' }));
+      return card;
+    }
+    if (since) card.appendChild(el('div', { class: 'card-sub', text: 'No plan recorded for this day. What was logged:' }));
+    d.extras.forEach(function (it) { card.appendChild(detailRow(it)); });
     return card;
   }
 
-  recs.forEach(function (r) {
-    var area = areaById(r.area);
-    card.appendChild(el('div', { class: 'wk-item' }, [
-      stateGlyph(r.full ? 'full' : 'partial'),
-      el('span', { text: area ? area.name : r.area }),
-      el('span', { class: 'wk-note', text: r.done + ' of ' + r.total + ' sets' + (r.full ? '' : ' · partial') })
-    ]));
+  d.sittings.forEach(function (st) {
+    card.appendChild(el('div', { class: 'wk-sit', text: 'Sitting ' + (st.index + 1) + ' · ' + st.minutes + ' min' }));
+    if (!st.items.length) card.appendChild(el('div', { class: 'card-sub', text: 'Nothing planned.' }));
+    st.items.forEach(function (it) { card.appendChild(detailRow(it)); });
   });
+
+  if (d.extras.length) {
+    card.appendChild(el('div', { class: 'wk-sit', text: 'Not on the menu' }));
+    d.extras.forEach(function (it) { card.appendChild(detailRow(it, it.removed ? '' : 'added')); });
+  }
   return card;
+}
+
+/* What was skipped this week, with the reason you gave, one line each. */
+function skippedList(sum) {
+  if (!sum.skippedItems.length) return null;
+  var DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  var shown = sum.skippedItems.slice(0, 6);
+  var rows = shown.map(function (s) {
+    var why = reasonText(s.reason);
+    return el('li', { text: DAYS[isoDow(s.date)] + ' · ' + s.area.name + (why ? ' · ' + why : '') });
+  });
+  if (sum.skippedItems.length > shown.length) {
+    rows.push(el('li', { text: '+ ' + (sum.skippedItems.length - shown.length) + ' more — tap a day to see it' }));
+  }
+  return el('ul', { class: 'wk-skips', 'aria-label': 'Skipped this week' }, rows);
+}
+
+function weekHasNoPlan(start, today, days) {
+  return areaList().some(function (a) {
+    return areaWeek(a, start, today, days).cells.some(function (c) { return c.state === 'noplan'; });
+  });
 }
 
 function weekCard(start, today, days) {
@@ -4431,13 +4510,9 @@ function weekCard(start, today, days) {
   prev.addEventListener('click', function () { areasView.week = addDays(start, -7); areasView.day = null; repaintAreas(); });
   next.addEventListener('click', function () { areasView.week = addDays(start, 7); areasView.day = null; repaintAreas(); });
 
-  var full = 0, partial = 0;
-  areaList().forEach(function (a) {
-    areaWeek(a, start, today, days).cells.forEach(function (c) {
-      if (c.state === 'full') full++;
-      else if (c.state === 'partial') partial++;
-    });
-  });
+  var sum = weekSummary(start, today, days);
+  var line = 'Done ' + sum.done + ' · Partial ' + sum.partial + ' · Skipped ' + sum.skipped;
+  if (sum.planned) line += ' · Planned today ' + sum.planned;
 
   return el('div', { class: 'card wk-card' }, [
     el('div', { class: 'wk-head' }, [
@@ -4449,8 +4524,9 @@ function weekCard(start, today, days) {
       next
     ]),
     weekGrid(start, today, days),
-    weekLegend(),
-    el('p', { class: 'wk-sum', text: 'Done ' + full + ' · Partial ' + partial })
+    weekLegend(sum, weekHasNoPlan(start, today, days)),
+    el('p', { class: 'wk-sum', text: line }),
+    skippedList(sum)
   ]);
 }
 
@@ -4504,7 +4580,7 @@ function renderAreas() {
   ];
   areaList().forEach(function (a) { nodes.push(areaCard(a, days)); });
 
-  nodes.push(el('p', { class: 'hint', text: 'History from before the areas (weighted pull-ups, sprints, hinge, kettlebell press and a few prehab exercises) is kept but not counted here. Skipped days arrive with the daily menu.' }));
+  nodes.push(el('p', { class: 'hint', text: 'History from before the areas (weighted pull-ups, sprints, hinge, kettlebell press and a few prehab exercises) is kept but not counted here. A day counts as skipped only when it was on that day’s menu, or taken off it, and nothing was logged.' }));
   nodes.push(el('p', { class: 'buildline', text: 'Build ' + BUILD }));
 
   setView('Areas', areaList().length + ' areas', nodes);
