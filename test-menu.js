@@ -308,6 +308,12 @@ ok('the area card, with reasons, a hold and a held area', (()=>{
 })());
 ok('Today and the Areas tab as a whole', draws(()=>{ ctx.todayISO=()=>D; ctx.renderToday(); ctx.renderAreas(); ctx.renderAreaDetail('kb'); }));
 
+console.log('an area page opened directly saves the week’s fit:');
+reset(); ctx.weekFits={}; ctx.todayISO=()=>D;
+ctx.renderAreaDetail('kb');
+ok('the target it shows is the one the week is judged by', !!ctx.weekFits['2026-10-05']);
+ctx.todayISO=()=>new Date().toISOString().slice(0,10);
+
 console.log('logging something done elsewhere:');
 reset();
 let lr=ctx.logAreaBlock('2026-10-06','pistol');

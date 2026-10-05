@@ -1310,8 +1310,16 @@ function recommendInput(date, slots, days, opts) {
 
   var plan = opts && opts.fresh ? null : dayPlans[date];      /* fresh: ask as if the menu were empty */
   var onMenu = plan ? plannedAreaIds(plan) : [];
-  var already = onMenu.slice();
-  days.forEach(function (r) { if (r.date === date && already.indexOf(r.area) < 0) already.push(r.area); });
+
+  /* What is already taking up room today: what is on the menu, and what was done.
+     An area that a check-in has since turned red cannot be trained, so it takes up
+     no room unless sets were actually logged. */
+  var doneToday = days.filter(function (r) { return r.date === date; }).map(function (r) { return r.area; });
+  var already = onMenu.filter(function (id) {
+    var a = areaById(id);
+    return doneToday.indexOf(id) >= 0 || !(a && heldReason(a, date));
+  });
+  doneToday.forEach(function (id) { if (already.indexOf(id) < 0) already.push(id); });
 
   var rules = areaData.rules;
   return {
@@ -5331,6 +5339,7 @@ function renderAreaDetail(id) {
   var today = todayISO();
   var days = areaDays();
   var start = weekStartOf(today);
+  ensureWeekFit(start, days);        /* the target shown here is the one the week is judged by */
   var w = areaWeek(area, start, today, days);
   var prog = stageProgress(area, days);
   var recent = recentWeekCounts(area, start, 3, days, firstWeekStart(days));

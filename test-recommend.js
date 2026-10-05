@@ -202,6 +202,19 @@ eq('a removed area says so, with your reason', inp.areas.find(a=>a.id==='bridge'
 r=ctx.recommendFor('2026-10-08',[30],old.concat([rec('2026-10-08','pistol')]));
 eq('a new sitting does not repeat any of that', r.picked.filter(id=>['hspu','nordic','pistol','bridge'].includes(id)), []);
 
+console.log('a light that turns red after the menu was made:');
+reset(); ctx.todayISO=()=>'2026-10-08'; ctx.settings.weekdayMinutes={0:60,1:60,2:60,3:60,4:60,5:60,6:60};
+ctx.dayPlans['2026-10-08']={sittings:[{minutes:60,areas:['hspu','pistol','nordic','bridge']}],suggested:['hspu','pistol','nordic','bridge'],removed:{},why:{}};
+ctx.checkIns=[ci('2026-10-07',{knee:7})];
+inp=ctx.recommendInput('2026-10-08',[45],[]);
+eq('a paused area on the menu takes up no room: only the two that can be trained count', inp.already.sort(), ['bridge','hspu']);
+r=ctx.recommendFor('2026-10-08',[45],[]);
+ok('so another sitting can still be filled, instead of coming back empty at "four areas"', r.picked.length>0);
+eq('the paused ones still say they are held', [r.lines.pistol.why,r.lines.nordic.why], ['Held: knee red.','Held: knee red.']);
+inp=ctx.recommendInput('2026-10-08',[45],[rec('2026-10-08','pistol')]);
+eq('unless sets were actually logged for it today', inp.already.sort(), ['bridge','hspu','pistol']);
+ctx.checkIns=[];
+
 console.log('the lights:');
 reset(); ctx.todayISO=()=>'2026-10-08';
 const mu=ctx.areaById('mu');
