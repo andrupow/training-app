@@ -6,7 +6,7 @@
 
 'use strict';
 
-var BUILD = '1.9.0-m10';
+var BUILD = '1.9.1';
 var PLAN_URL = 'data/plan.json';
 var LS_PLAN = 'plan.cache.v1';
 var LS_LOGS = 'setLogs';
@@ -108,13 +108,21 @@ function hasDetail(entry) {
   return !!entry && (entry.loadKg !== undefined || entry.reps !== undefined || entry.rpe !== undefined);
 }
 
+/* The red light pulls exercises off the page (see sessionGate). They have to
+   leave the sums as well, or a session with one of them paused could never
+   read as done. The logs themselves are untouched. */
+function activeExercises(session) {
+  var suppressed = sessionGate(session).suppressed;
+  return session.exercises.filter(function (ex) { return !(ex.track && suppressed[ex.track]); });
+}
+
 function totalSets(session) {
-  return session.exercises.reduce(function (n, ex) { return n + (Number(ex.sets) || 0); }, 0);
+  return activeExercises(session).reduce(function (n, ex) { return n + (Number(ex.sets) || 0); }, 0);
 }
 
 function doneSets(session) {
   var n = 0;
-  session.exercises.forEach(function (ex) {
+  activeExercises(session).forEach(function (ex) {
     for (var i = 0; i < (Number(ex.sets) || 0); i++) {
       var e = getLog(session.id, ex.id, i);
       if (e && e.done) n++;
@@ -1660,11 +1668,42 @@ function firstUndoneSet(session, ex) {
   return n;                       /* all done */
 }
 
+/* Indices of the exercises the runner will actually walk. The red light takes
+   an exercise off Today and Plan; the runner has to agree, or one tap on
+   "Start session" walks you straight back into what it just pulled. */
+function runnableIndexes(session) {
+  var suppressed = sessionGate(session).suppressed;
+  var out = [];
+  session.exercises.forEach(function (ex, i) {
+    if (!(ex.track && suppressed[ex.track])) out.push(i);
+  });
+  return out;
+}
+
+/* The first runnable exercise at or after `from`, or -1 when none is left. */
+function nextRunnable(session, from) {
+  var list = runnableIndexes(session);
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] >= from) return list[i];
+  }
+  return -1;
+}
+
 function enterRunner(sessionId, exIdx) {
   var s = sessionById(sessionId);
   if (!s) return renderNotFound('No session "' + sessionId + '".');
 
   exIdx = Math.max(0, Math.min(exIdx || 0, s.exercises.length - 1));
+
+  /* A stale link can point at an exercise the red light has since pulled. */
+  var first = nextRunnable(s, exIdx);
+  if (first < 0) first = nextRunnable(s, 0);
+  if (first < 0) {
+    toast('Everything in this session is paused by the red light.');
+    location.hash = '#/today';
+    return;
+  }
+  exIdx = first;
   var ex = s.exercises[exIdx];
 
   var keepStart = runner && runner.sessionId === sessionId ? runner.startedAt : Date.now();
@@ -1736,7 +1775,8 @@ function completeSet() {
   cancelBeep();
 
   var lastSet = runner.setIdx >= (Number(ex.sets) || 1) - 1;
-  var lastEx = runner.exIdx >= s.exercises.length - 1;
+  var nextEx = nextRunnable(s, runner.exIdx + 1);
+  var lastEx = nextEx < 0;
 
   runner.side = 0;
   runner.endAt = 0;
@@ -1749,9 +1789,9 @@ function completeSet() {
   }
 
   if (lastSet) {
-    runner.exIdx += 1;
+    runner.exIdx = nextEx;
     runner.setIdx = 0;
-    runner.secs = timedSeconds(s.exercises[runner.exIdx]);
+    runner.secs = timedSeconds(s.exercises[nextEx]);
   } else {
     runner.setIdx += 1;
   }
@@ -1779,7 +1819,8 @@ function skipSet() {
   if (!s || !ex) return;
 
   var lastSet = runner.setIdx >= (Number(ex.sets) || 1) - 1;
-  var lastEx = runner.exIdx >= s.exercises.length - 1;
+  var nextEx = nextRunnable(s, runner.exIdx + 1);
+  var lastEx = nextEx < 0;
 
   cancelBeep();
   runner.endAt = 0;
@@ -1787,7 +1828,7 @@ function skipSet() {
   runner.phase = 'ready';
 
   if (lastSet && lastEx) { runner.phase = 'finished'; paintRunner(); return; }
-  if (lastSet) { runner.exIdx += 1; runner.setIdx = 0; runner.secs = timedSeconds(s.exercises[runner.exIdx]); }
+  if (lastSet) { runner.exIdx = nextEx; runner.setIdx = 0; runner.secs = timedSeconds(s.exercises[nextEx]); }
   else runner.setIdx += 1;
 
   paintRunner();
@@ -1799,12 +1840,13 @@ function skipExercise() {
   cancelBeep();
   stopRest();
 
-  if (runner.exIdx >= s.exercises.length - 1) { runner.phase = 'finished'; paintRunner(); return; }
+  var nextEx = nextRunnable(s, runner.exIdx + 1);
+  if (nextEx < 0) { runner.phase = 'finished'; paintRunner(); return; }
 
-  runner.exIdx += 1;
-  runner.setIdx = firstUndoneSet(s, s.exercises[runner.exIdx]);
-  if (runner.setIdx >= (Number(s.exercises[runner.exIdx].sets) || 1)) runner.setIdx = 0;
-  runner.secs = timedSeconds(s.exercises[runner.exIdx]);
+  runner.exIdx = nextEx;
+  runner.setIdx = firstUndoneSet(s, s.exercises[nextEx]);
+  if (runner.setIdx >= (Number(s.exercises[nextEx].sets) || 1)) runner.setIdx = 0;
+  runner.secs = timedSeconds(s.exercises[nextEx]);
   runner.side = 0;
   runner.endAt = 0;
   runner.phase = 'ready';
@@ -1863,6 +1905,7 @@ function paintRunner() {
   var sets = Number(ex.sets) || 1;
   var timed = timedSeconds(ex) !== null;
   var perSide = isPerSide(ex);
+  var walk = runnableIndexes(s);       /* what the red light has not pulled */
 
   /* top bar */
   var back = el('button', { class: 'run-back', type: 'button', 'aria-label': 'Leave the runner', text: '‹' });
@@ -1874,7 +1917,7 @@ function paintRunner() {
       el('div', { class: 'run-crumb-week', text: (s.weekLabel || s.week) + ' · ' + s.day }),
       el('div', { class: 'run-crumb-name', text: s.name })
     ]),
-    el('div', { class: 'run-pos', text: (runner.exIdx + 1) + '/' + s.exercises.length })
+    el('div', { class: 'run-pos', text: (Math.max(0, walk.indexOf(runner.exIdx)) + 1) + '/' + walk.length })
   ]));
 
   var body = el('div', { class: 'run-body' });
