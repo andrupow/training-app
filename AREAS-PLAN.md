@@ -796,6 +796,15 @@ export imports and is seeded as above.
      in kg.
    - **Equipment** was already settled in M14 (the tick list and kettlebells on
      the Progress tab); M16 only adds the `equipment` ids a custom pack may list.
+7. **After M16 — the week ahead (build 1.17.0-weekplan):** the Areas week grid
+   used to show only today's menu, because a day's menu is made the first time it
+   is opened. It now also shows a **forecast** for the rest of the running week: a
+   dotted ring where an area would be suggested (a dashed ring is still a real
+   menu). Each day is worked out by the same recommender, in that weekday's usual
+   minutes, as if the days before it were done as suggested, so spacing and weekly
+   targets are respected. It is never saved, it changes as you go, and the real
+   menu is still made from what has happened when you open the day. Tapping a day
+   ahead lists its suggestions. Past weeks and the Plan tab are unchanged.
 
 ---
 
