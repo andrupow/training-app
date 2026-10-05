@@ -7,7 +7,7 @@
 
 'use strict';
 
-var BUILD = '1.10.0-m11';
+var BUILD = '1.11.0-m12';
 var PLAN_URL = 'data/plan.json';
 var LS_PLAN = 'plan.cache.v1';
 var LS_LOGS = 'setLogs';
