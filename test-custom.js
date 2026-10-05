@@ -259,5 +259,27 @@ ok('the sweep of every screen with custom areas present', draws(()=>{ctx.renderA
 ok('and the recommender with them', draws(()=>ctx.recommendFor('2026-10-07',[60],ctx.areaDays())));
 ok('and the feedback for them', draws(()=>{ctx.areaFeedback(ctx.areaById('morning-run'),'2026-10-26',ctx.areaDays());ctx.nudgesFor('2026-10-26',ctx.areaDays());ctx.weekStrip('2026-10-26',ctx.areaDays());}));
 
+console.log('a name that makes a 24-letter id, added again and again (this used to loop forever):');
+fresh();
+/* run inside the context with a time limit, so a regression fails instead of hanging the tests */
+const bounded=(src)=>{try{return vm.runInContext(src,ctx,{timeout:2000});}catch(e){return 'TIMED OUT or threw: '+e.message;}};
+const longName='Extremely long running name tracker';
+eq('the first one gets the 24-letter id', bounded("trackedAreaFrom({name:'"+longName+"',perWeek:3,minutes:30}).id"), 'extremely-long-running-n');
+const ids=[];
+for(let i=0;i<12;i++){const r=bounded("(function(){var r=addCustomArea(trackedAreaFrom({name:'"+longName+"',perWeek:3,minutes:30}));return r.ok?r.area.id:'refused: '+r.errors.join(' ');})()");ids.push(r);}
+eq('twelve of them are all added, with twelve different ids', new Set(ids).size, 12);
+ok('none was refused or timed out', ids.every(i=>!/refused|TIMED/.test(i)));
+ok('every id fits in 24 characters', ids.every(i=>i.length<=24));
+eq('the second is -2 and the third -3', ids.slice(1,3), ['extremely-long-running-2','extremely-long-running-3']);
+eq('two-digit suffixes cut one more letter off the name, and still fit', ids.slice(9), ['extremely-long-runnin-10','extremely-long-runnin-11','extremely-long-runnin-12']);
+ok('no id has a doubled or trailing dash', ids.every(i=>!/--|-$/.test(i)));
+fresh();
+eq('a cut that lands just after a dash does not leave a dash behind', (()=>{
+  const first=bounded("(function(){var r=addCustomArea(trackedAreaFrom({name:'abcdefghijklmnopqrstu vw',perWeek:2,minutes:20}));return r.ok?r.area.id:'refused';})()");
+  const second=bounded("(function(){var r=addCustomArea(trackedAreaFrom({name:'abcdefghijklmnopqrstu vw',perWeek:2,minutes:20}));return r.ok?r.area.id:'refused';})()");
+  return [first,second];
+})(), ['abcdefghijklmnopqrstu-vw','abcdefghijklmnopqrstu-2']);
+fresh();
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail?1:0);

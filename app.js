@@ -994,7 +994,10 @@ function trackedAreaFrom(form) {
 function freeId(name) {
   var base = slugOf(name) || 'area', id = base, n = 2;
   var taken = areaList().map(function (a) { return a.id; });
-  while (taken.indexOf(id) >= 0) { id = (base + '-' + n).slice(0, 24); n++; }
+  while (taken.indexOf(id) >= 0) {
+    var suffix = '-' + n++;                    /* cut the name, never the suffix, or a 24-letter id never changes */
+    id = base.slice(0, 24 - suffix.length).replace(/-+$/, '') + suffix;
+  }
   return id;
 }
 
