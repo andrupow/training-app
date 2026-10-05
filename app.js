@@ -7,7 +7,7 @@
 
 'use strict';
 
-var BUILD = '1.15.0-m16';
+var BUILD = '1.16.0-sound';
 var PLAN_URL = 'data/plan.json';
 var LS_PLAN = 'plan.cache.v1';
 var LS_LOGS = 'setLogs';
@@ -3033,8 +3033,82 @@ function paintCount() {
 var restTimer = null;      /* { endAt, total, label, rang } */
 var restTick = null;
 var wakeLock = null;
+
+/* --- sound ---------------------------------------------------------------- */
+/* Four things you can hear, each different so you know without looking:
+     a set (a timed hold) in its last seconds   fast, sharp ticks, twice a second
+     a rest in its last seconds                 slow tick-tock, once a second, softer
+     a set ending                               a double-dong, high then low
+     a rest ending                              three beeps (or a double-dong, low then high)
+   Everything is scheduled ahead on the audio clock, which keeps its own time, so a
+   sound lands even if the page's tick is being throttled. Which of them play, and how
+   loud, is yours to set (Progress tab, Sound). */
+
+var SOUND_DEFAULTS = { volume: 'high', workTicks: true, restTicks: true, endWork: 'dong', endRest: 'beeps', tickFrom: 10 };
+var SOUND_VOLUMES = { off: 0, low: 0.3, medium: 0.55, high: 0.8, max: 1 };
+var SOUND_CHOICES = { volume: ['off', 'low', 'medium', 'high', 'max'], endWork: ['dong', 'off'], endRest: ['beeps', 'dong', 'off'], tickFrom: [5, 10, 15] };
+
 var audioCtx = null;
-var beepNodes = [];
+var audioOut = null;                          /* { ctx, master }: every cue goes through one volume control */
+var soundNodes = { work: [], rest: [], test: [] };
+
+/* What you chose, with anything missing or odd replaced by the default. */
+function cleanSound(s) {
+  s = s && typeof s === 'object' && !Array.isArray(s) ? s : {};
+  function pick(key) { return SOUND_CHOICES[key].indexOf(s[key]) >= 0 ? s[key] : SOUND_DEFAULTS[key]; }
+  function flag(key) { return typeof s[key] === 'boolean' ? s[key] : SOUND_DEFAULTS[key]; }
+  return { volume: pick('volume'), workTicks: flag('workTicks'), restTicks: flag('restTicks'),
+    endWork: pick('endWork'), endRest: pick('endRest'), tickFrom: pick('tickFrom') };
+}
+
+function soundPrefs() { return cleanSound(settings.sound); }
+
+/* Change one setting. Returns false, and changes nothing, for a value that is not allowed. */
+function setSound(key, value) {
+  if (!Object.prototype.hasOwnProperty.call(SOUND_DEFAULTS, key)) return false;
+  var next = soundPrefs();
+  next[key] = value;
+  next = cleanSound(next);
+  if (next[key] !== value) return false;
+  settings.sound = next;
+  if (key === 'volume') applyVolume();
+  return saveSettings();
+}
+
+/* The volume is one control that every sound passes through, so turning it down (or
+   off) silences what is already scheduled for a timer that is running. */
+function applyVolume() {
+  if (audioOut) audioOut.master.gain.value = SOUND_VOLUMES[soundPrefs().volume];
+}
+
+/* Ticking never fills more than the last half of a timer, and a timer too short
+   to have a "last seconds" does not tick at all. */
+function tickWindow(secs, from) {
+  var w = Math.min(from, Math.floor(secs / 2));
+  return w >= 2 ? w : 0;
+}
+
+/* What to play for a timer of `secs`, and when (seconds after it starts). Pure.
+   role 'work' is a timed set; 'rest' is the rest between sets. */
+function soundPlan(role, secs, prefs) {
+  var plan = [];
+  if (!(secs > 0) || prefs.volume === 'off') return plan;
+  var win = tickWindow(secs, prefs.tickFrom);
+
+  if (role === 'work') {
+    if (prefs.workTicks && win) {
+      for (var i = 0; i < win * 2; i++) plan.push({ at: secs - win + i * 0.5, kind: 'work-tick' });
+    }
+    if (prefs.endWork === 'dong') plan.push({ at: secs, kind: 'dong' });
+  } else {
+    if (prefs.restTicks && win) {
+      for (var k = 0; k < win; k++) plan.push({ at: secs - win + k, kind: (win - k) % 2 === 1 ? 'rest-tock' : 'rest-tick' });
+    }
+    if (prefs.endRest === 'beeps') plan.push({ at: secs, kind: 'beeps' });
+    else if (prefs.endRest === 'dong') plan.push({ at: secs, kind: 'dong-up' });
+  }
+  return plan;
+}
 
 /* Must be called from inside a user gesture or mobile browsers refuse. */
 function ensureAudio() {
@@ -3044,7 +3118,10 @@ function ensureAudio() {
       if (!AC) return null;
       audioCtx = new AC();
     }
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (audioCtx.state === 'suspended') {
+      var r = audioCtx.resume();
+      if (r && r.catch) r.catch(function () { /* still waiting for a gesture */ });
+    }
     return audioCtx;
   } catch (err) {
     console.warn('audio unavailable', err);
@@ -3052,39 +3129,128 @@ function ensureAudio() {
   }
 }
 
-/* Scheduled ahead of time rather than fired by the tick: the audio clock
-   keeps its own time, so the beep lands even if the tick is being throttled. */
-function scheduleBeep(inSeconds) {
-  var ctx = audioCtx;
-  if (!ctx) return;
+/* One volume control and a limiter in front of the speaker, so the cues can be
+   properly loud without ever clipping. */
+function soundOut(ctx, prefs) {
+  if (!audioOut || audioOut.ctx !== ctx) {
+    var master = ctx.createGain();
+    var limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -8;
+    limiter.knee.value = 10;
+    limiter.ratio.value = 8;
+    limiter.attack.value = 0.002;
+    limiter.release.value = 0.15;
+    master.connect(limiter);
+    limiter.connect(ctx.destination);
+    audioOut = { ctx: ctx, master: master };
+  }
+  applyVolume();
+  return audioOut.master;
+}
 
-  var at = ctx.currentTime + Math.max(0, inSeconds);
+/* One sound: an oscillator with a quick attack, an optional hold at full level, and a
+   decay. A tick that dies away in a few milliseconds is barely heard on a phone speaker,
+   so the ticks hold their level for a moment before they fade. */
+function soundNote(ctx, out, channel, o) {
+  try {
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    var attack = o.attack || 0.004, hold = o.hold || 0;
+    var peakEnd = o.at + attack + hold, end = peakEnd + o.decay;
+    osc.type = o.type;
+    osc.frequency.setValueAtTime(o.freq, o.at);
+    if (o.freqEnd) osc.frequency.exponentialRampToValueAtTime(o.freqEnd, end);
+    gain.gain.setValueAtTime(0.0001, o.at);
+    gain.gain.exponentialRampToValueAtTime(o.peak, o.at + attack);
+    if (hold) gain.gain.setValueAtTime(o.peak, peakEnd);
+    gain.gain.exponentialRampToValueAtTime(0.0001, end);
+    osc.connect(gain);
+    gain.connect(out);
+    osc.start(o.at);
+    osc.stop(end + 0.03);
+    soundNodes[channel].push(osc);
+  } catch (err) {
+    console.warn('sound scheduling failed', err);
+  }
+}
 
-  [0, 0.22, 0.44].forEach(function (offset, i) {
-    try {
-      var osc = ctx.createOscillator();
-      var gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = i === 2 ? 1320 : 880;
-      gain.gain.setValueAtTime(0.0001, at + offset);
-      gain.gain.exponentialRampToValueAtTime(0.4, at + offset + 0.012);
-      gain.gain.exponentialRampToValueAtTime(0.0001, at + offset + 0.19);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(at + offset);
-      osc.stop(at + offset + 0.21);
-      beepNodes.push(osc);
-    } catch (err) {
-      console.warn('beep scheduling failed', err);
-    }
+/* A struck bell: a few partials that are not whole multiples of each other, the
+   high ones dying away first. */
+var BELL_PARTIALS = [[1, 0.55, 1.9], [2, 0.3, 1.2], [2.76, 0.22, 0.8], [5.4, 0.1, 0.4]];
+
+function soundBell(ctx, out, channel, at, freq) {
+  BELL_PARTIALS.forEach(function (p) {
+    soundNote(ctx, out, channel, { type: 'sine', freq: freq * p[0], at: at, peak: p[1], decay: p[2] });
   });
 }
 
-function cancelBeep() {
-  beepNodes.forEach(function (n) {
-    try { n.stop(); n.disconnect(); } catch (err) { /* already finished */ }
+function soundCue(ctx, out, channel, kind, at) {
+  switch (kind) {
+    case 'work-tick':
+      soundNote(ctx, out, channel, { type: 'square', freq: 2600, freqEnd: 2100, at: at, peak: 0.95, attack: 0.002, hold: 0.04, decay: 0.04 });
+      break;
+    case 'rest-tick':
+      soundNote(ctx, out, channel, { type: 'square', freq: 1250, at: at, peak: 0.7, attack: 0.003, hold: 0.05, decay: 0.1 });
+      break;
+    case 'rest-tock':
+      soundNote(ctx, out, channel, { type: 'square', freq: 820, at: at, peak: 0.7, attack: 0.003, hold: 0.06, decay: 0.12 });
+      break;
+    case 'dong':                               /* high, then low: stop */
+      soundBell(ctx, out, channel, at, 784);
+      soundBell(ctx, out, channel, at + 0.55, 588);
+      break;
+    case 'dong-up':                            /* low, then high: go */
+      soundBell(ctx, out, channel, at, 588);
+      soundBell(ctx, out, channel, at + 0.55, 784);
+      break;
+    case 'beeps':
+      [0, 0.22, 0.44].forEach(function (offset, i) {
+        soundNote(ctx, out, channel, { type: 'square', freq: i === 2 ? 1320 : 880, at: at + offset, peak: 0.7, attack: 0.012, hold: 0.1, decay: 0.07 });
+      });
+      break;
+  }
+}
+
+/* Schedule everything a timer of `secs` should play. `channel` is who owns the
+   sounds, so a rest starting does not cancel the bell of the set that just ended. */
+function scheduleSounds(role, secs, channel) {
+  channel = channel || role;
+  cancelSounds(channel);
+  var prefs = soundPrefs();
+  var plan = soundPlan(role, secs, prefs);
+  if (!plan.length) return;
+  var ctx = ensureAudio();
+  if (!ctx) return;
+  var out = soundOut(ctx, prefs);
+  var base = ctx.currentTime;
+  plan.forEach(function (ev) { soundCue(ctx, out, channel, ev.kind, base + ev.at); });
+}
+
+/* Stop what is waiting to play: one channel, or all of them. */
+function cancelSounds(channel) {
+  (channel ? [channel] : Object.keys(soundNodes)).forEach(function (c) {
+    soundNodes[c].forEach(function (n) {
+      try { n.stop(); n.disconnect(); } catch (err) { /* already finished */ }
+    });
+    soundNodes[c] = [];
   });
-  beepNodes = [];
+}
+
+/* One cue, now, at the volume you have set: for hearing a change as you make it. */
+function previewCue(kind) {
+  var prefs = soundPrefs();
+  if (prefs.volume === 'off') return;
+  var ctx = ensureAudio();
+  if (!ctx) return;
+  cancelSounds('test');
+  soundCue(ctx, soundOut(ctx, prefs), 'test', kind, ctx.currentTime + 0.02);
+}
+
+/* A few seconds of what it will sound like, with today's settings. */
+function previewSound(role) {
+  var prefs = soundPrefs();
+  if (prefs.volume === 'off') { toast('Volume is off.'); return; }
+  scheduleSounds(role, 8, 'test');
 }
 
 /* Keeping the screen awake is the real answer to "survives screen lock":
@@ -3117,12 +3283,10 @@ function startRest(ex) {
   var secs = Number(ex.restSec) || 0;
   if (secs <= 0) return;
 
-  cancelBeep();
   restTimer = { endAt: Date.now() + secs * 1000, total: secs, label: ex.name, rang: false };
   persistTimer();
 
-  ensureAudio();               /* we are inside the chip tap, so this is allowed */
-  scheduleBeep(secs);
+  scheduleSounds('rest', secs);   /* from a tap or a finished set, so the audio is allowed to start */
   acquireWakeLock();
 
   if (!restTick) restTick = setInterval(paintTimer, 250);
@@ -3138,14 +3302,12 @@ function addRest(secs) {
   restTimer.rang = false;
   persistTimer();
 
-  cancelBeep();
-  ensureAudio();
-  scheduleBeep((restTimer.endAt - Date.now()) / 1000);
+  scheduleSounds('rest', (restTimer.endAt - Date.now()) / 1000);
   paintTimer();
 }
 
 function stopRest() {
-  cancelBeep();
+  cancelSounds('rest');
   releaseWakeLock();
   restTimer = null;
   persistTimer();
@@ -4154,6 +4316,7 @@ function enterRunner(sessionId, exIdx) {
 
 function leaveRunner() {
   runner = null;
+  cancelSounds('work');              /* a rest keeps going in its own bar, a hold does not */
   if (runTick) { clearInterval(runTick); runTick = null; }
 
   /* The root is position:fixed and full-bleed — leaving it in the DOM would
@@ -4175,12 +4338,13 @@ function runRemaining() {
 function startTimedSet() {
   runner.phase = 'working';
   runner.endAt = Date.now() + runner.secs * 1000;
-  ensureAudio();
-  scheduleBeep(runner.secs);
+  scheduleSounds('work', runner.secs);
   paintRunner();
 }
 
-/* One set finished: log it, advance, and let the rest run itself. */
+/* One set finished: log it, advance, and let the rest run itself. A set that ran out
+   by itself is finished a moment before its end sound is due, so this must not cancel
+   it; a tap that ends a set early cancels the sounds first (see primaryAction). */
 function completeSet() {
   var s = runSession();
   var ex = runExercise();
@@ -4191,7 +4355,6 @@ function completeSet() {
     runner.side = 1;
     runner.phase = 'ready';
     runner.endAt = 0;
-    cancelBeep();
     if (navigator.vibrate) navigator.vibrate(60);
     paintRunner();
     return;
@@ -4199,7 +4362,6 @@ function completeSet() {
 
   writeLog(s.id, ex.id, runner.setIdx, { done: true });
   paintCount();
-  cancelBeep();
 
   var lastSet = runner.setIdx >= (Number(ex.sets) || 1) - 1;
   var nextEx = nextRunnable(s, runner.exIdx + 1);
@@ -4249,7 +4411,7 @@ function skipSet() {
   var nextEx = nextRunnable(s, runner.exIdx + 1);
   var lastEx = nextEx < 0;
 
-  cancelBeep();
+  cancelSounds('work');
   runner.endAt = 0;
   runner.side = 0;
   runner.phase = 'ready';
@@ -4264,7 +4426,7 @@ function skipSet() {
 function skipExercise() {
   var s = runSession();
   if (!s) return;
-  cancelBeep();
+  cancelSounds('work');
   stopRest();
 
   var nextEx = nextRunnable(s, runner.exIdx + 1);
@@ -4438,7 +4600,7 @@ function primaryAction(ex, timed) {
   if (runner.phase === 'working') {
     btn.textContent = '✓ Done early';
     btn.className = 'run-action is-quiet';
-    btn.addEventListener('click', function () { cancelBeep(); completeSet(); });
+    btn.addEventListener('click', function () { cancelSounds('work'); completeSet(); });
     return btn;
   }
 
@@ -5581,6 +5743,7 @@ function renderProgress() {
   }
 
   nodes.push(unitsSection());               /* it changes the loads just above, so it sits beside them */
+  nodes.push(soundSection());
   nodes.push(scheduleSection());
   nodes.push(installSection());
   nodes.push(chartsSection());
@@ -6420,21 +6583,72 @@ function reviewCards(today, days) {
 
 /* --- units (on the Progress tab) --- */
 
+/* The chips are mid-page: change one and stay where you are. */
+function repaintProgressInPlace() {
+  var y = window.scrollY || 0;
+  renderProgress();
+  window.scrollTo(0, y);
+}
+
 function unitsSection() {
   var row = el('div', { class: 'sit-row' }, [el('span', { class: 'sit-label', text: 'Show weights in:' })]);
   ['kg', 'lb'].forEach(function (u) {
     var on = unitName() === u;
     var b = el('button', { class: 'sit-chip' + (on ? ' is-on' : ''), type: 'button', 'aria-pressed': String(on), text: u });
-    b.addEventListener('click', function () {
-      var y = window.scrollY || 0;
-      settings.units = u; saveSettings(); renderProgress();
-      window.scrollTo(0, y);                  /* the chips are mid-page: stay with them */
-    });
+    b.addEventListener('click', function () { settings.units = u; saveSettings(); repaintProgressInPlace(); });
     row.appendChild(b);
   });
   return el('div', {}, [
     el('p', { class: 'section-label', text: 'Units' }), row,
     el('p', { class: 'hint', text: 'Changes loads in sessions, logged sets and charts. Everything is stored in kg, and baselines are entered in kg.' })
+  ]);
+}
+
+/* --- sound (on the Progress tab) --- */
+
+var SOUND_LABELS = { off: 'Off', low: 'Low', medium: 'Medium', high: 'High', max: 'Max', dong: 'Double-dong', beeps: 'Beeps' };
+
+/* A row of chips for one setting: tap one to choose it. `after` runs once it is saved. */
+function soundRow(label, key, options, after) {
+  var current = soundPrefs()[key];
+  var row = el('div', { class: 'sit-row sound-row' }, [el('span', { class: 'sit-label', text: label })]);
+  options.forEach(function (o) {
+    var on = current === o.value;
+    var b = el('button', { class: 'sit-chip' + (on ? ' is-on' : ''), type: 'button', 'aria-pressed': String(on), text: o.label });
+    b.addEventListener('click', function () {
+      setSound(key, o.value);
+      if (after) after(o.value);
+      repaintProgressInPlace();
+    });
+    row.appendChild(b);
+  });
+  return row;
+}
+
+function soundChoices(key) {
+  return SOUND_CHOICES[key].map(function (v) { return { value: v, label: SOUND_LABELS[v] || (typeof v === 'number' ? v + ' s' : String(v)) }; });
+}
+
+function soundSection() {
+  var onOff = [{ value: true, label: 'On' }, { value: false, label: 'Off' }];
+
+  var hearSet = el('button', { class: 'btn', type: 'button', text: 'Hear the end of a set' });
+  hearSet.addEventListener('click', function () { previewSound('work'); });
+  var hearRest = el('button', { class: 'btn', type: 'button', text: 'Hear the end of a rest' });
+  hearRest.addEventListener('click', function () { previewSound('rest'); });
+
+  return el('div', {}, [
+    el('p', { class: 'section-label', text: 'Sound' }),
+    soundRow('Volume:', 'volume', soundChoices('volume'), function (v) {
+      if (v !== 'off') previewCue('dong');                           /* the double-dong, at the level you just picked */
+    }),
+    soundRow('Ticks in the last seconds of a set:', 'workTicks', onOff),
+    soundRow('Ticks before a rest ends:', 'restTicks', onOff),
+    soundRow('Ticks start:', 'tickFrom', soundChoices('tickFrom')),
+    soundRow('When a set ends:', 'endWork', [{ value: 'dong', label: 'Double-dong' }, { value: 'off', label: 'Silent' }]),
+    soundRow('When a rest ends:', 'endRest', [{ value: 'beeps', label: 'Beeps' }, { value: 'dong', label: 'Double-dong' }, { value: 'off', label: 'Silent' }]),
+    el('div', { class: 'sheet-actions sound-hear' }, [hearSet, hearRest]),
+    el('p', { class: 'hint', text: 'A set ticks fast and high, a rest ticks slow and low (tick, tock), so you can tell them apart without looking. A short timer only ticks for its last half. Sounds play at the phone’s media volume, so turn that up as well.' })
   ]);
 }
 
