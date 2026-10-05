@@ -1295,3 +1295,8 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
 .pack-list.is-bad { color: var(--serious-text); }
 .pack-list li { margin: 3px 0; }
 .field select { flex: 1; min-width: 0; width: 100%; }
+
+/* The how-to. */
+.howto-list { margin: 6px 0 12px; padding-left: 18px; font-size: 14.5px; line-height: 1.45; }
+.howto-list li { margin: 5px 0; }
+.howto-code { margin: 10px 0 14px; padding: 12px; overflow-x: auto; font-size: 12px; line-height: 1.45; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; white-space: pre; tab-size: 2; }

@@ -189,6 +189,19 @@ ctx.writeBackup({setLogs:[],customAreas:[]});
 eq('a file that has them replaces them', store.customAreas, '[]');
 eq('a restore reads them and puts them in the list', (store.customAreas=JSON.stringify([pack()]), ctx.loadCustomAreas(), ctx.mergeCustomAreas(), ctx.areaById('rowing')!==null), true);
 
+console.log('the starter pack and the how-to:');
+fresh();
+ok('the starter pack passes every check, with nothing to mention', (r=>r.ok&&r.warnings.length===0)(V(ctx.starterPack())));
+eq('and can be added as it is', ctx.addCustomArea(ctx.starterPack()).ok, true);
+eq('the example file in docs/ is exactly the starter pack, so it cannot go stale', fs.readFileSync('docs/area-pack-example.json','utf8'), JSON.stringify(ctx.starterPack(),null,2)+'\n');
+eq('and it passes when read back from the file', V(JSON.parse(fs.readFileSync('docs/area-pack-example.json','utf8')),{taken:[]}).ok, true);
+ok('the how-to draws', (()=>{try{ctx.renderHowTo();return true;}catch(e){console.log(e.stack);return false;}})());
+eq('and waits for the area data like the other screens', ctx.routeNeedsAreas('#/howto'), true);
+ok('every value the how-to lists is one the check accepts: the orders', ctx.areaData.rules.dayOrder.every(o=>V(Object.assign(ctx.starterPack(),{order:o})).ok));
+ok('the body areas', ctx.areaData.rules.bodyAreas.filter(b=>b.collected).every(b=>V(Object.assign(ctx.starterPack(),{guardedBy:[b.id]})).ok));
+ok('and the equipment', ctx.areaData.rules.equipment.every(q=>{const o=ctx.starterPack();o.stages[0].equipment=[q.id];return V(o).ok;}));
+eq('and every load type', ['bodyweight','fixedKg','pct5RM','pctBW','text','none'].map(type=>{const o=ctx.starterPack();o.stages[0].exercises[0].load={type};return V(o).ok;}), [true,true,true,true,true,true]);
+
 console.log('the add-area screens draw (the fake DOM cannot be read):');
 const draws=(f)=>{try{f();return true;}catch(e){console.log('   ',String(e.stack).split('\n').slice(0,3).join(' | '));return false;}};
 fresh(); ctx.todayISO=()=>'2026-10-07';

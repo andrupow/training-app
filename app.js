@@ -7,7 +7,7 @@
 
 'use strict';
 
-var BUILD = '1.14.0-m15';
+var BUILD = '1.15.0-m16';
 var PLAN_URL = 'data/plan.json';
 var LS_PLAN = 'plan.cache.v1';
 var LS_LOGS = 'setLogs';
@@ -356,6 +356,21 @@ function fmtKg(kg) {
   return String(Number(kg.toFixed(2)));
 }
 
+/* Weights are stored in kg, always. The switch only changes what is shown. */
+var LB_PER_KG = 2.20462;
+
+function usesLb() { return settings.units === 'lb'; }
+
+/* A weight as you read it: "5 kg", or "11 lb" (to the nearest half pound). */
+function fmtWeight(kg) {
+  return usesLb() ? fmtKg(Math.round(kg * LB_PER_KG * 2) / 2) + ' lb' : fmtKg(kg) + ' kg';
+}
+
+/* The number for an input, in your unit; and back to kg for storage. */
+function toDisplayWeight(kg) { return usesLb() ? Math.round(kg * LB_PER_KG * 2) / 2 : kg; }
+function fromDisplayWeight(n) { return usesLb() ? Math.round(n / LB_PER_KG * 100) / 100 : n; }
+function unitName() { return usesLb() ? 'lb' : 'kg'; }
+
 function usableNumber(v) {
   var n = Number(v);
   return isFinite(n) && n > 0 ? n : null;
@@ -373,7 +388,7 @@ function resolveLoad(load, date) {
     case 'fixedKg': {
       var fixed = Number(load.value);
       if (!isFinite(fixed)) return { text: '—', kg: null, missing: false };
-      return { text: '+' + fmtKg(fixed) + ' kg', kg: fixed, missing: false };
+      return { text: '+' + fmtWeight(fixed), kg: fixed, missing: false };
     }
 
     case 'pct5RM':
@@ -390,7 +405,7 @@ function resolveLoad(load, date) {
       if (!isFinite(pctValue)) return { text: '—', kg: null, missing: false };
 
       var kg = roundToPlate(base * pctValue);
-      return { text: '+' + fmtKg(kg) + ' kg', kg: kg, missing: false };
+      return { text: '+' + fmtWeight(kg), kg: kg, missing: false };
     }
 
     default: return { text: '—', kg: null, missing: false };
@@ -403,7 +418,7 @@ function ruleText(load) {
   switch (load.type) {
     case 'pct5RM':     return pct(load.value) + '% of 5RM added';
     case 'pctBW':      return pct(load.value) + '% bodyweight';
-    case 'fixedKg':    return '+' + load.value + ' kg';
+    case 'fixedKg':    return '+' + fmtWeight(Number(load.value));
     case 'bodyweight': return 'Bodyweight';
     case 'text':       return load.text || '—';
     default:           return '—';
@@ -2959,7 +2974,7 @@ function paintLogged(node, ex, session) {
 /* "20 kg", "5 reps", "RPE 8" — whatever was written down for the set. */
 function setBits(e) {
   var bits = [];
-  if (e.loadKg !== undefined) bits.push(e.loadKg + ' kg');
+  if (e.loadKg !== undefined) bits.push(fmtWeight(e.loadKg));
   if (e.reps !== undefined) bits.push(e.reps + (e.reps === 1 ? ' rep' : ' reps'));
   if (e.rpe !== undefined) bits.push('RPE ' + e.rpe);
   return bits;
@@ -3192,7 +3207,7 @@ function openSetSheet(ex, session, i, btn, logged) {
   var repsIn = el('input', { type: 'text', inputmode: 'numeric', id: 'f-reps', placeholder: String(ex.reps || '') });
   var rpeIn  = el('input', { type: 'text', inputmode: 'decimal', id: 'f-rpe',  placeholder: '1–10' });
 
-  if (entry.loadKg !== undefined) loadIn.value = entry.loadKg;
+  if (entry.loadKg !== undefined) loadIn.value = toDisplayWeight(entry.loadKg);
   if (entry.reps !== undefined) repsIn.value = entry.reps;
   if (entry.rpe !== undefined) rpeIn.value = entry.rpe;
 
@@ -3201,7 +3216,7 @@ function openSetSheet(ex, session, i, btn, logged) {
   var form = el('form', { class: 'sheet' }, [
     el('h3', { text: ex.name }),
     el('p', { class: 'sheet-sub', text: 'Set ' + (i + 1) + ' of ' + ex.sets + ' — what actually happened' }),
-    field('Load (kg)', loadIn),
+    field('Load (' + unitName() + ')', loadIn),
     field('Reps', repsIn),
     field('RPE', rpeIn),
     problem,
@@ -3244,7 +3259,7 @@ function openSetSheet(ex, session, i, btn, logged) {
     e.preventDefault();
 
     var checks = [
-      checkSetValue(loadIn.value, SET_LIMITS[0]),
+      checkSetValue(loadIn.value, loadLimitInUnit()),
       checkSetValue(repsIn.value, SET_LIMITS[1]),
       checkSetValue(rpeIn.value, SET_LIMITS[2])
     ];
@@ -3267,7 +3282,7 @@ function openSetSheet(ex, session, i, btn, logged) {
 
     writeLog(session.id, ex.id, i, {
       done: true,                                  /* you logged it, so you did it */
-      loadKg: checks[0].value,
+      loadKg: checks[0].value === undefined ? undefined : fromDisplayWeight(checks[0].value),
       reps: checks[1].value,
       rpe: checks[2].value
     });
@@ -3293,6 +3308,12 @@ var SET_LIMITS = [
   { key: 'reps',   label: 'Reps', unit: '',    min: 0, max: 300 },
   { key: 'rpe',    label: 'RPE',  unit: '',    min: 1, max: 10 }
 ];
+
+/* The load limit as you type it: 250 kg is 551 lb. */
+function loadLimitInUnit() {
+  var l = SET_LIMITS[0];
+  return usesLb() ? { key: l.key, label: l.label, unit: ' lb', min: 0, max: Math.floor(l.max * LB_PER_KG) } : l;
+}
 
 /* Blank is fine, it means "as planned". Anything else has to be a number in range. */
 function checkSetValue(raw, limit) {
@@ -5176,7 +5197,7 @@ function lineChart(series, actual, track) {
   [hi, lo].forEach(function (v) {
     g.push(svgEl('line', { x1: PAD.l, y1: y(v), x2: CHART_W - PAD.r, y2: y(v), class: 'ch-grid' }));
     g.push(svgEl('text', { x: PAD.l - 5, y: y(v) + 3.5, class: 'ch-ytick', 'text-anchor': 'end',
-      text: fmtKg(Math.round(v / PLATE) * PLATE) }));
+      text: fmtKg(toDisplayWeight(Math.round(v / PLATE) * PLATE)) }));
   });
 
   /* where the 5RM was retested — the reason for any step in the line */
@@ -5201,7 +5222,7 @@ function lineChart(series, actual, track) {
 
   series.forEach(function (p, i) {
     g.push(svgEl('circle', { cx: x(i), cy: y(p.kg), r: 2.6, class: 'ch-dot' }, [
-      svgEl('title', { text: p.label + ': ' + fmtKg(p.kg) + ' kg' })
+      svgEl('title', { text: p.label + ': ' + fmtWeight(p.kg) })
     ]));
   });
 
@@ -5209,7 +5230,7 @@ function lineChart(series, actual, track) {
   series.forEach(function (p, i) {
     if (actual[p.week] === undefined) return;
     g.push(svgEl('circle', { cx: x(i), cy: y(actual[p.week]), r: 3.2, class: 'ch-actual' }, [
-      svgEl('title', { text: p.label + ' actual: ' + fmtKg(actual[p.week]) + ' kg' })
+      svgEl('title', { text: p.label + ' actual: ' + fmtWeight(actual[p.week]) })
     ]));
   });
 
@@ -5223,8 +5244,8 @@ function lineChart(series, actual, track) {
 
   var main = mainSegment(segmentsOf(series));
   var summary = (TRACK_LABEL[track] || track) + ': ' + main[0].p.exName + ', '
-    + fmtKg(main[0].p.kg) + ' kg in ' + main[0].p.label + ' to '
-    + fmtKg(main[main.length - 1].p.kg) + ' kg in ' + main[main.length - 1].p.label + '.';
+    + fmtWeight(main[0].p.kg) + ' in ' + main[0].p.label + ' to '
+    + fmtWeight(main[main.length - 1].p.kg) + ' in ' + main[main.length - 1].p.label + '.';
 
   return svgEl('svg', {
     viewBox: '0 0 ' + CHART_W + ' ' + CHART_H,
@@ -5274,7 +5295,7 @@ function chartsSection() {
     wrap.appendChild(el('div', { class: 'chart-card' }, [
       el('div', { class: 'chart-head' }, [
         el('span', { class: 'chart-title', text: TRACK_LABEL[track] || track }),
-        el('span', { class: 'chart-delta', text: (delta >= 0 ? '+' : '−') + fmtKg(Math.abs(delta)) + ' kg' })
+        el('span', { class: 'chart-delta', text: (delta >= 0 ? '+' : '−') + fmtWeight(Math.abs(delta)) })
       ]),
       el('div', { class: 'chart-sub', text: names.join(' → ') }),
       lineChart(series, actual, track),
@@ -5513,6 +5534,7 @@ function renderProgress() {
     });
   }
 
+  nodes.push(unitsSection());               /* it changes the loads just above, so it sits beside them */
   nodes.push(scheduleSection());
   nodes.push(installSection());
   nodes.push(chartsSection());
@@ -5556,7 +5578,7 @@ function dataCheckSection() {
     el('p', { class: 'section-label', text: 'Check your data' }),
     el('div', { class: 'callout callout-due' }, [
       el('strong', { text: items.length === 1 ? 'One set looks like a typo' : items.length + ' sets look like typos' }),
-      document.createTextNode('A load over 250 kg, more than 300 reps, or an RPE outside 1–10. Clearing removes only the odd numbers; the set stays done.')
+      document.createTextNode('A load over ' + loadLimitInUnit().max + ' ' + unitName() + ', more than 300 reps, or an RPE outside 1–10. Clearing removes only the odd numbers; the set stays done.')
     ])
   ]);
 
@@ -6350,6 +6372,22 @@ function reviewCards(today, days) {
   return out;
 }
 
+/* --- units (on the Progress tab) --- */
+
+function unitsSection() {
+  var row = el('div', { class: 'sit-row' }, [el('span', { class: 'sit-label', text: 'Show weights in:' })]);
+  ['kg', 'lb'].forEach(function (u) {
+    var on = unitName() === u;
+    var b = el('button', { class: 'sit-chip' + (on ? ' is-on' : ''), type: 'button', 'aria-pressed': String(on), text: u });
+    b.addEventListener('click', function () { settings.units = u; saveSettings(); renderProgress(); });
+    row.appendChild(b);
+  });
+  return el('div', {}, [
+    el('p', { class: 'section-label', text: 'Units' }), row,
+    el('p', { class: 'hint', text: 'Changes loads in sessions, logged sets and charts. Everything is stored in kg, and baselines are entered in kg.' })
+  ]);
+}
+
 /* --- equipment you own (on the Progress tab) --- */
 
 function equipmentSection() {
@@ -6508,6 +6546,97 @@ function reviewPack(text) {
   });
   nodes.push(add);
   openSheet('Add this area?', r.warnings.length ? 'It passes. Worth a look first:' : 'It passes every check.', nodes);
+}
+
+/* --- how adding areas works --------------------------------------------------------- */
+
+/* A small pack that passes every check, for copying and changing. The example file in
+   docs/ is this, and a test keeps the two the same, so it never goes stale. */
+function starterPack() {
+  return {
+    id: 'rowing',
+    name: 'Rowing technique',
+    goal: 'A smooth 2 km row at a steady pace.',
+    perWeek: { min: 2, target: 3, max: 4 },
+    minGapDays: 1,
+    minutes: 25,
+    load: 'medium',
+    order: 'strength',
+    guardedBy: ['lowerBack'],
+    stages: [
+      {
+        id: 'R1', name: 'Catch and drive', askAfter: 6,
+        work: 'Rowing drills and short pieces.',
+        ready: ['5 x 500 m at a steady pace'],
+        equipment: ['mat'],
+        exercises: [
+          { id: 'drill', name: 'Pause drill', sets: 3, reps: '10', restSec: 45, load: { type: 'bodyweight' }, cue: 'Legs, body, arms.' },
+          { id: 'piece', name: 'Steady piece', sets: 4, reps: '4 min', restSec: 90, load: { type: 'text', text: 'Easy pace' }, cue: 'Same stroke rate.' }
+        ]
+      },
+      {
+        id: 'R2', name: 'Steady state', askAfter: 8, goal: true,
+        work: 'Longer steady rows.',
+        ready: ['2 km without stopping'],
+        exercises: [
+          { id: 'steady', name: 'Steady row', sets: 3, reps: '6 min', restSec: 90, load: { type: 'text', text: 'Easy pace' }, cue: 'Relax the shoulders.' }
+        ]
+      }
+    ]
+  };
+}
+
+function renderHowTo() {
+  if (!areaData) return areasLoading();
+  var rules = areaData.rules;
+  var starter = JSON.stringify(starterPack(), null, 2);
+
+  function h(text) { return el('p', { class: 'section-label', text: text }); }
+  function p(text) { return el('p', { class: 'hint', text: text }); }
+  function list(items) { return el('ul', { class: 'howto-list' }, items.map(function (x) { return el('li', { text: x }); })); }
+
+  var copy = el('button', { class: 'btn btn-block', type: 'button', text: 'Copy the starter pack' });
+  copy.addEventListener('click', function () {
+    var done = function () { toast('Copied. Paste it into a text editor, change it, save it as a .json file.'); };
+    var fail = function () { toast('Could not copy. Select the text below and copy it.'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(starter).then(done, fail);
+    else fail();
+  });
+
+  setView('Adding areas', '', [
+    el('a', { class: 'back', href: '#/areas', text: '‹ Areas' }),
+    h('Three ways'),
+    list([
+      'Train an area that was not suggested today: open Today, find it under "Add to this sitting", tap Add.',
+      'Track something with no ladder (a run, climbing, mobility): Areas, "+ Add an area", "Track something simple". It gets a target, a time and a place on the menu and in the week and the verdicts.',
+      'Add a whole ladder: write an area pack, a single JSON file, and import it from the same sheet. It is checked first, and nothing changes if it does not pass.'
+    ]),
+    h('The pack'),
+    p('One area per file. The area has a few settings and a list of stages; each stage says what it trains, the standard you attest to before moving up, and its exercises. Start from this one, which passes every check:'),
+    copy,
+    el('pre', { class: 'howto-code', tabindex: '0' }, [starter]),
+    h('What goes where'),
+    list([
+      'Area: id (lowercase, 2 to 24 characters), name, goal, perWeek { min, target, max } in days (1 to 7), minGapDays (days between sessions), minutes, load (low, medium or high), order, guardedBy, stages. Optional: short (up to 13 characters), priority, sessionTypes.',
+      'Stage: id, name, work (what it trains), ready (the standard, a list of clear sentences), exercises, and askAfter (full area-days before the review, at least one week of the area). Optional: equipment, goal (one stage), optional, draft, requires, bells, maxContacts.',
+      'Exercise: id (lowercase slug), name, sets, reps (text: "5", "30 s", "8 / side"), restSec, load { type }, and optionally tempo, cue, note. load.type is one of bodyweight, fixedKg, pct5RM, pctBW, text, none.',
+      'Every stage needs at least one exercise, so a move up never lands on an empty stage.'
+    ]),
+    h('Values you can use'),
+    list([
+      'order: ' + rules.dayOrder.join(', ') + '. It sets where the area goes in a day.',
+      'guardedBy: ' + rules.bodyAreas.filter(function (b) { return b.collected; }).map(function (b) { return b.id; }).join(', ') + '. A red light on one of these pauses the area.',
+      'equipment: ' + rules.equipment.map(function (q) { return q.id; }).join(', ') + '.'
+    ]),
+    h('Good to know'),
+    list([
+      'What you add is kept with your data and is in the backup. Remove it from its own page; the days you logged stay in your history and come back if you add it again.',
+      'A rough clock compares each stage’s exercises with the minutes you gave and mentions it if they are far apart. It never blocks.',
+      'The eight areas that come with the app are not changed by anything you add.'
+    ]),
+    el('p', { class: 'buildline', text: 'Build ' + BUILD })
+  ]);
+  window.scrollTo(0, 0);
 }
 
 /* One of your own that no longer loads, with why, and a way to clear it. */
@@ -6704,7 +6833,7 @@ function renderAreaDetail(id) {
    equipment card. Only Plan works without it. An empty hash is Today. */
 function routeNeedsAreas(hash) {
   var tab = String(hash || '').replace(/^#\/?/, '').split('/')[0] || 'today';
-  return tab === 'today' || tab === 'areas' || tab === 'run' || tab === 'checkin' || tab === 'review' || tab === 'progress';
+  return tab === 'today' || tab === 'areas' || tab === 'run' || tab === 'checkin' || tab === 'review' || tab === 'progress' || tab === 'howto';
 }
 
 /* ----------------------------------------------------------------- router */
@@ -6728,6 +6857,7 @@ function route() {
   if (tab === 'plan' && parts[1]) renderWeek(parts[1]);
   else if (tab === 'plan') renderWeekList();
   else if (tab === 'review' && parts[1]) renderReview(parts[1]);
+  else if (tab === 'howto') renderHowTo();
   else if (tab === 'areas' && parts[1]) renderAreaDetail(parts[1]);
   else if (tab === 'areas') renderAreas();
   else if (tab === 'session') renderSession(parts[1]);
@@ -6738,7 +6868,7 @@ function route() {
     renderNotFound('Nothing at "' + hash + '".');
   }
 
-  markTab(tab === 'session' ? 'plan' : tab === 'review' ? 'areas' : tab);
+  markTab(tab === 'session' ? 'plan' : (tab === 'review' || tab === 'howto') ? 'areas' : tab);
   paintTabBadge();
   view().focus({ preventScroll: true });
 }
