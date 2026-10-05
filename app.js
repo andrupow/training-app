@@ -17,11 +17,13 @@ var LS_SETTINGS = 'settings';
 var LS_SCHEDULE = 'schedule';
 var LS_DAYPLANS = 'dayPlans';      /* the menu of each day, so the week can say what was skipped */
 var LS_AREADAYS = 'areaDays';      /* what each area-day contained, fixed when it was first planned */
+var LS_PROGRESS = 'progress';      /* which stage each area is at, and since when */
+var LS_DECISIONS = 'decisions';    /* every move up, step back and "not yet", with the day and the numbers */
 var LS_WEEKFITS = 'weekFits';      /* each week's targets, fitted to your time and saved when the week is first looked at */
 
 /* Everything the app owns, in one list. Export walks it, import restores it,
    and Milestone 5 gets checkIns backed up without touching this file. */
-var COLLECTIONS = [LS_BASELINES, LS_LOGS, LS_CHECKINS, LS_SCHEDULE, LS_SETTINGS, LS_DAYPLANS, LS_AREADAYS, LS_WEEKFITS];
+var COLLECTIONS = [LS_BASELINES, LS_LOGS, LS_CHECKINS, LS_SCHEDULE, LS_SETTINGS, LS_DAYPLANS, LS_AREADAYS, LS_WEEKFITS, LS_PROGRESS, LS_DECISIONS];
 
 var EXPORT_NAG_DAYS = 7;
 var LS_TIMER = 'restTimer';
@@ -716,7 +718,10 @@ function weekStartOf(iso) { return addDays(iso, -isoDow(iso)); }
 
 /* A stage may override its area's weekly targets and spacing (Nordic does,
    in the banded stages, where lower load allows more often). */
-function currentStage(area) { return area.stages[0]; }
+function currentStage(area) {
+  var p = progress[area.id];
+  return (p && stageById(area, p.stage)) || area.stages[0];
+}
 function stageWeek(area, stage) { return stage.perWeek || area.perWeek; }
 function stageGap(area, stage) { return stage.minGapDays || area.minGapDays; }
 
@@ -774,7 +779,9 @@ var FALLBACK_MINUTES = 45;
 var AREA_DAY_RE = /^(\d{4}-\d{2}-\d{2}):([a-z0-9-]+)$/;
 
 var dayPlans = {};    /* date -> { sittings: [{ minutes, areas }], suggested: [id], removed: { id: reason }, why: { id: why it was suggested } } */
-var frozenDays = {};  /* "date:area" -> { stage, type } */
+var frozenDays = {};  /* "date:area" -> { stage, type, deload } */
+var progress = {};    /* area -> { stage, since, nextAsk }: where each area is on its ladder */
+var decisions = [];   /* what you decided at each review, oldest first */
 
 function areaDayId(date, areaId) { return date + ':' + areaId; }
 
@@ -833,6 +840,7 @@ function loadFrozenDays() {
     var f = stored[key];
     if (!parseAreaDayId(key) || !f || typeof f.stage !== 'string') return;
     frozenDays[key] = f.type && typeof f.type === 'string' ? { stage: f.stage, type: f.type } : { stage: f.stage };
+    if (f.deload === true) frozenDays[key].deload = true;
   });
 }
 
@@ -915,6 +923,7 @@ function freezeAreaDay(date, areaId) {
   var f = { stage: stage.id };
   var type = nextSessionType(area, stage, date);
   if (type) f.type = type;
+  if (areaDayPhase(area, date, areaDays()) === 'deload') f.deload = true;     /* the easy end of the stage */
   frozenDays[key] = f;
   saveFrozenDays();
   return f;
@@ -943,6 +952,8 @@ function areaDaySession(date, areaId) {
 
   var type = f ? (f.type || null) : nextSessionType(area, stage, date);
   var exercises = stage.exercises.filter(function (e) { return !type || !e.type || e.type === type; });
+  var deload = !!(f && f.deload);
+  if (deload) exercises = exercises.map(function (e) { var c = Object.assign({}, e); c.sets = deloadSets(e.sets); return c; });
 
   return {
     id: areaDayId(date, areaId),
@@ -951,9 +962,10 @@ function areaDaySession(date, areaId) {
     week: null,                                  /* weeks here are Mon–Sun, not plan weeks */
     weekLabel: fmtDateShort(date),
     day: DAY_SHORT[isoDow(date)],
-    name: area.name + ' · ' + stage.id + (type ? ' · ' + type : ''),
+    name: area.name + ' · ' + stage.id + (type ? ' · ' + type : '') + (deload ? ' · deload' : ''),
     stageId: stage.id,
     type: type,
+    deload: deload,
     draft: !!stage.draft,
     frozen: !!f,
     exercises: exercises
@@ -1007,6 +1019,241 @@ function areaDays() {
     have.full = have.done * 100 >= have.total * areaData.rules.defaults.fullAreaPct;
   });
   return Object.keys(byKey).map(function (k) { return byKey[k]; });
+}
+
+/* --- stages and level-up -------------------------------------------------- */
+/* Each area is on one rung of its ladder. Full area-days are counted in the
+   current stage only, from the day you moved there. Near the end of a stage the
+   work eases off for a block (the deload), then the app asks whether you are
+   ready. You always decide: it never moves you on its own. Moving up waits while
+   a body area that guards the area is amber or red; "not yet" and stepping back
+   never wait. Everything here is a plain function of progress, the logs and the
+   area files. */
+
+var DECISION_ACTIONS = ['up', 'stay', 'back', 'set'];
+
+function cleanProgress(raw) {
+  var out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  Object.keys(raw).forEach(function (id) {
+    var p = raw[id];
+    if (!p || typeof p.stage !== 'string' || !p.stage) return;
+    var na = p.nextAsk === null || p.nextAsk === undefined ? NaN : Number(p.nextAsk);
+    out[id] = {
+      stage: p.stage,
+      since: typeof p.since === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.since) ? p.since : null,
+      nextAsk: isFinite(na) && na >= 0 ? Math.round(na) : null
+    };
+  });
+  return out;
+}
+
+function cleanDecisions(raw) {
+  var out = [];
+  (Array.isArray(raw) ? raw : []).forEach(function (d) {
+    if (!d || typeof d.area !== 'string' || typeof d.to !== 'string' || DECISION_ACTIONS.indexOf(d.action) < 0) return;
+    if (typeof d.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(d.date)) return;
+    var full = Number(d.full);
+    var e = { date: d.date, area: d.area, from: typeof d.from === 'string' ? d.from : d.to, to: d.to, action: d.action, full: isFinite(full) && full >= 0 ? Math.round(full) : 0 };
+    if (typeof d.note === 'string' && d.note) e.note = d.note;
+    out.push(e);
+  });
+  return out;
+}
+
+function loadProgress() { progress = cleanProgress(lsGet(LS_PROGRESS)); }
+function loadDecisions() { decisions = cleanDecisions(lsGet(LS_DECISIONS)); }
+function saveProgress() { return saveCollection(LS_PROGRESS, progress); }
+function saveDecisions() { return saveCollection(LS_DECISIONS, decisions); }
+
+/* Sets in an easy block: about 60% of the usual, never fewer than one. */
+function deloadSets(sets) {
+  var factor = areaData ? areaData.rules.defaults.deloadFactor : 0.6;
+  return Math.max(1, Math.round((Number(sets) || 0) * factor));
+}
+
+/* A week's worth of days is the easy block at the end of a stage. */
+function deloadDays(area, stage) { return stageWeek(area, stage).target; }
+
+/* The stage a day was done in: what it was fixed to when first planned, and the
+   first stage for anything from the old plan. */
+function stageOfDay(area, date) {
+  var f = frozenDays[areaDayId(date, area.id)];
+  return f ? f.stage : area.stages[0].id;
+}
+
+/* Full area-days in a stage, since the day you moved there. */
+function stageFullDays(area, stage, days, beforeDate) {
+  var since = (progress[area.id] || {}).since;
+  return days.filter(function (r) {
+    return r.area === area.id && r.full && (!beforeDate || r.date < beforeDate)
+      && (!since || r.date >= since) && stageOfDay(area, r.date) === stage.id;
+  }).length;
+}
+
+/* Where a stage is, from plain numbers:
+     top     nothing above it, so nothing to ask
+     build   the full prescription
+     deload  the easy block before the review
+     ask     ready for a review
+   After "not yet" (nextAsk set) the stage stays at its top prescription, with no
+   easy block, until that many full area-days. */
+function stagePhase(stage, full, deload, nextAsk) {
+  if (!stage.askAfter) return 'top';
+  if (nextAsk !== null && nextAsk !== undefined) return full >= nextAsk ? 'ask' : 'build';
+  if (full >= stage.askAfter) return 'ask';
+  var easyFrom = Math.max(stage.askAfter - deload, Math.ceil(stage.askAfter / 2));
+  return full >= easyFrom ? 'deload' : 'build';
+}
+
+function nextAskOf(area) {
+  var p = progress[area.id];
+  return p && p.nextAsk !== null && p.nextAsk !== undefined ? p.nextAsk : null;
+}
+
+/* The phase a new area-day on `date` falls in: judged by the full days before it. */
+function areaDayPhase(area, date, days) {
+  var stage = currentStage(area);
+  return stagePhase(stage, stageFullDays(area, stage, days, date), deloadDays(area, stage), nextAskOf(area));
+}
+
+/* Where an area stands on its ladder. */
+function stageProgress(area, days) {
+  var stage = currentStage(area);
+  var full = stageFullDays(area, stage, days);
+  var deload = deloadDays(area, stage);
+  var phase = stagePhase(stage, full, deload, nextAskOf(area));
+  var index = stageIndex(area, stage.id);
+  return {
+    stage: stage, full: full, askAfter: stage.askAfter, deload: deload, phase: phase,
+    nextAsk: nextAskOf(area), index: index, top: index === area.stages.length - 1, due: phase === 'ask'
+  };
+}
+
+/* Why moving up has to wait, or null. Amber and red on a guarding body area. */
+function levelUpBlock(area, date) {
+  return heldReason(area, date) || holdReason(area, date);
+}
+
+/* The other areas a stage asks for first. Advisory: they are shown, never enforced. */
+function prereqStatus(stage) {
+  return (stage.requires || []).map(function (r) {
+    var a = areaById(r.area);
+    if (!a) return { area: r.area, stage: r.stage, name: r.area, have: null, met: false };
+    var have = currentStage(a);
+    return { area: r.area, stage: r.stage, name: a.name, have: have.id, met: stageIndex(a, have.id) >= stageIndex(a, r.stage) };
+  });
+}
+
+/* --- equipment you own --- */
+
+var DEFAULT_BELLS_LB = [15, 25];
+
+function equipmentList() { return areaData ? areaData.rules.equipment : []; }
+
+function equipmentOwned(id) {
+  if (settings.equipment && typeof settings.equipment[id] === 'boolean') return settings.equipment[id];
+  var q = equipmentList().filter(function (x) { return x.id === id; })[0];
+  return !!(q && q.owned);
+}
+
+function setEquipment(id, owned) {
+  settings.equipment = settings.equipment || {};
+  settings.equipment[id] = !!owned;
+  saveSettings();
+}
+
+function bellsOwned() {
+  var b = settings.bellsLb;
+  return Array.isArray(b) ? b.slice() : DEFAULT_BELLS_LB.slice();
+}
+
+function setBells(list) {
+  var seen = {}, out = [];
+  (Array.isArray(list) ? list : []).forEach(function (x) {
+    var n = Math.round(Number(x));
+    if (isFinite(n) && n > 0 && n <= 200 && !seen[n]) { seen[n] = true; out.push(n); }
+  });
+  settings.bellsLb = out.sort(function (a, b) { return a - b; });
+  saveSettings();
+}
+
+/* What a stage needs, and what of that you have. */
+function stageNeeds(stage) {
+  var equipment = (stage.equipment || []).map(function (id) {
+    var q = equipmentList().filter(function (x) { return x.id === id; })[0];
+    return { id: id, label: q ? q.label : id, owned: equipmentOwned(id) };
+  });
+  var have = bellsOwned();
+  var bells = (stage.bells || []).map(function (b) { return { kg: b.kg, lb: b.lb, owned: have.indexOf(b.lb) >= 0 }; });
+  var missing = equipment.filter(function (x) { return !x.owned; }).map(function (x) { return x.label; })
+    .concat(bells.filter(function (b) { return !b.owned; }).map(function (b) { return 'a ' + b.lb + ' lb (' + b.kg + ' kg) bell'; }));
+  return { equipment: equipment, bells: bells, missing: missing };
+}
+
+/* --- deciding --- */
+
+/* Enter a stage: the full-day count starts again from today. */
+function enterStage(area, stage, action, date, full) {
+  var from = currentStage(area).id;
+  progress[area.id] = { stage: stage.id, since: date, nextAsk: null };
+  decisions.push({ date: date, area: area.id, from: from, to: stage.id, action: action, full: full });
+  saveProgress(); saveDecisions();
+  refreshAreaDay(area.id, date);
+  return { ok: true, stage: stage };
+}
+
+/* If today's menu has this area and nothing is done yet, plan it again at the
+   stage you are now in. */
+function refreshAreaDay(areaId, date) {
+  var plan = dayPlans[date];
+  if (!plan || plannedAreaIds(plan).indexOf(areaId) < 0) return;
+  if (doneByAreaDay()[areaDayId(date, areaId)]) return;
+  delete frozenDays[areaDayId(date, areaId)];
+  freezeAreaDay(date, areaId);
+}
+
+function moveUp(areaId, days, date) {
+  var area = areaById(areaId);
+  if (!area) return { ok: false, why: 'No such area.' };
+  var stage = currentStage(area), next = area.stages[stageIndex(area, stage.id) + 1];
+  if (!next) return { ok: false, why: 'This is the top of the ladder.' };
+  var block = levelUpBlock(area, date);
+  if (block) return { ok: false, why: 'Waiting: ' + block + '.' };
+  if (!next.exercises || !next.exercises.length) return { ok: false, why: next.id + ' has nothing written yet.' };
+  return enterStage(area, next, 'up', date, stageFullDays(area, stage, days));
+}
+
+/* Not yet: stay at the top prescription, and ask again after a few more days. */
+function notYet(areaId, days, date) {
+  var area = areaById(areaId);
+  if (!area) return { ok: false, why: 'No such area.' };
+  var stage = currentStage(area), full = stageFullDays(area, stage, days);
+  var every = areaData.rules.defaults.repeatEvery;
+  var p = progress[area.id] || { stage: stage.id, since: null };
+  p.nextAsk = full + every;
+  progress[area.id] = p;
+  decisions.push({ date: date, area: area.id, from: stage.id, to: stage.id, action: 'stay', full: full });
+  saveProgress(); saveDecisions();
+  return { ok: true, nextAsk: p.nextAsk };
+}
+
+function stepBack(areaId, days, date) {
+  var area = areaById(areaId);
+  if (!area) return { ok: false, why: 'No such area.' };
+  var stage = currentStage(area), prev = area.stages[stageIndex(area, stage.id) - 1];
+  if (!prev) return { ok: false, why: 'This is the first stage.' };
+  return enterStage(area, prev, 'back', date, stageFullDays(area, stage, days));
+}
+
+/* Set the stage yourself: where you start, or somewhere other than the next rung. */
+function placeAt(areaId, stageId, days, date) {
+  var area = areaById(areaId);
+  var stage = area && stageById(area, stageId);
+  if (!stage) return { ok: false, why: 'No such stage.' };
+  if (stage.id === currentStage(area).id) return { ok: false, why: 'Already at ' + stage.id + '.' };
+  if (!stage.exercises || !stage.exercises.length) return { ok: false, why: stage.id + ' has nothing written yet.' };
+  return enterStage(area, stage, 'set', date, stageFullDays(area, currentStage(area), days));
 }
 
 /* --- the daily menu ----------------------------------------------------- */
@@ -1652,13 +1899,7 @@ function dayDetailItems(date, today, days) {
   return out;
 }
 
-/* How many full days an area has in its current stage. Everything so far counts,
-   because nobody has left the first stage yet. */
-function stageProgress(area, days) {
-  var stage = currentStage(area);
-  var full = days.filter(function (r) { return r.area === area.id && r.full; }).length;
-  return { stage: stage, full: full, askAfter: stage.askAfter };
-}
+/* (where an area stands on its ladder: see the stage engine, above the daily menu) */
 
 /* --- the week's time budget ----------------------------------------------- */
 /* Each area asks for a number of days a week. Whether they all fit depends on the
@@ -3044,7 +3285,7 @@ function inspectBackup(raw) {
     var key = COLLECTIONS[i];
     if (!(key in data)) continue;
     var v = data[key];
-    var wantArray = [LS_SETTINGS, LS_SCHEDULE, LS_DAYPLANS, LS_AREADAYS, LS_WEEKFITS].indexOf(key) < 0;
+    var wantArray = [LS_SETTINGS, LS_SCHEDULE, LS_DAYPLANS, LS_AREADAYS, LS_WEEKFITS, LS_PROGRESS].indexOf(key) < 0;
 
     if (wantArray ? !Array.isArray(v) : (typeof v !== 'object' || v === null || Array.isArray(v))) {
       return { error: '“' + key + '” is the wrong shape in that file.' };
@@ -3079,7 +3320,7 @@ function writeBackup(data) {
     if (key in data) localStorage.setItem(key, JSON.stringify(data[key]));
   });
   if (LS_LOGS in data) {
-    [LS_DAYPLANS, LS_AREADAYS, LS_WEEKFITS].forEach(function (key) {
+    [LS_DAYPLANS, LS_AREADAYS, LS_WEEKFITS, LS_PROGRESS, LS_DECISIONS].forEach(function (key) {
       if (!(key in data)) localStorage.removeItem(key);
     });
   }
@@ -3130,6 +3371,8 @@ function importData(file) {
     loadDayPlans();
     loadFrozenDays();
     loadWeekFits();
+    loadProgress();
+    loadDecisions();
     renderProgress();
     paintTabBadge();
     toast('Restored ' + incoming + '.');
@@ -5555,6 +5798,8 @@ loadPlan().then(function (json) {
   loadDayPlans();
   loadFrozenDays();
   loadWeekFits();
+  loadProgress();
+  loadDecisions();
   restoreTimer();
   scheduleReminder();
   if (!location.hash) location.replace('#/today');
