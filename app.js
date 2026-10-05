@@ -2155,6 +2155,100 @@ function firstWeekStart(days) {
   return weekStartOf(first);
 }
 
+/* --- how an area is doing ---------------------------------------------------- */
+/* Judged over the last few finished weeks, each against the target it was fitted
+   to at the time (or as authored, for a week nobody looked at while it ran). The
+   thresholds are data, in rules.json. */
+
+var VERDICT_LABEL = {
+  new: 'New', consistent: 'Consistent', building: 'Building', slipping: 'Slipping',
+  dormant: 'Dormant', overreaching: 'Overreaching', mixed: 'Uneven'
+};
+
+/* Sets done against sets prescribed, over the days trained in a week, in per cent.
+   Null for a week with no training. */
+function weekCompletion(areaId, start, days) {
+  var end = addDays(start, 6), done = 0, total = 0;
+  days.forEach(function (r) {
+    if (r.area === areaId && r.date >= start && r.date <= end) { done += r.done; total += r.total; }
+  });
+  return total ? Math.round(done * 100 / total) : null;
+}
+
+/* The verdict, from plain numbers.
+     f  { weeks: [{ status }] finished weeks oldest first, firstTrained, lastTrained, today, intoLights }
+   First match wins: too new to judge, gone quiet, pushing too hard, slipping,
+   consistent, building, otherwise uneven. */
+function verdictOf(f, T) {
+  function count(list, keys) { return list.filter(function (w) { return keys.indexOf(w.status) >= 0; }).length; }
+  var recent = f.weeks.slice(-T.window);
+  var quiet = f.lastTrained ? daysBetween(f.lastTrained, f.today) : null;
+
+  if (!f.firstTrained || daysBetween(f.firstTrained, f.today) < T.newWeeks * 7) {
+    return { key: 'new', why: 'Under ' + T.newWeeks + ' weeks of history, so too early to judge.' };
+  }
+  if (quiet !== null && quiet >= T.dormantDays) return { key: 'dormant', why: 'Nothing for ' + quiet + ' days.' };
+
+  if (count(f.weeks.slice(-2), ['over'])) return { key: 'overreaching', why: 'Went over its weekly maximum recently.' };
+  if (f.intoLights >= 2) {
+    return { key: 'overreaching', why: 'Trained ' + f.intoLights + ' times in the last two weeks with a guarding body area amber or red.' };
+  }
+
+  /* With fewer finished weeks than the rule looks at, it is all of the weeks you have. */
+  var lately = f.weeks.slice(-T.slippingWindow);
+  var misses = count(lately, ['missed']);
+  if (misses >= Math.min(T.slippingMisses, lately.length)) {
+    return { key: 'slipping', why: 'Missed its minimum in ' + misses + ' of the last ' + lately.length + ' weeks.' };
+  }
+  var hits = count(recent, ['hit']);
+  if (hits >= Math.min(T.consistentHits, recent.length)) return { key: 'consistent', why: 'Hit its target in ' + hits + ' of the last ' + recent.length + ' weeks.' };
+  var met = count(recent, ['hit', 'met']);
+  if (met >= Math.min(T.buildingHits, recent.length)) return { key: 'building', why: 'Met its minimum in ' + met + ' of the last ' + recent.length + ' weeks.' };
+  return { key: 'mixed', why: 'Met its minimum in ' + met + ' of the last ' + recent.length + ' weeks.' };
+}
+
+/* Under the threshold for two finished weeks running, both with training in them. */
+function isMostlyPartial(weeks, T) {
+  var last = weeks.slice(-2);
+  return last.length === 2 && last.every(function (w) { return w.completion !== null && w.completion < T.mostlyPartialPct; });
+}
+
+/* Times in the last two weeks this area was trained while a body area that
+   guards it was amber or red. */
+function daysIntoLights(area, today, days) {
+  return days.filter(function (r) {
+    return r.area === area.id && r.date <= today && daysBetween(r.date, today) < 14
+      && !!(heldReason(area, r.date) || holdReason(area, r.date));
+  }).length;
+}
+
+/* How an area is doing, from the app's state. */
+function areaFeedback(area, today, days) {
+  var T = areaData.rules.verdicts;
+  var current = weekStartOf(today);
+  var mine = days.filter(function (r) { return r.area === area.id && r.date <= today; });
+  var firstTrained = null, lastTrained = null;
+  mine.forEach(function (r) {
+    if (!firstTrained || r.date < firstTrained) firstTrained = r.date;
+    if (!lastTrained || r.date > lastTrained) lastTrained = r.date;
+  });
+  var firstWeek = firstTrained ? weekStartOf(firstTrained) : null;
+
+  var weeks = [];
+  for (var k = T.window; k >= 1; k--) {
+    var s = addDays(current, -7 * k);
+    if (!firstWeek || s < firstWeek) continue;               /* before it began: not a miss */
+    var w = areaWeek(area, s, today, days);
+    weeks.push({ start: s, touched: w.touched, min: w.min, target: w.target, max: w.max, status: w.status.key, completion: weekCompletion(area.id, s, days) });
+  }
+
+  var verdict = verdictOf({ weeks: weeks, firstTrained: firstTrained, lastTrained: lastTrained, today: today, intoLights: daysIntoLights(area, today, days) }, T);
+  return {
+    verdict: verdict.key, label: VERDICT_LABEL[verdict.key], why: verdict.why,
+    mostlyPartial: isMostlyPartial(weeks, T), weeks: weeks, firstTrained: firstTrained, lastTrained: lastTrained
+  };
+}
+
 /* ------------------------------------------------------------------ views */
 
 function view() { return document.getElementById('view'); }
