@@ -139,5 +139,93 @@ eq('but judged against the target it was fitted to, 2, it is hit every week: con
 fb=ctx.areaFeedback(mu,'2026-10-26',steady.map(r=>Object.assign({},r,{done:2,total:4,full:false})));
 eq('half-done days every week: mostly partial', [fb.mostlyPartial, fb.weeks[3].completion], [true,50]);
 
+/* ---- the week at a glance, nudges and pace ---- */
+const pinWeeks=()=>{const tg={};ctx.areaList().forEach(a=>{tg[a.id]=ctx.stageWeek(a,ctx.currentStage(a)).target;});ctx.weekFits={};
+  for(let d='2026-08-31',i=0;i<30;i++,d=ctx.addDays(d,7))ctx.weekFits[d]={budget:999,cost:0,minCost:0,startCost:0,verdict:'fits',targets:Object.assign({},tg),trimmed:[],ramp:[]};};
+const THU='2026-10-08', SAT='2026-10-10';
+const N=rules.nudges, P=rules.pace;
+eq('the nudge and pace settings are data too', [N,P], [{maxShown:2,skippedTimes:2,noTimeSkips:3},{window:4,minWeeks:2}]);
+
+console.log('the strip:');
+reset(); pinWeeks();
+eq('a Thursday with nothing done: only Nordic is behind (three days still need two between each)', ctx.weekStrip(THU,[]), {onTrack:7,total:8,held:0,text:'7 of 8 areas on track'});
+ctx.checkIns=[ci('2026-10-07',{hamstring:8})];
+eq('a red hamstring holds Nordic and kettlebell, which are counted apart', ctx.weekStrip(THU,[]), {onTrack:6,total:6,held:2,text:'6 of 6 areas on track · 2 held'});
+ctx.checkIns=[];
+eq('Saturday with nothing done: the minimums are slipping away', ctx.weekStrip(SAT,[]).onTrack, 0);
+const done8=ctx.areaList().reduce((a,x)=>a.concat([rec('2026-10-05',x.id),rec('2026-10-07',x.id),rec('2026-10-09',x.id)]),[]);
+eq('everything done is on track', ctx.weekStrip(SAT,done8).onTrack, 8);
+
+console.log('what is worth a word:');
+reset(); pinWeeks();
+let n=ctx.nudgesFor(SAT,[]);
+eq('Saturday, nothing done: at most two, the most urgent first, highest priority first', n.map(x=>[x.area,x.kind]), [['mu','risk'],['hspu','risk']]);
+eq('in plain words', n[0].text, 'Muscle-up: 2 more days needed for its minimum, and 2 days left this week.');
+ctx.areaData.rules.nudges.maxShown=20;
+eq('every area at risk is listed when there is room, once each', ctx.nudgesFor(SAT,[]).map(x=>x.area+':'+x.kind).join(' '), 'mu:risk hspu:risk pistol:risk nordic:risk bridge:behind kb:behind oap:behind plyo:behind');
+ctx.areaData.rules.nudges.maxShown=2;
+ctx.checkIns=[ci('2026-10-09',{hamstring:8})];
+ctx.areaData.rules.nudges.maxShown=20;
+ok('a held area is not nagged about', !ctx.nudgesFor(SAT,[]).some(x=>x.area==='nordic'||x.area==='kb'));
+ctx.areaData.rules.nudges.maxShown=2; ctx.checkIns=[];
+
+reset(); pinWeeks(); ctx.settings.menuSince='2026-10-05';
+const plan=(areas,removed)=>({sittings:[{minutes:45,areas:areas}],suggested:areas.concat(Object.keys(removed||{})),removed:removed||{},why:{}});
+ctx.dayPlans['2026-10-05']=plan(['pistol'],{mu:'no time'});
+ctx.dayPlans['2026-10-06']=plan(['pistol'],{hspu:'no time'});
+ctx.dayPlans['2026-10-07']=plan([],{kb:'no time'});
+ctx.areaData.rules.nudges.maxShown=20;
+n=ctx.nudgesFor(THU,[]);
+eq('planned twice, never done: skipped twice; three taken off for no time', n.filter(x=>x.rank<=2).map(x=>[x.area,x.kind,x.text]), [
+  [null,'noTime','3 things taken off for no time this week. Fewer areas, or a longer day, may fit better.'],
+  ['pistol','skipped','Pistol squat: skipped twice this week.']]);
+eq('Nordic is the one behind', n.filter(x=>x.kind==='behind').map(x=>[x.area,x.text]), [['nordic','Nordic curl is behind this week: 3 more days for its target.']]);
+ctx.dayPlans['2026-10-07']=plan(['pistol'],{kb:'no time'});
+ctx.dayPlans['2026-10-05']=plan(['pistol','mu'],{});
+ctx.dayPlans['2026-10-06']=plan(['pistol','mu'],{});
+ok('three skips read as a count', ctx.nudgesFor(THU,[]).some(x=>x.text==='Pistol squat: skipped 3 times this week.'));
+ok('two for no time is not enough to say so', !ctx.nudgesFor(THU,[]).some(x=>x.kind==='noTime'));
+ctx.areaData.rules.nudges.maxShown=2;
+
+reset(); pinWeeks(); ctx.areaData.rules.nudges.maxShown=20;
+const bridgeHist=[];  ['2026-09-14','2026-09-15','2026-09-16'].forEach(d=>bridgeHist.push(rec(d,'bridge'))); bridgeHist.push(rec('2026-09-22','bridge'),rec('2026-09-29','bridge'),rec('2026-10-07','bridge'));
+const plyoHist=[rec('2026-08-03','plyo'),rec('2026-09-20','plyo')];
+const kbHist=['2026-09-21','2026-09-23','2026-09-28','2026-09-30'].map(d=>rec(d,'kb',false,2,4));
+n=ctx.nudgesFor(THU,bridgeHist.concat(plyoHist,kbHist));
+const by=k=>n.filter(x=>x.kind===k).map(x=>x.area+': '+x.text);
+eq('slipping, in its own words', by('slipping'), ['bridge: Backward bridge: missed its minimum in 2 of the last 3 weeks.']);
+eq('mostly partial', by('partial'), ['kb: Kettlebell (Simple & Sinister): finishing under 70% of its sets lately. A shorter day or more time may suit it.']);
+eq('dormant', by('dormant'), ['plyo: Plyometrics: nothing for 18 days.']);
+eq('and in the order of how much they matter', n.map(x=>x.rank).join(' '), n.map(x=>x.rank).slice().sort((a,b)=>a-b).join(' '));
+ctx.areaData.rules.nudges.maxShown=2;
+eq('never more than the limit', ctx.nudgesFor(THU,bridgeHist.concat(plyoHist,kbHist)).length, 2);
+eq('and nothing at all when all is well', (reset(), pinWeeks(), ctx.nudgesFor(SAT,done8)), []);
+
+console.log('pace:');
+reset(); pinWeeks();
+const muFull=['2026-09-29','2026-10-02','2026-10-06','2026-10-09','2026-10-13','2026-10-16','2026-10-20','2026-10-23'].map(d=>rec(d,'mu'));   // the 28 days ending today, twice a week
+let pc=ctx.paceFor(mu,'2026-10-26',muFull);
+eq('8 of 12 full days, 2 a week for four weeks: 4 to go is 2 weeks', pc, {kind:'pace',remaining:4,perWeek:2,weeks:2,date:'2026-11-09'});
+eq('in words', ctx.paceText(pc), 'At your pace (2 full days a week) the review is about 2 weeks away, around 9 Nov.');
+eq('a slower stretch gives a later date', ctx.paceFor(mu,'2026-10-26',muFull.filter((r,i)=>i%2===0)), {kind:'pace',remaining:8,perWeek:1,weeks:8,date:'2026-12-21'});
+eq('a day just outside the 28 is not in the pace, and not in the weeks observed either', ctx.paceFor(mu,'2026-10-26',[rec('2026-09-28','mu')].concat(muFull)).perWeek, 2);
+eq('first trained 21 days ago: three weeks observed, not four', ctx.paceFor(mu,'2026-10-26',['2026-10-06','2026-10-13','2026-10-20'].map(d=>rec(d,'mu'))).perWeek, 1);
+eq('one week away reads as singular', ctx.paceText({kind:'pace',remaining:1,perWeek:3,weeks:1,date:'2026-11-02'}), 'At your pace (3 full days a week) the review is about 1 week away, around 2 Nov.');
+eq('12 full days: due', ctx.paceFor(mu,'2026-10-26',muFull.concat(['2026-10-21','2026-10-24','2026-10-25','2026-10-26'].map(d=>rec(d,'mu')))).kind, 'due');
+eq('due in words', ctx.paceText({kind:'due'}), 'The review is due now.');
+eq('first trained 10 days ago: too early', ctx.paceFor(mu,'2026-10-26',[rec('2026-10-16','mu'),rec('2026-10-20','mu')]).kind, 'early');
+eq('never trained: too early', ctx.paceFor(mu,'2026-10-26',[]).kind, 'early');
+eq('too early in words', ctx.paceText({kind:'early'}), 'Too early to say when the review will be.');
+pc=ctx.paceFor(mu,'2026-10-26',[rec('2026-08-03','mu'),rec('2026-08-10','mu')]);
+eq('full days long ago and none lately: no date', [pc.kind,pc.remaining], ['stalled',10]);
+eq('stalled in words', ctx.paceText(pc), '10 full days to go, but none lately, so no date yet.');
+eq('only full days count towards the pace', ctx.paceFor(mu,'2026-10-26',muFull.map((r,i)=>i%2?Object.assign({},r,{full:false}):r)).perWeek, 1);
+ctx.progress.mu={stage:'M1',since:null,nextAsk:10};
+eq('after "not yet" it counts to that day: 2 to go', ctx.paceFor(mu,'2026-10-26',muFull).remaining, 2);
+ctx.progress.nordic={stage:'N6',since:null,nextAsk:null};
+eq('a stage with nothing above it has no review', [ctx.paceFor(ctx.areaById('nordic'),'2026-10-26',[]).kind, ctx.paceText({kind:'none'})], ['none','']);
+reset();
+eq('a recent move restarts it: the days at the old stage are not counted', (ctx.progress.mu={stage:'M2',since:'2026-10-20',nextAsk:null}, ctx.paceFor(mu,'2026-10-26',muFull).remaining), 12);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail?1:0);

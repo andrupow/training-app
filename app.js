@@ -2249,6 +2249,106 @@ function areaFeedback(area, today, days) {
   };
 }
 
+/* --- the week at a glance, nudges and pace ------------------------------------ */
+
+/* "5 of 8 areas on track". An area held by a red light cannot be on track or off
+   it, so it is counted apart. */
+function weekStrip(today, days) {
+  var start = weekStartOf(today);
+  var on = 0, total = 0, held = 0;
+  areaList().forEach(function (a) {
+    var key = areaWeek(a, start, today, days).status.key;
+    if (key === 'held') { held++; return; }
+    total++;
+    if (key === 'done' || key === 'track' || key === 'due') on++;
+  });
+  return { onTrack: on, total: total, held: held,
+    text: on + ' of ' + total + ' areas on track' + (held ? ' · ' + held + ' held' : '') };
+}
+
+function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+
+/* A few gentle things worth knowing, most important first and at most a couple.
+   Nothing here nags about an area a red light has paused. */
+function nudgesFor(today, days) {
+  var N = areaData.rules.nudges;
+  var start = weekStartOf(today), end = addDays(start, 6);
+  var left = daysBetween(today, end) + 1;
+  var summary = weekSummary(start, today, days);
+  var found = [];
+
+  areaList().forEach(function (a) {
+    var w = areaWeek(a, start, today, days);
+    if (w.status.key === 'held') return;
+    var fb = areaFeedback(a, today, days);
+    var skipped = summary.skippedItems.filter(function (s) { return s.area.id === a.id; }).length;
+
+    function add(rank, kind, text) { found.push({ area: a.id, kind: kind, rank: rank, priority: a.priority, text: text }); }
+
+    if (w.status.key === 'risk') {
+      var need = w.min - w.touched;
+      add(1, 'risk', a.name + ': ' + plural(need, 'more day', 'more days') + ' needed for its minimum, and ' + plural(left, 'day', 'days') + ' left this week.');
+    } else if (skipped >= N.skippedTimes) {
+      add(2, 'skipped', a.name + ': skipped ' + (skipped === 2 ? 'twice' : skipped + ' times') + ' this week.');
+    } else if (w.status.key === 'behind') {
+      add(3, 'behind', a.name + ' is behind this week: ' + plural(w.target - w.touched, 'more day', 'more days') + ' for its target.');
+    } else if (fb.verdict === 'slipping') {
+      add(4, 'slipping', a.name + ': ' + fb.why.charAt(0).toLowerCase() + fb.why.slice(1));
+    } else if (fb.mostlyPartial) {
+      add(5, 'partial', a.name + ': finishing under ' + areaData.rules.verdicts.mostlyPartialPct + '% of its sets lately. A shorter day or more time may suit it.');
+    } else if (fb.verdict === 'dormant') {
+      add(6, 'dormant', a.name + ': ' + fb.why.charAt(0).toLowerCase() + fb.why.slice(1));
+    }
+  });
+
+  var noTime = summary.skippedItems.filter(function (s) { return s.reason === 'no time'; }).length;
+  if (noTime >= N.noTimeSkips) {
+    found.push({ area: null, kind: 'noTime', rank: 2, priority: 0,
+      text: plural(noTime, 'thing', 'things') + ' taken off for no time this week. Fewer areas, or a longer day, may fit better.' });
+  }
+
+  found.sort(function (x, y) { return (x.rank - y.rank) || (x.priority - y.priority); });
+  return found.slice(0, N.maxShown);
+}
+
+/* When the next review is likely, from how often you have actually been doing full
+   days of this area (not the target). */
+function paceFor(area, today, days) {
+  var P = areaData.rules.pace;
+  var prog = stageProgress(area, days);
+  var goal = prog.nextAsk !== null ? prog.nextAsk : prog.askAfter;
+  if (!goal) return { kind: 'none' };
+  var remaining = goal - prog.full;
+  if (remaining <= 0) return { kind: 'due' };
+
+  var mine = days.filter(function (r) { return r.area === area.id && r.date <= today; });
+  var first = null;
+  mine.forEach(function (r) { if (!first || r.date < first) first = r.date; });
+
+  /* The window is the last few weeks ending today, or since the first day if that is later. */
+  var windowStart = addDays(today, -(P.window * 7 - 1));
+  var from = first && first > windowStart ? first : windowStart;
+  var observed = first ? (daysBetween(from, today) + 1) / 7 : 0;
+  if (observed < P.minWeeks) return { kind: 'early' };
+
+  var recentFull = mine.filter(function (r) { return r.full && r.date >= from; }).length;
+  if (!recentFull) return { kind: 'stalled', remaining: remaining };
+
+  var perWeek = recentFull / observed;
+  var weeks = Math.ceil(remaining / perWeek);
+  return { kind: 'pace', remaining: remaining, perWeek: Math.round(perWeek * 10) / 10, weeks: weeks, date: addDays(today, weeks * 7) };
+}
+
+function paceText(p) {
+  if (p.kind === 'due') return 'The review is due now.';
+  if (p.kind === 'early') return 'Too early to say when the review will be.';
+  if (p.kind === 'stalled') return plural(p.remaining, 'full day', 'full days') + ' to go, but none lately, so no date yet.';
+  if (p.kind === 'pace') {
+    return 'At your pace (' + p.perWeek + ' full days a week) the review is about ' + plural(p.weeks, 'week', 'weeks') + ' away, around ' + fmtDateShort(p.date) + '.';
+  }
+  return '';
+}
+
 /* ------------------------------------------------------------------ views */
 
 function view() { return document.getElementById('view'); }

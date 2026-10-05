@@ -207,5 +207,14 @@
       "label": "A bar at hip to chest height (adjustable bar, rack or rings set low)",
       "owned": false
     }
-  ]
+  ],
+  "pace": {
+    "window": 4,
+    "minWeeks": 2
+  },
+  "nudges": {
+    "maxShown": 2,
+    "skippedTimes": 2,
+    "noTimeSkips": 3
+  }
 }
