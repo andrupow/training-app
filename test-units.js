@@ -80,6 +80,21 @@ eq('a set with no load shows none', ctx.setBits({reps:5}), ['5 reps']);
 eq('the rule for a fixed load, lb', ctx.ruleText({type:'fixedKg',value:5}), '+11 lb');
 eq('the rule for a percent is unchanged', ctx.ruleText({type:'pct5RM',value:0.5}), '50% of 5RM added');
 
+console.log('what a typed load stores:');
+kg();
+eq('blank stays blank', ctx.loadKgFromInput(undefined, 20), undefined);
+eq('a new number in kg is stored as typed', ctx.loadKgFromInput(22.5, 20), 22.5);
+eq('and with nothing stored yet', ctx.loadKgFromInput(22.5, undefined), 22.5);
+lb();
+eq('a new number in lb is converted to kg', ctx.loadKgFromInput(50, undefined), 22.68);
+eq('a changed number is converted, not kept', ctx.loadKgFromInput(50, 20), 22.68);
+eq('the number shown for 20 kg, left alone, keeps 20 kg (not 19.96)', ctx.loadKgFromInput(ctx.toDisplayWeight(20), 20), 20);
+eq('so does 16 kg (35.5 lb shown)', ctx.loadKgFromInput(ctx.toDisplayWeight(16), 16), 16);
+eq('so does an odd one, 18.75 kg', ctx.loadKgFromInput(ctx.toDisplayWeight(18.75), 18.75), 18.75);
+eq('typing the same pounds as a different set is a real change', ctx.loadKgFromInput(44, 18), 19.96);
+eq('typing zero stores zero', ctx.loadKgFromInput(0, 20), 0);
+kg();
+
 console.log('the switch itself does not touch what is stored:');
 ctx.setLogs=[{sessionId:'s',exerciseId:'e',setIdx:0,done:true,loadKg:20,reps:5,ts:'2026-09-10T10:00:00Z'}];
 const before=JSON.stringify(ctx.setLogs);

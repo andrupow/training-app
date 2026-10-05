@@ -737,11 +737,18 @@ var PACK_AREA_KEYS = ['id', 'name', 'short', 'priority', 'goal', 'perWeek', 'min
   'guardedBy', 'sessionTypes', 'tests', 'stages', 'track'];
 var PACK_STAGE_KEYS = ['id', 'name', 'askAfter', 'optional', 'work', 'maxContacts', 'maxDepthContacts', 'goal',
   'milestone', 'ready', 'note', 'requires', 'bells', 'perWeek', 'minGapDays', 'draft', 'exercises', 'equipment', 'types'];
+var PACK_TEST_KEYS = ['id', 'name', 'unit', 'baselineStage', 'retestEveryWeeks', 'note'];
 var PACK_EXERCISE_KEYS = ['id', 'name', 'sets', 'reps', 'tempo', 'restSec', 'load', 'type', 'cue', 'note', 'contacts'];
 var PACK_LOAD_TYPES = ['pct5RM', 'pctBW', 'fixedKg', 'bodyweight', 'text', 'none'];
 
 function isWhole(n) { return typeof n === 'number' && isFinite(n) && Math.floor(n) === n; }
 function isText(s, min, max) { return typeof s === 'string' && s.trim().length >= min && s.length <= max; }
+
+/* { min, target, max } in days: whole numbers, 1 <= min <= target <= max <= 7. */
+function perWeekOk(per) {
+  return !!per && typeof per === 'object' && isWhole(per.min) && isWhole(per.target) && isWhole(per.max)
+    && per.min >= 1 && per.min <= per.target && per.target <= per.max && per.max <= 7;
+}
 
 function loadCustomAreas() {
   var stored = lsGet(LS_CUSTOMAREAS);
@@ -795,7 +802,7 @@ function validateAreaPack(input, opts) {
   if (raw.goal !== undefined && !isText(raw.goal, 1, 200)) bad('"goal" must be a sentence of up to 200 characters.');
 
   var per = raw.perWeek;
-  if (!per || !isWhole(per.min) || !isWhole(per.target) || !isWhole(per.max) || per.min < 1 || per.min > per.target || per.target > per.max || per.max > 7) {
+  if (!perWeekOk(per)) {
     bad('"perWeek" needs whole numbers with 1 <= min <= target <= max <= 7.');
   } else if (per.nominalTarget !== undefined && !(isWhole(per.nominalTarget) && per.nominalTarget >= per.target && per.nominalTarget <= 7)) {
     bad('"perWeek.nominalTarget" must be a whole number from the target up to 7.');
@@ -805,6 +812,8 @@ function validateAreaPack(input, opts) {
   if (['low', 'medium', 'high'].indexOf(raw.load) < 0) bad('"load" must be low, medium or high.');
   if (rules.dayOrder.indexOf(raw.order) < 0) bad('"order" must be one of: ' + rules.dayOrder.join(', ') + '.');
   if (raw.priority !== undefined && !isWhole(raw.priority)) bad('"priority" must be a whole number.');
+  if (raw.tests !== undefined && !Array.isArray(raw.tests)) bad('"tests" must be a list.');
+  else if (track && (raw.tests || []).length) bad('A tracked area has no ladder, so no baseline tests.');
 
   if (raw.guardedBy !== undefined) {
     if (!Array.isArray(raw.guardedBy) || raw.guardedBy.some(function (b) { return bodyIds.indexOf(b) < 0; })) {
@@ -838,7 +847,16 @@ function validateAreaPack(input, opts) {
       if (s.askAfter !== undefined && (!isWhole(s.askAfter) || s.askAfter < 1)) bad(at + '"askAfter" must be a whole number of full days.');
       else if (s.askAfter !== undefined && per && isWhole(per.target) && s.askAfter < per.target) bad(at + '"askAfter" is under one week of the area (' + per.target + ' days).');
       if (s.goal) goals++;
-      if (s.draft !== undefined && typeof s.draft !== 'boolean') bad(at + '"draft" must be true or false.');
+      ['draft', 'goal', 'optional', 'milestone'].forEach(function (k) {
+        if (s[k] !== undefined && typeof s[k] !== 'boolean') bad(at + '"' + k + '" must be true or false.');
+      });
+      if (s.perWeek !== undefined && !perWeekOk(s.perWeek)) bad(at + '"perWeek" needs whole numbers with 1 <= min <= target <= max <= 7.');
+      if (s.minGapDays !== undefined && (!isWhole(s.minGapDays) || s.minGapDays < 1 || s.minGapDays > 7)) bad(at + '"minGapDays" must be a whole number from 1 to 7.');
+      ['maxContacts', 'maxDepthContacts'].forEach(function (k) {
+        if (s[k] !== undefined && (!isWhole(s[k]) || s[k] < 1 || s[k] > 500)) bad(at + '"' + k + '" must be a whole number from 1 to 500.');
+      });
+      if (s.note !== undefined && !isText(s.note, 1, 400)) bad(at + '"note" must be text of up to 400 characters.');
+      if (s.types !== undefined && (!Array.isArray(s.types) || s.types.some(function (x) { return typeof x !== 'string' || !x; }))) bad(at + '"types" must be a list of names.');
       if (s.equipment !== undefined) {
         if (!Array.isArray(s.equipment)) bad(at + '"equipment" must be a list.');
         else s.equipment.forEach(function (q) {
@@ -846,9 +864,11 @@ function validateAreaPack(input, opts) {
         });
       }
       if (s.bells !== undefined && (!Array.isArray(s.bells) || s.bells.some(function (b) { return !b || typeof b.kg !== 'number' || typeof b.lb !== 'number'; }))) bad(at + '"bells" must list { "kg", "lb" } pairs.');
-      (s.requires || []).forEach(function (r) {
-        var other = areaData && areaById(r && r.area);
-        if (!other) warnings.push(at + 'asks for ' + (r && r.area) + ' first, which is not installed. It will show as not met.');
+      if (s.requires !== undefined && !Array.isArray(s.requires)) bad(at + '"requires" must be a list of { "area", "stage" }.');
+      else (s.requires || []).forEach(function (r) {
+        if (!r || typeof r !== 'object' || typeof r.area !== 'string' || typeof r.stage !== 'string') { bad(at + 'each "requires" entry needs an "area" and a "stage".'); return; }
+        var other = areaData && areaById(r.area);
+        if (!other) warnings.push(at + 'asks for ' + r.area + ' first, which is not installed. It will show as not met.');
         else if (!stageById(other, r.stage)) bad(at + 'asks for ' + r.area + ' ' + r.stage + ', which does not exist.');
       });
 
@@ -879,6 +899,20 @@ function validateAreaPack(input, opts) {
       }
     });
     if (goals > 1) bad('Only one stage can be the goal.');
+
+    /* a retest is anchored to a stage, so it can only be checked once the stages are known */
+    if (Array.isArray(raw.tests)) raw.tests.slice(0, 10).forEach(function (x, i) {
+      var tt = 'Test ' + (x && x.id ? '"' + x.id + '"' : '#' + (i + 1)) + ': ';
+      if (!x || typeof x !== 'object' || Array.isArray(x)) { bad(tt + 'expected an object.'); return; }
+      Object.keys(x).forEach(function (k) { if (PACK_TEST_KEYS.indexOf(k) < 0) bad(tt + 'unknown field "' + k + '".'); });
+      if (typeof x.id !== 'string' || !/^[a-z0-9-]+$/.test(x.id)) bad(tt + '"id" must be a lowercase slug.');
+      if (!isText(x.name, 2, 60)) bad(tt + '"name" must be 2 to 60 characters.');
+      if (x.unit !== undefined && !isText(x.unit, 1, 8)) bad(tt + '"unit" must be up to 8 characters, such as cm or reps.');
+      if (typeof x.baselineStage !== 'string' || !seen[x.baselineStage]) bad(tt + '"baselineStage" must be the id of one of the stages.');
+      if (!isWhole(x.retestEveryWeeks) || x.retestEveryWeeks < 1 || x.retestEveryWeeks > 52) bad(tt + '"retestEveryWeeks" must be a whole number from 1 to 52.');
+      if (x.note !== undefined && !isText(x.note, 1, 300)) bad(tt + '"note" must be text of up to 300 characters.');
+    });
+    if (Array.isArray(raw.tests) && raw.tests.length > 10) bad('"tests" can list up to 10.');
   }
 
   if (errors.length) return { ok: false, errors: errors, warnings: warnings, area: null };
@@ -3282,7 +3316,7 @@ function openSetSheet(ex, session, i, btn, logged) {
 
     writeLog(session.id, ex.id, i, {
       done: true,                                  /* you logged it, so you did it */
-      loadKg: checks[0].value === undefined ? undefined : fromDisplayWeight(checks[0].value),
+      loadKg: loadKgFromInput(checks[0].value, entry.loadKg),
       reps: checks[1].value,
       rpe: checks[2].value
     });
@@ -3308,6 +3342,15 @@ var SET_LIMITS = [
   { key: 'reps',   label: 'Reps', unit: '',    min: 0, max: 300 },
   { key: 'rpe',    label: 'RPE',  unit: '',    min: 1, max: 10 }
 ];
+
+/* What to store for the load you typed: kg, whatever the unit shown. A number you did
+   not touch keeps the kg it came from, so opening a set in lb to fix the reps does not
+   turn 20 kg into 19.96. */
+function loadKgFromInput(value, storedKg) {
+  if (value === undefined) return undefined;
+  if (storedKg !== undefined && value === toDisplayWeight(storedKg)) return storedKg;
+  return fromDisplayWeight(value);
+}
 
 /* The load limit as you type it: 250 kg is 551 lb. */
 function loadLimitInUnit() {
@@ -6379,7 +6422,11 @@ function unitsSection() {
   ['kg', 'lb'].forEach(function (u) {
     var on = unitName() === u;
     var b = el('button', { class: 'sit-chip' + (on ? ' is-on' : ''), type: 'button', 'aria-pressed': String(on), text: u });
-    b.addEventListener('click', function () { settings.units = u; saveSettings(); renderProgress(); });
+    b.addEventListener('click', function () {
+      var y = window.scrollY || 0;
+      settings.units = u; saveSettings(); renderProgress();
+      window.scrollTo(0, y);                  /* the chips are mid-page: stay with them */
+    });
     row.appendChild(b);
   });
   return el('div', {}, [
