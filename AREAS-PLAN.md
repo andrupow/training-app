@@ -1,8 +1,7 @@
 # Areas, stages and the daily menu — draft v4 for review
 
-Status: **draft, nothing in the app is implemented.** Numbers marked
-*(placeholder)* are mine, not sourced; change them freely. Section 13 lists the
-last things I need from you.
+Status: **built through M13** (section 11). M14 to M16 are still design. Numbers
+marked *(placeholder)* are mine, not sourced; change them freely.
 
 ---
 
@@ -666,9 +665,47 @@ export imports and is seeded as above.
    - **"Skipped" means planned, or taken off the menu by you, and nothing
      logged.** A day since menus began that was never opened shows hatching and
      "no plan recorded"; days before menus began show nothing.
-3. **M13 — recommender:** port the prototype as a tested pure function, with
-   reasons on every line, time-fitted targets, the feasibility line, ramp-in, and
-   the seven-area check-in with guard mapping.
+3. **M13 — recommender — done (build 1.12.0-m13):** the prototype's picker is a
+   tested pure function (`recommendDay`), fed by the app's real state, with a
+   reason on every line. Targets are fitted to your time, new areas ramp in, the
+   week says whether the minimums fit, and the check-in asks about seven body
+   areas. Today's menu now comes from it. What shipped differs from the sketch in
+   six ways:
+   - **Time-fitting** starts every area at its nominal target (kettlebell 5), then
+     lowers the lowest priority first, one day at a time and never below its
+     minimum, until the week costs no more than your minutes. Your minutes are the
+     time you last chose for each weekday. On your 45 45 30 45 45 60 60 week
+     (330 min) that gives kettlebell 2, one-arm 1 and plyometrics 1, and the
+     simulation meets all of them; on 60-minute days it gives plyometrics 1 and
+     kettlebell 4 of 5. "Tight" is minimums at 80% or more of your minutes
+     (280 of 330 reads as tight, as in the sketch); the threshold is in
+     `rules.json`.
+   - **The fit is saved the first time the week is looked at** (a new `weekFits`
+     collection, in the backup), so a week is judged against what it was planned
+     as. A finished week nobody looked at while it ran keeps the targets as
+     authored.
+   - **Ramp-in** is the first two weeks counted from the week an area is first
+     trained; an area never trained is in its first week. In ramp-in the target is
+     the minimum. (Nordic, trained once on 29 Sep, is still in it; muscle-up and
+     plyometrics are not.)
+   - **If even the minimums do not fit, it says so on Today. It does not yet offer
+     to pause the lowest priorities;** that waits for focus blocks (M16).
+   - **Sittings are not declared up front.** *+ Another sitting* fills the new one
+     from what is left after what is on the menu and done today, and changing the
+     time on a day nobody has touched asks again what fits. Once you add, remove
+     or start something, the menu is yours and is left alone.
+   - **Amber shows as a Hold** on the areas a body area guards (badge and note,
+     "keep the load where it is"). Nothing progresses yet, so nothing is held
+     back until M14 reads it. Red stays a hard stop. Every body area's light now
+     pauses or holds by the areas it guards, so a red knee pauses pistol, Nordic
+     and plyometrics.
+   The simulation in section 5 is reproduced on the app's own code
+   (`test-recommend.js`): your 330-minute week meets every fitted target at 43
+   min/day, 60-minute days reach kettlebell 4 of 5, a flat 45 or 30 does not fit,
+   and a red hamstring week holds Nordic and kettlebell with no make-up. One
+   thing it shows: on a Monday with nothing urgent, the picker favours what has
+   never been trained over what was trained two days ago, so muscle-up (priority
+   1) can sit out a day. That is the staleness term and a weight in `rules.json`.
 4. **M14 — stages and level-up:** progress state, the full-area-day counter,
    review screen with next-stage preview (equipment and prerequisites), move up /
    not yet / step back, the deload block, decisions log.

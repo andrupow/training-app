@@ -38,7 +38,10 @@ eq('round trip', ctx.parseAreaDayId(ctx.areaDayId('2026-10-06','kb')), {date:'20
 
 console.log('a day plan is cleaned, never trusted:');
 eq('a good one', ctx.cleanDayPlan({sittings:[{minutes:45,areas:['mu','bridge']}],suggested:['mu'],removed:{pistol:'no time'}}),
-   {sittings:[{minutes:45,areas:['mu','bridge']}],suggested:['mu'],removed:{pistol:'no time'}});
+   {sittings:[{minutes:45,areas:['mu','bridge']}],suggested:['mu'],removed:{pistol:'no time'},why:{}});
+eq('with the reasons it was suggested for', ctx.cleanDayPlan({sittings:[{minutes:45,areas:['mu']}],suggested:['mu'],removed:{},why:{mu:'Still needs 2 more this week.'}}).why, {mu:'Still needs 2 more this week.'});
+eq('only real reasons are kept', ctx.cleanDayPlan({sittings:[{minutes:45,areas:['mu']}],why:{mu:'ok',kb:5,oap:'',x:null}}).why, {mu:'ok'});
+eq('a day saved before reasons existed has none', ctx.cleanDayPlan({sittings:[{minutes:45,areas:['mu']}],why:'x'}).why, {});
 eq('not an object', ctx.cleanDayPlan('x'), null);
 eq('an array', ctx.cleanDayPlan([]), null);
 eq('no sittings', ctx.cleanDayPlan({sittings:[]}), null);
