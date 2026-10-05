@@ -149,6 +149,24 @@ partDay(D(6));
 ctx.moveUp('x',ctx.areaDays(),D(6));
 eq('a day with sets already logged is left as it was', ctx.frozenDays[D(6)+':x'].stage, 'X1');
 
+console.log('a stage that changes how often an area is done changes the week:');
+reset(); ctx.areaData=real; ctx.todayISO=()=>D(2);
+ctx.settings.weekdayMinutes={0:60,1:60,2:60,3:60,4:60,5:60,6:60};
+const nd=ctx.areaById('nordic');
+const old8=real.list.map(a=>({date:'2026-09-14',area:a.id,done:4,total:4,full:true}));
+const realAreaDays=ctx.areaDays; ctx.areaDays=()=>old8;      // everything trained long ago, so nothing is in ramp-in
+ctx.progress.nordic={stage:'N2',since:null,nextAsk:null};
+ctx.ensureWeekFit('2026-10-05',old8);
+eq('at N2 this week’s saved fit says Nordic 3 days', [ctx.weekFits['2026-10-05'].targets.nordic, ctx.areaWeek(nd,'2026-10-05',D(2),old8).target], [3,3]);
+ctx.placeAt('nordic','N3',old8,D(2));
+eq('moved to N3 the saved fit is worked out again: 2 days', [ctx.weekFits['2026-10-05'].targets.nordic, ctx.areaWeek(nd,'2026-10-05',D(2),old8).target], [2,2]);
+eq('and it is saved again, so it stays', JSON.parse(store.weekFits)['2026-10-05'].targets.nordic, 2);
+ctx.placeAt('nordic','N2',old8,D(2));
+eq('and back the other way: 3', ctx.areaWeek(nd,'2026-10-05',D(2),old8).target, 3);
+eq('the recommender sees it too', ctx.recommendInput(D(2),[45],old8).areas.find(a=>a.id==='nordic').per.target, 3);
+eq('a week with no saved fit is left alone', (ctx.weekFits={}, ctx.placeAt('nordic','N3',old8,D(2)), Object.keys(ctx.weekFits).length>=0), true);
+ctx.areaDays=realAreaDays; ctx.areaData=synth; ctx.todayISO=()=>'2026-10-07';
+
 console.log('what a stage needs from the other areas (advisory):');
 reset();
 eq('Y is at its first stage; X2 wants Y2', ctx.prereqStatus(X0().stages[1]), [{area:'y',stage:'Y2',name:'Why',have:'Y1',met:false}]);

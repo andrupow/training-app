@@ -1199,6 +1199,14 @@ function enterStage(area, stage, action, date, full) {
   progress[area.id] = { stage: stage.id, since: date, nextAsk: null };
   decisions.push({ date: date, area: area.id, from: from, to: stage.id, action: action, full: full });
   saveProgress(); saveDecisions();
+
+  /* A stage can change how often the area is done (Nordic does, N2 to N3). The
+     week's saved fit knows only the old stage, so work it out again. */
+  var start = weekStartOf(date);
+  if (weekFits[start]) {
+    delete weekFits[start];
+    if (!ensureWeekFit(start, areaDays())) saveWeekFits();
+  }
   refreshAreaDay(area.id, date);
   return { ok: true, stage: stage };
 }
