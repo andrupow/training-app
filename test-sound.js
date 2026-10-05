@@ -130,11 +130,24 @@ ctx.scheduleSounds('work',30);
 ctx.scheduleSounds('work',30);
 eq('scheduling a set again replaces the first, it does not stack on it', rec.osc.filter(live).length, 28);
 
+console.log('the audio is unlocked by the tap that starts a set, even when that set plays nothing itself:');
+const noAudioYet=()=>{reset();vm.runInContext('audioCtx = null; audioOut = null;',ctx);rec.ctxs=0;};
+noAudioYet(); ctx.settings={sound:{workTicks:false,endWork:'off'}};
+ctx.scheduleSounds('work',20);
+eq('set ticks off and the set end silent: the audio context is still made in that tap, ready for the rest that follows', [rec.ctxs,rec.osc.length], [1,0]);
+noAudioYet(); ctx.settings={sound:{volume:'off'}};
+ctx.scheduleSounds('work',20);
+eq('with the volume off there is nothing to unlock, so none is made', rec.ctxs, 0);
+noAudioYet(); ctx.settings={sound:{workTicks:false,endWork:'off'}};
+ctx.scheduleSounds('work',20); ctx.scheduleSounds('rest',60);
+eq('and the rest that follows then plays: a 60 s rest is ten tick-tocks and three beeps, on that same context', [rec.osc.length,rec.ctxs], [13,1]);
+reset();
+
 console.log('loud, and never clipping:');
 reset();
 const master=()=>ctx.audioOut.master;
 ctx.scheduleSounds('work',30);
-ok('everything goes through one volume control into a limiter and then the speaker', rec.osc.every(o=>o.out.out===master()) && master().out===rec.limiters[0] && rec.limiters[0].out===rec.destination);
+ok('everything goes through one volume control into a limiter and then the speaker', rec.osc.every(o=>o.out.out===master()) && master().out===rec.limiters[rec.limiters.length-1] && rec.limiters[rec.limiters.length-1].out===rec.destination);
 eq('the volume steps', ['off','low','medium','high','max'].map(v=>{ctx.setSound('volume',v);return master().gain.value;}), [0,0.3,0.55,0.8,1]);
 reset(); ctx.scheduleSounds('rest',120);
 ctx.setSound('volume','off');
@@ -154,7 +167,7 @@ reset(); ctx.scheduleSounds('work',30);
 const bellPeaks=rec.osc.slice(20,24).map(peakOf);
 ok('the bell is loud where it counts: its strongest part is over 0.5', Math.max.apply(null,bellPeaks)>0.5);
 ok('and one strike never adds up past full scale', bellPeaks.reduce((a,b)=>a+b,0)<=1.3);
-ok('the limiter is set to catch peaks', rec.limiters[0].threshold.value<0 && rec.limiters[0].ratio.value>=4);
+ok('the limiter is set to catch peaks', rec.limiters[rec.limiters.length-1].threshold.value<0 && rec.limiters[rec.limiters.length-1].ratio.value>=4);
 ok('one audio context is made and reused', (()=>{const n=rec.ctxs;ctx.scheduleSounds('rest',120);ctx.scheduleSounds('work',30);return rec.ctxs===n;})());
 
 console.log('hearing it in the settings:');

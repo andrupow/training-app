@@ -3217,10 +3217,14 @@ function scheduleSounds(role, secs, channel) {
   channel = channel || role;
   cancelSounds(channel);
   var prefs = soundPrefs();
-  var plan = soundPlan(role, secs, prefs);
-  if (!plan.length) return;
+  if (prefs.volume === 'off') return;
+  /* Unlock the audio now, in the tap that started the timer, even if this timer plays
+     nothing itself: the rest that follows is started by the clock, not by a tap, and a
+     browser that wants a gesture would leave its sounds silent. */
   var ctx = ensureAudio();
   if (!ctx) return;
+  var plan = soundPlan(role, secs, prefs);
+  if (!plan.length) return;
   var out = soundOut(ctx, prefs);
   var base = ctx.currentTime;
   plan.forEach(function (ev) { soundCue(ctx, out, channel, ev.kind, base + ev.at); });
