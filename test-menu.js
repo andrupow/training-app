@@ -40,33 +40,35 @@ const train=(date,area,full=true)=>{ ctx.freezeAreaDay(date,area); const s=ctx.s
 const D='2026-10-08';           // a Thursday; its week starts Mon 5 Oct
 const days=()=>ctx.areaDays();
 const names=a=>a.map(r=>r.area.id);
+/* a day's menu as the app would have left it, without asking the recommender */
+const seed=(date,areas,minutes=45)=>{ ctx.dayPlans[date]={sittings:[{minutes,areas:ctx.doOrder(areas)}],suggested:areas.slice(),removed:{}};
+  areas.forEach(id=>ctx.freezeAreaDay(date,id)); if(!ctx.settings.menuSince) ctx.settings.menuSince=date; };
 
-console.log('what the day starts with (due areas that fit, in priority order):');
+console.log('what the day starts with (the recommender; its own rules are in test-recommend.js):');
 reset();
-eq('on a Thursday with nothing done these five are due', ['mu','hspu','pistol','oap','plyo'].filter(id=>ctx.areaWeek(ctx.areaById(id),'2026-10-05',D,[]).status.key==='due').length, 5);
-eq('45 min: muscle-up fills it, the rest clash or do not fit', ctx.suggestAreas(D,45,[]), ['mu']);
-eq('60 min: muscle-up and pistol (HSPU and one-arm clash with muscle-up)', ctx.suggestAreas(D,60,[]), ['mu','pistol']);
-eq('90 min: plus plyometrics', ctx.suggestAreas(D,90,[]), ['mu','pistol','plyo']);
-eq('30 min: just muscle-up', ctx.suggestAreas(D,30,[]), ['mu']);
-eq('20 min: nothing fits muscle-up, so HSPU leads', ctx.suggestAreas(D,20,[]), ['hspu']);
-ctx.checkIns=[ci('2026-10-06',{achilles:8})];
-eq('a red Achilles keeps plyometrics off it', ctx.suggestAreas(D,90,[]), ['mu','pistol']);
+eq('on a Thursday with nothing done, one-arm and Nordic need today for their spacing, and the bridge fills the 45', ctx.suggestAreas(D,45,[]), ['nordic','oap','bridge']);
+eq('at 20 minutes only Nordic and one short thing fit', ctx.suggestAreas(D,20,[]), ['nordic']);
+ctx.checkIns=[ci('2026-10-06',{hamstring:8})];
+eq('a red hamstring takes Nordic out and something else steps in', ctx.suggestAreas(D,45,[]).includes('nordic'), false);
 ctx.checkIns=[];
 
 console.log('the menu is made once, the first time the day is shown:');
 reset();
+const sug=ctx.suggestAreas(D,45,[]);
 const plan=ctx.ensureDayPlan(D,[]);
 eq('one sitting with the default minutes', plan.sittings.map(s=>s.minutes), [45]);
-eq('the suggestion is on it and remembered', [plan.sittings[0].areas, plan.suggested], [['mu'],['mu']]);
-eq('muscle-up is frozen as the first type', ctx.frozenDays[D+':mu'], {stage:'M1',type:'strength'});
+eq('the suggestion is on it and remembered', [plan.sittings[0].areas, plan.suggested], [sug, sug]);
+eq('what it suggested is frozen: Nordic at its first stage', ctx.frozenDays[D+':nordic'].stage, 'N1');
 eq('menus begin today', ctx.settings.menuSince, D);
 ok('and it is saved', !!JSON.parse(store.dayPlans)[D]);
 const again=ctx.ensureDayPlan(D,[]);
 ok('asking again returns the same plan', again===plan);
 ctx.ensureDayPlan('2026-10-09',[]);
 eq('menuSince does not move', ctx.settings.menuSince, D);
+ok('this week\u2019s fit was saved with it', !!ctx.weekFits['2026-10-05']);
 
 console.log('the list:');
+reset(); seed(D,['mu']);
 let rows=ctx.menuRows(D,0,[]);
 eq('selected first, then most urgent, then priority', names(rows), ['mu','hspu','pistol','oap','plyo','nordic','bridge','kb']);
 eq('the reason says why (the status tag says Due)', rows[0].reason, '0/2 this week, not trained yet');
@@ -79,26 +81,26 @@ eq('the others are not', rows.find(r=>r.area.id==='mu').held, null);
 ctx.checkIns=[];
 
 console.log('warnings (they never block):');
-reset(); ctx.ensureDayPlan(D,[]);
+reset(); seed(D,['mu']);
 const w=(id,dys=[])=>ctx.menuWarnings(ctx.areaById(id),D,ctx.dayPlans[D],dys);
 eq('HSPU alongside muscle-up', w('hspu'), ['Not usually with Muscle-up: both load shoulders and triceps.']);
 eq('one-arm pull-up alongside muscle-up', w('oap'), ['Not usually with Muscle-up: both load the elbow tendons.']);
 eq('pistol has nothing to say', w('pistol'), []);
-reset(); ctx.ensureDayPlan(D,[]); train('2026-10-07','mu');
+reset(); seed(D,['mu']); train('2026-10-07','mu');
 eq('muscle-up trained yesterday', w('mu',days()), ['Trained yesterday. It usually wants 2+ days between.']);
-reset(); train('2026-10-05','mu'); train('2026-10-06','mu'); train('2026-10-07','mu'); ctx.ensureDayPlan(D,[]);
+reset(); train('2026-10-05','mu'); train('2026-10-06','mu'); train('2026-10-07','mu'); seed(D,[]);
 ok('three this week is its max', w('mu',days()).some(x=>x==='Already at its weekly max of 3.'));
-reset(); train('2026-10-05','mu'); train('2026-10-07','mu'); train('2026-10-06','oap'); train('2026-10-02','oap'); ctx.ensureDayPlan('2026-10-10',[]);
+reset(); train('2026-10-05','mu'); train('2026-10-07','mu'); train('2026-10-06','oap'); train('2026-10-02','oap'); seed('2026-10-10',[]);
 eq('muscle-up 2 and one-arm 1 this week is 3 of 4: not yet capped', ctx.menuWarnings(ctx.areaById('oap'),'2026-10-10',ctx.dayPlans['2026-10-10'],days()).filter(x=>/cap/.test(x)), []);
 train('2026-10-09','oap');
 ok('one more makes 4 of 4: the shared cap is used', ctx.menuWarnings(ctx.areaById('mu'),'2026-10-10',ctx.dayPlans['2026-10-10'],days()).some(x=>x==="This week's elbow tendon cap is used: 4 of 4 days."));
-reset(); train(D,'bridge'); ctx.ensureDayPlan(D,[]);
+reset(); train(D,'bridge'); seed(D,[]);
 eq('already done today', w('bridge',days()), ['Already trained today. This adds to the same day.']);
-reset(); ctx.ensureDayPlan(D,[]); ctx.addAreaToDay(D,0,'nordic');
+reset(); seed(D,['mu']); ctx.addAreaToDay(D,0,'nordic');
 eq('Nordic and kettlebell: a soft one', w('kb'), ['Best not the same day as Nordic curl: both load the hamstrings.']);
 
 console.log('adding and removing:');
-reset(); ctx.ensureDayPlan(D,[]);
+reset(); seed(D,['mu']);
 eq('plyometrics goes first (power), then muscle-up (skill)', (ctx.addAreaToDay(D,0,'plyo'), ctx.dayPlans[D].sittings[0].areas), ['plyo','mu']);
 ctx.addAreaToDay(D,0,'bridge'); ctx.addAreaToDay(D,0,'kb');
 eq('then mobility, then kettlebell', ctx.dayPlans[D].sittings[0].areas, ['plyo','mu','bridge','kb']);
@@ -111,7 +113,7 @@ eq('a held area cannot be added', [r.ok, r.why], [false,'Nordic curl is held: ha
 ok('and is not on the day', ctx.dayPlans[D].sittings[0].areas.indexOf('nordic')<0);
 ctx.checkIns=[];
 
-reset(); ctx.ensureDayPlan(D,[]); ctx.addAreaToDay(D,0,'pistol');
+reset(); seed(D,['mu']); ctx.addAreaToDay(D,0,'pistol');
 ctx.removeAreaFromDay(D,0,'mu','no time');
 eq('taking off what the app suggested is a skip, with the reason', ctx.dayPlans[D].removed, {mu:'no time'});
 ok('and it forgets what it would have held', !ctx.frozenDays[D+':mu']);
@@ -125,7 +127,7 @@ eq('once started it cannot come off', [r.ok, r.why], [false,'Already started, so
 ok('and it is still there', ctx.dayPlans[D].sittings[0].areas.indexOf('mu')>=0);
 
 console.log('sittings:');
-reset(); ctx.ensureDayPlan(D,[]);
+reset(); seed(D,['mu']);
 eq('a second', ctx.addSitting(D,30), 1);
 eq('a third', ctx.addSitting(D,30), 2);
 eq('no fourth', ctx.addSitting(D,30), -1);
@@ -142,7 +144,7 @@ ctx.addAreaToDay(D,1,'bridge');
 eq('one with something in it cannot', ctx.removeSitting(D,1), false);
 eq('nor the only one', (ctx.removeSitting(D,1), ctx.removeAreaFromDay(D,1,'bridge'), ctx.removeSitting(D,1), ctx.removeSitting(D,0)), false);
 console.log('the same area in two sittings:');
-reset(); ctx.ensureDayPlan(D,[]);
+reset(); seed(D,['mu']);
 ctx.addSitting(D,30); ctx.addAreaToDay(D,1,'mu');
 eq('it is on both', ctx.dayPlans[D].sittings.map(s=>s.areas), [['mu'],['mu']]);
 ctx.removeAreaFromDay(D,1,'mu');
@@ -232,7 +234,7 @@ ctx.checkIns=[];
 eq('an unknown area is refused', ctx.logAreaBlock('2026-10-05','rowing').ok, false);
 
 console.log('where to start, and what comes next:');
-reset(); ctx.ensureDayPlan(D,[]); ctx.addAreaToDay(D,0,'pistol'); ctx.addAreaToDay(D,0,'bridge');
+reset(); seed(D,['mu']); ctx.addAreaToDay(D,0,'pistol'); ctx.addAreaToDay(D,0,'bridge');
 const m0=ctx.sessionById(D+':mu');
 eq('the first exercise when nothing is done', ctx.firstOpenExercise(m0), 0);
 ctx.writeLog(m0.id,'par-dips',0,{done:true});
@@ -248,7 +250,7 @@ eq('then bridge', ctx.nextAreaDay(ctx.sessionById(D+':pistol')).areaId, 'bridge'
 logAllSets(D+':bridge');
 eq('and then nothing', ctx.nextAreaDay(ctx.sessionById(D+':bridge')), null);
 eq('anything that is not an area-day has no next', ctx.nextAreaDay(ctx.sessionById('W2-Mon')), null);
-reset(); ctx.ensureDayPlan(D,[]); ctx.addAreaToDay(D,0,'pistol');
+reset(); seed(D,['mu']); ctx.addAreaToDay(D,0,'pistol');
 ctx.checkIns=[ci('2026-10-03',{achilles:8})]; ctx.addAreaToDay(D,0,'bridge');
 ctx.checkIns=[];
 logAllSets(D+':mu');

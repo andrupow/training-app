@@ -1081,27 +1081,260 @@ function menuWarnings(area, date, plan, days) {
   return out;
 }
 
-/* Which due areas to start the day with: in priority order, as many as fit the
-   sitting's minutes without breaking a hard rule, never one that is held. The
-   proper best-combination recommender comes later; this is deliberately small. */
-function suggestAreas(date, minutes, days) {
-  var start = weekStartOf(date);
-  var picked = [], used = 0;
-  var due = areaList().filter(function (a) {
-    return areaWeek(a, start, date, days).status.key === 'due' && !heldReason(a, date);
-  }).sort(function (a, b) { return a.priority - b.priority; });
+/* --- the recommender ------------------------------------------------------ */
+/* Which areas to do today. A pure function of what it is handed (the areas with
+   their week so far, the rules, the minutes), so it can be tested without the
+   app, and it explains itself: every area gets a line saying why it is on the
+   menu or why it is not. No learning, so you can always see why.
 
-  due.forEach(function (a) {
-    if (picked.length >= areaData.rules.defaults.maxAreas) return;
-    if (used + a.minutes > minutes) return;
-    var clash = areaData.rules.conflicts.some(function (c) {
-      return !c.soft && c.areas.indexOf(a.id) >= 0 && c.areas.some(function (o) { return o !== a.id && picked.indexOf(o) >= 0; });
-    });
-    if (clash) return;
-    picked.push(a.id);
-    used += a.minutes;
+   1. Rule out what cannot be done: held by a red body area, taken off or already
+      on the menu, at its weekly max, too soon after the last time, or its shared
+      weekly budget used up. An area that has hit its target is not recommended
+      either, though it can still be added.
+   2. Value what is left. Highest when its weekly minimum is about to become
+      impossible, then when the spacing to its target is tight, then how long it
+      has been, all weighted by your priority order.
+   3. Take the best combination that fits: the highest total value that packs
+      into the day's sittings, within the area and high-load limits and with no
+      conflicting pair. A soft conflict is allowed when one of the two would
+      otherwise miss its week. A day has few areas, so this is a handful of
+      subsets, not a search.
+
+   input = { date, slots: [minutes], areas: [{ id, name, priority, minutes, load,
+             per: {min, target, max}, gap, days: [dates logged], held, hold, excluded }],
+             conflicts, budgets, limits: {maxAreas, maxHigh}, weights, already: [ids] }
+   `already` are areas planned or done in an earlier sitting today: they use up
+   room under the limits and count in conflicts, but are not minutes to fill. */
+function recommendDay(input) {
+  var date = input.date, slots = input.slots, W = input.weights, L = input.limits;
+  var total = slots.reduce(function (n, x) { return n + x; }, 0);
+  var start = weekStartOf(date);
+  var daysLeft = 7 - isoDow(date);                      /* counting today */
+  var byId = {}, lines = {}, pool = [], wkOf = {};
+
+  input.areas.forEach(function (a) { byId[a.id] = a; });
+  var already = (input.already || []).filter(function (id) { return byId[id]; });
+  var maxPri = input.areas.reduce(function (n, a) { return Math.max(n, a.priority); }, 0);
+
+  function areaName(id) { return byId[id] ? byId[id].name : id; }
+
+  input.areas.forEach(function (a) {
+    wkOf[a.id] = a.days.filter(function (d) { return d >= start && d <= date; }).length;
   });
-  return picked;
+
+  function conflictBetween(x, y) {
+    return input.conflicts.filter(function (c) { return c.areas.indexOf(x) >= 0 && c.areas.indexOf(y) >= 0 && x !== y; })[0];
+  }
+  function other(c, id) { return c.areas[0] === id ? c.areas[1] : c.areas[0]; }
+
+  input.areas.forEach(function (a) {
+    var wk = wkOf[a.id], per = a.per;
+    var last = null;
+    a.days.forEach(function (d) { if (d <= date && (!last || d > last)) last = d; });
+    var ago = last ? daysBetween(last, date) : null;
+    var line = lines[a.id] = { picked: false, kind: '', why: '', hold: a.hold || null };
+
+    function out(kind, why) { line.kind = kind; line.why = why; }
+
+    if (a.held) return out('held', 'Held: ' + a.held + '.');
+    if (a.excluded) return out('excluded', a.excluded);
+    if (wk >= per.max) return out('max', 'At its weekly max of ' + per.max + '.');
+    if (last && ago < a.gap) {
+      return out('soon', ago === 0 ? 'Already trained today.'
+        : 'Too soon: trained ' + agoText(ago) + ', wants ' + a.gap + '+ days between.');
+    }
+    if (already.indexOf(a.id) >= 0) return out('excluded', 'Already on today\u2019s menu.');
+    var capped = input.budgets.filter(function (b) {
+      if (b.areas.indexOf(a.id) < 0) return false;
+      var used = b.areas.reduce(function (n, id) { return n + (wkOf[id] || 0); }, 0);
+      line.budgetUsed = used;
+      return used >= b.maxPerWeek;
+    })[0];
+    if (capped) return out('budget', 'This week’s ' + capped.why + ' cap is used: ' + line.budgetUsed + ' of ' + capped.maxPerWeek + ' days.');
+
+    var need = per.target - wk;
+    if (need <= 0) return out('met', 'Target met this week (' + wk + '/' + per.target + '). You can still add it.');
+
+    var needMin = Math.max(0, per.min - wk);
+    var span = (need - 1) * a.gap + 1;
+    var spanMin = needMin > 0 ? (needMin - 1) * a.gap + 1 : 0;
+    var c = {
+      area: a, id: a.id, need: need,
+      pressure: need * a.gap / daysLeft,
+      stale: last ? ago / (7 / per.target) : 9,
+      must: span >= daysLeft,
+      mustMin: needMin > 0 && spanMin >= daysLeft
+    };
+    c.urgent = c.must || c.mustMin;
+    c.value = (1 + (maxPri + 1 - a.priority) * W.priorityStep) *
+      (W.mustMinWeight * c.mustMin + W.mustWeight * c.must + W.pressureWeight * c.pressure + W.staleWeight * Math.min(c.stale, W.staleCap));
+    pool.push(c);
+  });
+
+  /* The most urgent first, so the cap on the pool keeps the ones that matter. */
+  pool.sort(function (x, y) {
+    return (y.mustMin - x.mustMin) || (y.must - x.must) || (y.value - x.value) || (x.area.priority - y.area.priority);
+  });
+  pool = pool.slice(0, W.maxPool);
+
+  function clashOf(c, others) {
+    for (var i = 0; i < others.length; i++) {
+      var k = conflictBetween(c.id, others[i].id || others[i]);
+      if (k) return { k: k, with: others[i].id || others[i], soft: !!k.soft };
+    }
+    return null;
+  }
+
+  /* Can these sit in the sittings? Biggest first, trying each sitting in turn. */
+  function pack(ids) {
+    var left = slots.slice(), out = slots.map(function () { return []; });
+    var order = ids.slice().sort(function (x, y) { return byId[y].minutes - byId[x].minutes; });
+    function go(i) {
+      if (i === order.length) return true;
+      for (var k = 0; k < left.length; k++) {
+        if (left[k] >= byId[order[i]].minutes) {
+          left[k] -= byId[order[i]].minutes; out[k].push(order[i]);
+          if (go(i + 1)) return true;
+          left[k] += byId[order[i]].minutes; out[k].pop();
+        }
+      }
+      return false;
+    }
+    return go(0) ? out : null;
+  }
+
+  var baseHigh = already.filter(function (id) { return byId[id].load === 'high'; }).length;
+  var best = null;
+
+  for (var m = 1; m < (1 << pool.length); m++) {
+    var set = [], mins = 0, high = baseHigh, v = 0, fits = true;
+    for (var b = 0; b < pool.length && fits; b++) {
+      if (!(m & (1 << b))) continue;
+      var c2 = pool[b];
+      set.push(c2); mins += c2.area.minutes; v += c2.value;
+      if (c2.area.load === 'high') high++;
+      if (already.length + set.length > L.maxAreas || mins > total || high > L.maxHigh) fits = false;
+    }
+    if (!fits) continue;
+
+    for (var i = 0; i < set.length && fits; i++) {
+      var hit = clashOf(set[i], already);
+      if (hit && !(hit.soft && set[i].urgent)) fits = false;
+      for (var j = i + 1; j < set.length && fits; j++) {
+        var k2 = conflictBetween(set[i].id, set[j].id);
+        if (k2 && !(k2.soft && (set[i].urgent || set[j].urgent))) fits = false;
+      }
+    }
+    if (!fits) continue;
+    if (slots.length > 1 && !pack(set.map(function (x) { return x.id; }))) continue;
+    if (!best || v > best.v + 1e-9 || (Math.abs(v - best.v) < 1e-9 && mins < best.mins)) best = { set: set, v: v, mins: mins };
+  }
+
+  var picked = [], used = 0;
+  if (best) {
+    best.set.sort(function (x, y) { return x.area.priority - y.area.priority; });
+    picked = best.set.map(function (c) { return c.id; });
+    used = best.mins;
+  }
+  var pickedAndAlready = picked.concat(already);
+
+  best && best.set.forEach(function (c) {
+    var line = lines[c.id];
+    line.picked = true;
+    line.kind = c.mustMin ? 'minimum' : c.must ? 'target' : 'fit';
+    line.why = c.mustMin ? 'Needs today to keep its minimum for the week.'
+      : c.must ? 'Needs today to reach its target for the week.'
+      : 'Still needs ' + c.need + ' more this week.';
+    var shared = clashOf(c, pickedAndAlready.filter(function (id) { return id !== c.id; }));
+    if (shared) line.why += ' Shares the day with ' + areaName(shared.with) + ' (' + shared.k.why + ').';
+  });
+
+  /* The ones that were wanted but did not make it, and why. */
+  pool.forEach(function (c) {
+    if (lines[c.id].picked) return;
+    var line = lines[c.id];
+    var hard = clashOf(c, pickedAndAlready);
+    var high = pickedAndAlready.filter(function (id) { return byId[id].load === 'high'; }).length;
+    var left = total - used;
+
+    if (hard && !(hard.soft && c.urgent)) {
+      line.kind = 'conflict';
+      line.why = 'Not with ' + areaName(hard.with) + ': ' + hard.k.why + '.';
+    } else if (c.area.load === 'high' && high >= L.maxHigh) {
+      line.kind = 'limit';
+      line.why = 'Already ' + L.maxHigh + ' high-load areas today.';
+    } else if (pickedAndAlready.length >= L.maxAreas) {
+      line.kind = 'limit';
+      line.why = 'Already ' + L.maxAreas + ' areas today.';
+    } else {
+      line.kind = 'time';
+      line.why = 'Needs about ' + c.area.minutes + ' min; ' + (left > 0 ? left + ' left today.' : 'today has no room.');
+    }
+  });
+
+  return {
+    picked: picked,
+    sittings: slots.length > 1 && picked.length ? (pack(picked) || slots.map(function () { return []; })) : [picked],
+    minutes: used,
+    lines: lines,
+    skipped: input.areas.filter(function (a) { return !lines[a.id].picked; })
+      .map(function (a) { return { area: a.id, why: lines[a.id].why }; })
+  };
+}
+
+/* The body areas that are amber for an area, from the last week of check-ins.
+   Amber keeps the area on the menu but holds the load where it is. Red is the
+   hard stop and is handled by heldReason. */
+function holdReason(area, date) {
+  var recent = checkInsBetween(addDays(date, -(RED_DAYS - 1)), date);
+  var amber = area.guardedBy.filter(function (b) {
+    return recent.some(function (c) { return areaState(b, c, priorTo(c.date)) === 'amber'; });
+  });
+  return amber.length ? bodyLabel(amber[0]).toLowerCase() + ' amber' : null;
+}
+
+/* The app's state, handed over as plain data. */
+function recommendInput(date, slots, days) {
+  var start = weekStartOf(date);
+  ensureWeekFit(start, days);
+
+  var plan = dayPlans[date];
+  var onMenu = plan ? plannedAreaIds(plan) : [];
+  var already = onMenu.slice();
+  days.forEach(function (r) { if (r.date === date && already.indexOf(r.area) < 0) already.push(r.area); });
+
+  var rules = areaData.rules;
+  return {
+    date: date, slots: slots, already: already,
+    areas: areaList().map(function (a) {
+      var w = areaWeek(a, start, date, days);
+      var excluded = null;
+      if (plan && onMenu.indexOf(a.id) >= 0) excluded = 'Already on today’s menu.';
+      else if (plan && a.id in plan.removed) excluded = 'Taken off today’s menu' + (plan.removed[a.id] ? ' (' + plan.removed[a.id] + ')' : '') + '.';
+      return {
+        id: a.id, name: a.name, priority: a.priority, minutes: a.minutes, load: a.load,
+        per: { min: w.min, target: w.target, max: w.max }, gap: w.gap,
+        days: days.filter(function (r) { return r.area === a.id; }).map(function (r) { return r.date; }),
+        held: heldReason(a, date), hold: holdReason(a, date), excluded: excluded
+      };
+    }),
+    conflicts: rules.conflicts, budgets: rules.budgets,
+    limits: { maxAreas: rules.defaults.maxAreas, maxHigh: rules.defaults.maxHigh },
+    weights: rules.recommender
+  };
+}
+
+/* Today's recommendation in the order to do things, sitting by sitting. */
+function recommendFor(date, slots, days) {
+  var out = recommendDay(recommendInput(date, slots, days));
+  out.picked = doOrder(out.picked);
+  out.sittings = out.sittings.map(doOrder);
+  return out;
+}
+
+/* Which areas to start the day with. */
+function suggestAreas(date, minutes, days) {
+  return recommendFor(date, [minutes], days).picked;
 }
 
 /* The menu is made the first time the day is shown. */

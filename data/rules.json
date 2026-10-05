@@ -101,6 +101,15 @@
       "why": "elbow tendon"
     }
   ],
+  "recommender": {
+    "mustMinWeight": 4,
+    "mustWeight": 2,
+    "pressureWeight": 1,
+    "staleWeight": 0.25,
+    "staleCap": 4,
+    "priorityStep": 0.12,
+    "maxPool": 12
+  },
   "verdicts": {
     "window": 4,
     "consistentHits": 3,
