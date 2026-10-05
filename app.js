@@ -7,7 +7,7 @@
 
 'use strict';
 
-var BUILD = '1.19.1-lookahead';
+var BUILD = '1.20.0-videos';
 var PLAN_URL = 'data/plan.json';
 var LS_PLAN = 'plan.cache.v1';
 var LS_LOGS = 'setLogs';
@@ -738,7 +738,8 @@ var PACK_AREA_KEYS = ['id', 'name', 'short', 'priority', 'goal', 'perWeek', 'min
 var PACK_STAGE_KEYS = ['id', 'name', 'askAfter', 'optional', 'work', 'maxContacts', 'maxDepthContacts', 'goal',
   'milestone', 'ready', 'note', 'requires', 'bells', 'perWeek', 'minGapDays', 'draft', 'exercises', 'equipment', 'types'];
 var PACK_TEST_KEYS = ['id', 'name', 'unit', 'baselineStage', 'retestEveryWeeks', 'note'];
-var PACK_EXERCISE_KEYS = ['id', 'name', 'sets', 'reps', 'tempo', 'restSec', 'load', 'type', 'cue', 'note', 'contacts'];
+var PACK_EXERCISE_KEYS = ['id', 'name', 'sets', 'reps', 'tempo', 'restSec', 'load', 'type', 'cue', 'note', 'contacts', 'video'];
+var VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;                /* a YouTube video id */
 var PACK_LOAD_TYPES = ['pct5RM', 'pctBW', 'fixedKg', 'bodyweight', 'text', 'none'];
 
 function isWhole(n) { return typeof n === 'number' && isFinite(n) && Math.floor(n) === n; }
@@ -888,6 +889,7 @@ function validateAreaPack(input, opts) {
         if (!isWhole(e.restSec) || e.restSec < 0 || e.restSec > 900) bad(ea + '"restSec" must be a whole number of seconds from 0 to 900.');
         if (!e.load || PACK_LOAD_TYPES.indexOf(e.load.type) < 0) bad(ea + '"load.type" must be one of: ' + PACK_LOAD_TYPES.join(', ') + '.');
         if (e.type !== undefined && (raw.sessionTypes || []).indexOf(e.type) < 0) bad(ea + '"type" must be one of the area’s sessionTypes.');
+        if (e.video !== undefined && !(typeof e.video === 'string' && VIDEO_ID.test(e.video))) bad(ea + '"video" must be the 11-character YouTube id (the part after v= in the address), such as "dQw4w9WgXcQ".');
       });
       if (ex.every(function (e) { return e && e.type; }) === false && ex.some(function (e) { return e && e.type; })) bad(at + 'either every exercise has a "type" or none does.');
 
@@ -3024,6 +3026,65 @@ function specText(ex) {
   return sets + ' × ' + reps;
 }
 
+/* --- exercise videos -------------------------------------------------------- */
+/* data/videos.json has a demonstration on YouTube for each exercise id: { v: the video id,
+   t: its title, fit: 'close' when it shows the movement family or a nearby step rather than
+   this exact variation }. A key 'id|Name' is for one named variant of an id several share, and
+   wins over the plain id. `none` lists ids that are not exercises (rest, protocols), which get
+   no link. An exercise from your own pack can carry its own `video`; one with no video at all
+   gets a YouTube search link instead, so there is always a way to see it done. */
+var videoData = { videos: {}, none: [] };
+
+function cleanVideoData(json) {
+  var out = { videos: {}, none: [] };
+  if (!json || typeof json !== 'object') return out;
+  var vids = json.videos && typeof json.videos === 'object' && !Array.isArray(json.videos) ? json.videos : {};
+  Object.keys(vids).forEach(function (id) {
+    var v = vids[id];
+    if (v && typeof v === 'object' && typeof v.v === 'string' && VIDEO_ID.test(v.v)) {
+      out.videos[id] = { v: v.v, t: typeof v.t === 'string' ? v.t : '', fit: v.fit === 'close' ? 'close' : 'exact' };
+    }
+  });
+  if (Array.isArray(json.none)) out.none = json.none.filter(function (id) { return typeof id === 'string'; });
+  return out;
+}
+
+function loadVideos() {
+  return fetch('data/videos.json', { cache: 'no-cache' })
+    .then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
+    .then(function (json) { videoData = cleanVideoData(json); return true; })
+    .catch(function (err) { console.warn('videos did not load; links fall back to a search', err); return false; });
+}
+
+/* What to link for an exercise: { url, label, title, kind: 'exact' | 'close' | 'search' }, or null. */
+function videoFor(ex) {
+  if (!ex || typeof ex !== 'object') return null;
+  var watch = 'https://www.youtube.com/watch?v=';
+  if (typeof ex.video === 'string' && VIDEO_ID.test(ex.video)) {
+    return { url: watch + ex.video, label: 'Video', title: ex.name || '', kind: 'exact' };
+  }
+  if (videoData.none.indexOf(ex.id) >= 0) return null;
+  var hit = videoData.videos[ex.id + '|' + ex.name] || videoData.videos[ex.id];     /* a named variant first */
+  if (hit) {
+    return { url: watch + hit.v, label: hit.fit === 'close' ? 'Similar video' : 'Video', title: hit.t, kind: hit.fit === 'close' ? 'close' : 'exact' };
+  }
+  if (!ex.name || ex.id === 'done') return null;        /* 'done' is the stand-in for a tracked area, not an exercise */
+  return { url: 'https://www.youtube.com/results?search_query=' + encodeURIComponent(ex.name + ' how to'),
+    label: 'Find video', title: 'Search YouTube for ' + ex.name, kind: 'search' };
+}
+
+/* A small link out to the video. It opens in the browser (or the YouTube app) and leaves the
+   workout where it was. */
+function videoLink(ex, cls) {
+  var v = videoFor(ex);
+  if (!v) return null;
+  return el('a', {
+    class: cls || 'ex-video', href: v.url, target: '_blank', rel: 'noopener noreferrer',
+    title: v.title, 'aria-label': (v.kind === 'search' ? 'Search YouTube for ' : v.kind === 'close' ? 'Watch a similar video of ' : 'Watch a video of ') + ex.name,
+    text: v.label + ' ↗'
+  });
+}
+
 /* Shared by Today and the Plan browser.
    mode: 'live' = tappable chips, 'review' = chips shown but locked,
          'plain' = no chips at all. */
@@ -3062,6 +3123,7 @@ function exerciseCard(ex, session, mode, gate) {
     el('div', { class: 'ex-head' }, [
       el('span', { class: 'ex-name', text: ex.name }),
       held ? badge('HOLD', 'badge-hold') : null,
+      videoLink(ex),
       runLink
     ]),
     spec.childNodes.length ? spec : null,
@@ -4748,7 +4810,7 @@ function paintRunner() {
   var skipE = el('button', { class: 'run-link', type: 'button', text: 'Skip exercise' });
   skipE.addEventListener('click', skipExercise);
 
-  body.appendChild(el('div', { class: 'run-links' }, [logBtn, skipS, skipE]));
+  body.appendChild(el('div', { class: 'run-links' }, [videoLink(ex, 'run-link'), logBtn, skipS, skipE]));
 
   root.appendChild(body);
 }
@@ -6872,6 +6934,7 @@ function renderReview(id) {
         return el('li', {}, [
           el('span', { class: 'rv-ex-name', text: e.name }),
           added[e.id] ? el('span', { class: 'st st-rec', text: 'new' }) : null,
+          videoLink(e, 'ex-video'),
           el('span', { class: 'rv-ex-line', text: exerciseLine(e, today) })
         ]);
       })));
@@ -7309,7 +7372,7 @@ function renderHowTo() {
     list([
       'Area: id (lowercase, 2 to 24 characters), name, goal, perWeek { min, target, max } in days (1 to 7), minGapDays (days between sessions), minutes, load (low, medium or high), order, guardedBy, stages. Optional: short (up to 13 characters), priority, sessionTypes.',
       'Stage: id, name, work (what it trains), ready (the standard, a list of clear sentences), exercises, and askAfter (full area-days before the review, at least one week of the area). Optional: equipment, goal (one stage), optional, draft, requires, bells, maxContacts.',
-      'Exercise: id (lowercase slug), name, sets, reps (text: "5", "30 s", "8 / side"), restSec, load { type }, and optionally tempo, cue, note. load.type is one of bodyweight, fixedKg, pct5RM, pctBW, text, none.',
+      'Exercise: id (lowercase slug), name, sets, reps (text: "5", "30 s", "8 / side"), restSec, load { type }, and optionally tempo, cue, note, video (the 11-character YouTube id, the part after v= in the address; without one the exercise gets a YouTube search link). load.type is one of bodyweight, fixedKg, pct5RM, pctBW, text, none.',
       'Every stage needs at least one exercise, so a move up never lands on an empty stage.'
     ]),
     h('Values you can use'),
@@ -7673,6 +7736,13 @@ loadAreaData().then(function (data) {
 }).then(function () {
   /* The plan usually arrives first, so the screen drawn then said "loading". */
   if (plan && routeNeedsAreas(location.hash)) route();
+});
+
+/* Videos arrive on their own too. Screens drawn before they came have a search link where a
+   video belongs, so draw the ones that show exercises again (never the runner mid-set). */
+loadVideos().then(function (loaded) {
+  var tab = String(location.hash || '').replace(/^#\/?/, '').split('/')[0] || 'today';
+  if (loaded && plan && (tab === 'today' || tab === 'plan' || tab === 'review')) route();
 });
 
 loadPlan().then(function (json) {

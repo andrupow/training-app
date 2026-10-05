@@ -1061,6 +1061,17 @@ body.in-run .restbar { display: none; }
   cursor: pointer;
 }
 
+/* The link out to a demonstration video. */
+.ex-video {
+  display: inline-block; margin-left: 8px; padding: 2px 9px;
+  border: 1px solid var(--line); border-radius: 12px;
+  font-size: 12.5px; font-weight: 600; line-height: 1.5; white-space: nowrap;
+  color: var(--accent); text-decoration: none;
+}
+.ex-video:hover { background: var(--surface-2); }
+.run-links a.run-link { display: inline-flex; align-items: center; }
+.rv-ex .ex-video { margin-left: 6px; }
+
 .run-done .run-big { color: var(--accent); }
 
 /* short phones: shrink the giant numbers rather than scroll */

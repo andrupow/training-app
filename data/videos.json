@@ -1,0 +1,650 @@
+{
+ "schema": 1,
+ "note": "One demonstration video per exercise id, found by searching YouTube. t is the video title as the search showed it. fit \"close\" means the video shows the same movement family or a nearby step, not this exact variation. A key like \"nordic|Weighted Nordic curl\" is for one named variant of an id that is shared by several, and wins over the plain id. none lists ids that are not exercises (rest, protocols), so they get no link. An exercise with no entry here gets a YouTube search link instead.",
+ "none": [
+  "nothing",
+  "no-pogo",
+  "rest",
+  "prime",
+  "contingency"
+ ],
+ "videos": {
+  "achilles-iso": {
+   "v": "5rApH-Wzick",
+   "t": "Isometric Single Leg Hold (Achilles Tendon)"
+  },
+  "ankle-rock": {
+   "v": "xnAHikXNPYU",
+   "t": "How to: Knee to Wall Ankle Mobility Exercise"
+  },
+  "approach-3": {
+   "v": "B7vbjJ2wQQQ",
+   "t": "3 Step Approach Jump Technique"
+  },
+  "approach-5": {
+   "v": "A5LAxy-fD0I",
+   "t": "Approach Jump Technique - How to Perform a Volleyball Approach Jump",
+   "fit": "close"
+  },
+  "arch-hollow": {
+   "v": "bR4MdOE4b_w",
+   "t": "Hollow + Arch Holds & Rocks",
+   "fit": "close"
+  },
+  "archer": {
+   "v": "lcYfpBXqQPE",
+   "t": "ARCHER pull up TUTORIAL"
+  },
+  "assisted-bottom-hold": {
+   "v": "Yg7QbmiFvzE",
+   "t": "Bottom of Pistol Squat Hold",
+   "fit": "close"
+  },
+  "assisted-oap": {
+   "v": "p8HMs_q_8hw",
+   "t": "One arm assisted pull-ups",
+   "fit": "close"
+  },
+  "assisted-pistol": {
+   "v": "6pUx2ktKCMQ",
+   "t": "Assisted Pistol Squats - Proper Form & Technique [4K]"
+  },
+  "attempt": {
+   "v": "xDoCF9CfH68",
+   "t": "Bar muscle up tutorial: progressions and tips",
+   "fit": "close"
+  },
+  "band-bar-dip": {
+   "v": "61AoJ7YfRrM",
+   "t": "Straight Bar Dips with Bands"
+  },
+  "band-mu": {
+   "v": "xx9MSNAkyqA",
+   "t": "Assisted Muscle Up with Resistance Bands: Muscle Up Tutorial and Form Explanation"
+  },
+  "band-nordic": {
+   "v": "RS9yc3i69M8",
+   "t": "How To Do A RESISTANCE BAND ASSISTED NORDIC HAMSTRING CURL"
+  },
+  "bar-dip-neg": {
+   "v": "jWHKAXYNKfw",
+   "t": "Bar Dip Negative: Bar dip progression #1"
+  },
+  "bar-dips": {
+   "v": "XTDc47D1G_I",
+   "t": "How To Straight Bar Dip"
+  },
+  "bar-neg": {
+   "v": "jWHKAXYNKfw",
+   "t": "Bar Dip Negative: Bar dip progression #1"
+  },
+  "bar-support": {
+   "v": "89_AgShgchM",
+   "t": "Bar support (straight-arm)",
+   "fit": "close"
+  },
+  "bar-swings": {
+   "v": "DjvPpzSvywI",
+   "t": "Master the Kipping Movement: Arch to Hollow! 🔥"
+  },
+  "bench-bridge": {
+   "v": "Y39ee-T6j50",
+   "t": "Back Bridge Progressions Tutorial",
+   "fit": "close"
+  },
+  "bound": {
+   "v": "eIjuMzIFREs",
+   "t": "How To: Alternating Leg Bounds"
+  },
+  "box-jump": {
+   "v": "YLPQsdRDmB0",
+   "t": "How To Box Jump Properly"
+  },
+  "box-pistol": {
+   "v": "3HCztPN3aSk",
+   "t": "Exercise Tutorial: Single Leg Box Squat"
+  },
+  "bridge-hold": {
+   "v": "Ajd7hAAVNt4",
+   "t": "Back Bridge Tutorial"
+  },
+  "bridge-walk-in": {
+   "v": "68iY2G83byw",
+   "t": "Bridge walk (toward feet)"
+  },
+  "broad-jump": {
+   "v": "x9qlFXfQaZU",
+   "t": "How to do Broad Jumps (Standing Long Jumps)"
+  },
+  "bulgarian-split-squat": {
+   "v": "VPhhE6bBzZE",
+   "t": "How To Do Bulgarian Split Squats Correctly"
+  },
+  "c2b-pause": {
+   "v": "i8b8_4-877I",
+   "t": "MONKEY METHOD- Pause Chest to Bar Pull-ups"
+  },
+  "chest-opener": {
+   "v": "KDlgPELgwUc",
+   "t": "How To: Thoracic Spine Bench Opener Stretch",
+   "fit": "close"
+  },
+  "cmj": {
+   "v": "FWbDPbzOwws",
+   "t": "Squat jump, countermovement jump and countermovement jump with armswing"
+  },
+  "copenhagen": {
+   "v": "40yaSGsqKvg",
+   "t": "3 Easy Steps to Master the Copenhagen Side Plank [Tutorial]"
+  },
+  "core": {
+   "v": "MY6_stJuy7M",
+   "t": "How To Do The Hollow Body [Tutorial]",
+   "fit": "close"
+  },
+  "counterweight-pistol": {
+   "v": "HnFcoyMHt-E",
+   "t": "How to Perform a Proper Pistol (with counter-weight)"
+  },
+  "dead-hang": {
+   "v": "jBZCzK9zlxk",
+   "t": "Dead Hang Tutorial"
+  },
+  "deep-squat": {
+   "v": "IHApHfNA2Ag",
+   "t": "How to Do a Deep Squat According to Physical Therapists"
+  },
+  "depth-jump": {
+   "v": "bMHL5xqKn3E",
+   "t": "How to do a Depth Jump"
+  },
+  "dip-burnout": {
+   "v": "XqBuu8Qp4mA",
+   "t": "CALISTHENICS: How To Do PARALLEL BAR DIPS! [TUTORIAL]",
+   "fit": "close"
+  },
+  "dip-neg": {
+   "v": "T3Scqw1BbCc",
+   "t": "Parallel Bar Dips (negatives only)"
+  },
+  "dislocates": {
+   "v": "riVxa9By-pM",
+   "t": "How To Do Band Dislocates / Pass-Throughs (Shoulder Mobility)"
+  },
+  "explosive-dip": {
+   "v": "1zAkniPmt88",
+   "t": "Explosive Dips"
+  },
+  "explosive-dips": {
+   "v": "Suea2o8qSgw",
+   "t": "Explosive Bar Dips"
+  },
+  "face-pull": {
+   "v": "IU4n1z66Vgs",
+   "t": "Band Face Pull With External Rotation"
+  },
+  "false-grip": {
+   "v": "8TR93MfszNU",
+   "t": "False Grip Active Hang on PULL UP BAR"
+  },
+  "false-grip-top": {
+   "v": "lrlpNcpWQHw",
+   "t": "Pull-up, False Grip, Bar",
+   "fit": "close"
+  },
+  "fg-c2b": {
+   "v": "w9Ke7J7h9qM",
+   "t": "False grip strict chest to bar pull ups"
+  },
+  "fg-top-hold": {
+   "v": "lrlpNcpWQHw",
+   "t": "Pull-up, False Grip, Bar",
+   "fit": "close"
+  },
+  "fingertip-nordic": {
+   "v": "QCVces5NcPc",
+   "t": "My 7-Step Progression of the Nordic Curl",
+   "fit": "close"
+  },
+  "floor-bridge": {
+   "v": "zdC674S3u80",
+   "t": "Back Bridge Push Up - Tutorial"
+  },
+  "free-handstand": {
+   "v": "Z1BEEzg5L6Q",
+   "t": "HANDSTAND KICK UP TUTORIAL All the Levels! Wall to Freestanding"
+  },
+  "free-stand-to-stand": {
+   "v": "cI_1kSig-_4",
+   "t": "How to Stand Up From a Bridge",
+   "fit": "close"
+  },
+  "full-nordic": {
+   "v": "eM8eGhPzYtI",
+   "t": "How To Do a Full Nordic Hamstring Curl - Best Progressions"
+  },
+  "goblet-squat": {
+   "v": "sFvas9RkSlc",
+   "t": "How to Do a Goblet Squat Properly (Kettlebell Form + Mistakes)"
+  },
+  "halo": {
+   "v": "LEjVh4scVy4",
+   "t": "Kettlebell Halo Tutorial"
+  },
+  "hangs": {
+   "v": "_7Vv21ZMtjI",
+   "t": "HOW TO: dead hang from a pull-up bar"
+  },
+  "heel-raise": {
+   "v": "jfKTT_hr8bk",
+   "t": "Calf raises two legs step"
+  },
+  "heel-raise|Loaded single-leg heel raise (easy)": {
+   "v": "_Bc9hUhaqnk",
+   "t": "Single Leg Heel Raise Off Edge of Step"
+  },
+  "heel-raise|Single-leg heel raise, loaded": {
+   "v": "_Bc9hUhaqnk",
+   "t": "Single Leg Heel Raise Off Edge of Step"
+  },
+  "hinge": {
+   "v": "WzvsIU9FW60",
+   "t": "Trap Bar Deadlifts (How to)"
+  },
+  "hip-bridge": {
+   "v": "rVdk_9rwRIM",
+   "t": "How To Do Glute Bridge Hold Correctly"
+  },
+  "hollow": {
+   "v": "MY6_stJuy7M",
+   "t": "How To Do The Hollow Body [Tutorial]"
+  },
+  "hspu-deficit": {
+   "v": "-TEVwx20RH8",
+   "t": "How to Unlock Deficit Handstand Push-Ups"
+  },
+  "hspu-full": {
+   "v": "6MdyYIRS7FY",
+   "t": "HOW TO WALL HANDSTAND PUSH UP"
+  },
+  "hspu-negative": {
+   "v": "9Axl_1PEZ14",
+   "t": "HANDSTAND PUSH UP NEGATIVES"
+  },
+  "hspu-partial": {
+   "v": "L7sMsXJ1JOA",
+   "t": "Become a HSPU EXPERT (Handstand Push Up) - Partial Range to Full ROM",
+   "fit": "close"
+  },
+  "hurdle-hop": {
+   "v": "aIzT7ZhRkhI",
+   "t": "Low Hurdle Hops"
+  },
+  "kb-deadlift": {
+   "v": "sDbMsk3d6F4",
+   "t": "How To Do A Kettlebell Deadlift: Correct Form & Mistakes To Avoid"
+  },
+  "kb-floor": {
+   "v": "GWLYNJvHp5g",
+   "t": "One Arm Kettlebell Floor Press - How To"
+  },
+  "kb-power": {
+   "v": "dd5HoNzeryQ",
+   "t": "How To Kettlebell Push Press",
+   "fit": "close"
+  },
+  "kb-press": {
+   "v": "hS1vu-9CbMU",
+   "t": "Kettlebell Strict Press - Proper Form & Technique [4K]"
+  },
+  "kb-swing-1h": {
+   "v": "rH8JTfOflgI",
+   "t": "Complete Beginner One-Arm Kettlebell Swing Tutorial"
+  },
+  "kb-swing-2h": {
+   "v": "uMqcv_O7ppI",
+   "t": "Master the Two Handed Kettlebell Swing"
+  },
+  "l-sit": {
+   "v": "eqtXAJqY0q8",
+   "t": "Master the L-Sit Hold on Parallel Bars"
+  },
+  "l-sit-chin": {
+   "v": "2FuWfA7ur7w",
+   "t": "L-Sit Chin-Up"
+  },
+  "lateral-hop": {
+   "v": "KyKbb1fJntE",
+   "t": "SL Lateral Hop and Stick (Lateral Side) - Tutorial"
+  },
+  "light-band-mu": {
+   "v": "sbJHFZ-WHtE",
+   "t": "RubberBanditz Muscle Up Tutorial With Calisthenics Resistance Bands"
+  },
+  "lockout-hold": {
+   "v": "89_AgShgchM",
+   "t": "Bar support (straight-arm)"
+  },
+  "low-bridge": {
+   "v": "Y39ee-T6j50",
+   "t": "Back Bridge Progressions Tutorial",
+   "fit": "close"
+  },
+  "low-turnover": {
+   "v": "n43NCKu9bYQ",
+   "t": "Low Bar Banded Bar Muscle Up Tutorial",
+   "fit": "close"
+  },
+  "lsit-chin": {
+   "v": "2FuWfA7ur7w",
+   "t": "L-Sit Chin-Up"
+  },
+  "lsit-hold": {
+   "v": "U5q6xbZ74Hw",
+   "t": "Hanging L-Sit Tutorial"
+  },
+  "micro-mu": {
+   "v": "xDoCF9CfH68",
+   "t": "Bar muscle up tutorial: progressions and tips",
+   "fit": "close"
+  },
+  "microband-mu": {
+   "v": "AlehFAaULho",
+   "t": "How To Muscle-up With Resistance Bands & MISTAKES to Avoid!",
+   "fit": "close"
+  },
+  "mobility": {
+   "v": "a0yQM8xPxNQ",
+   "t": "WRIST & SHOULDER Mobility for HANDSTANDS // School of Calisthenics",
+   "fit": "close"
+  },
+  "mu-attempt": {
+   "v": "ZNdC7LFZNR8",
+   "t": "THE Strict Bar Muscle-up Tutorial - BEST Approach"
+  },
+  "mu-neg": {
+   "v": "DM3MxrdfCr4",
+   "t": "Negative Bar Muscle Up"
+  },
+  "neg-mu": {
+   "v": "DM3MxrdfCr4",
+   "t": "Negative Bar Muscle Up"
+  },
+  "nordic": {
+   "v": "RS9yc3i69M8",
+   "t": "How To Do A RESISTANCE BAND ASSISTED NORDIC HAMSTRING CURL"
+  },
+  "nordic-test": {
+   "v": "kFSnvwvc5ac",
+   "t": "How To Perform Nordic Hamstring Curls - Proper Technique, Common Mistakes, Best Progression",
+   "fit": "close"
+  },
+  "nordic|Nordic curl": {
+   "v": "eM8eGhPzYtI",
+   "t": "How To Do a Full Nordic Hamstring Curl - Best Progressions"
+  },
+  "nordic|Weighted Nordic curl": {
+   "v": "fihvhUR89Lg",
+   "t": "HOW TO: Weight Nordic Hamstring Curl"
+  },
+  "oap-attempt": {
+   "v": "DmczTZTMKvw",
+   "t": "One Arm Pull Up Full Tutorial + Exercises 💪"
+  },
+  "oap-negative": {
+   "v": "f4vjEWrv7Is",
+   "t": "One Arm Chin-up Negative Tutorial"
+  },
+  "oap-partial": {
+   "v": "mTJHClMQPM8",
+   "t": "How to One Arm Pull-Up Tutorial (BEST PROGRESSIONS)",
+   "fit": "close"
+  },
+  "one-arm-hang": {
+   "v": "uCQfKCjKp_s",
+   "t": "Lean How to Single Arm Hang (even if you're new to hanging!)"
+  },
+  "par-dips": {
+   "v": "XqBuu8Qp4mA",
+   "t": "CALISTHENICS: How To Do PARALLEL BAR DIPS! [TUTORIAL]"
+  },
+  "pike-elevated": {
+   "v": "5IcgscNCId8",
+   "t": "\"Elevated\" Pike Push-Up Technique"
+  },
+  "pike-pushup": {
+   "v": "lIZ_C4VJnmc",
+   "t": "How to Master the Pike Pushup (Tutorial + Progressions)"
+  },
+  "pike-shrug": {
+   "v": "bE5KEHYx--0",
+   "t": "Pike Push Up Shrugs"
+  },
+  "pistol-negative": {
+   "v": "eGeqDP8Szw8",
+   "t": "One Legged Squat Progression: Negative Pistol Squat Exercise"
+  },
+  "pistol-test": {
+   "v": "J19cXMqJ43o",
+   "t": "Pistol Squat - Proper Form"
+  },
+  "pogo": {
+   "v": "WNf2vCLncgY",
+   "t": "How To Do Pogo Jumps"
+  },
+  "pogo|Single-leg pogo": {
+   "v": "Yq75-6SUn7A",
+   "t": "How To Do Single Leg Pogo Hops"
+  },
+  "primer-pull": {
+   "v": "MttjyaLbzbc",
+   "t": "Sternum Pull Ups - OPEX Exercise Library",
+   "fit": "close"
+  },
+  "pry-goblet-squat": {
+   "v": "28YoUHBMCyA",
+   "t": "The Kettlebell \"Prying\" GOBLET SQUAT"
+  },
+  "reactive-hop": {
+   "v": "4Pk85OjQuxU",
+   "t": "Reactive Hurdle Jumps"
+  },
+  "reverse-lunge": {
+   "v": "ALl174GTuoY",
+   "t": "Reverse Lunge Form for Beginners (Step-by-Step)"
+  },
+  "russian-dip": {
+   "v": "Stwh2_OBpZY",
+   "t": "How To Do Russian Dips"
+  },
+  "scap-pull": {
+   "v": "1I9JZz8iNFA",
+   "t": "Hanging Scapular Pull Ups Tutorial"
+  },
+  "scap-shrug": {
+   "v": "V3D9EHMzTVM",
+   "t": "How to do SCAPULA Dips For SHOULDER PAIN"
+  },
+  "skipping": {
+   "v": "_UTR1VWg8WY",
+   "t": "How to Jump Rope for Beginners (Step-by-Step Tutorial to Learn Fast)",
+   "fit": "close"
+  },
+  "sl-box-jump": {
+   "v": "RVnOWNJ_mPo",
+   "t": "How To: Single Leg Box Jump"
+  },
+  "sl-heel-raise": {
+   "v": "_Bc9hUhaqnk",
+   "t": "Single Leg Heel Raise Off Edge of Step"
+  },
+  "sl-pogo": {
+   "v": "Yq75-6SUn7A",
+   "t": "How To Do Single Leg Pogo Hops"
+  },
+  "slow-nordic": {
+   "v": "UJAm2I2WBi8",
+   "t": "Nordic Hamstring Eccentrics"
+  },
+  "speed-c2b": {
+   "v": "ifIz8HWI5U0",
+   "t": "How to Do Chest-to-Bar Pull-Ups (Step-by-Step Progression)",
+   "fit": "close"
+  },
+  "sprint": {
+   "v": "6m_fjNhRhkY",
+   "t": "Proper Sprinting Form In 3 Steps"
+  },
+  "squat-hold": {
+   "v": "WWQxCJ4TcKc",
+   "t": "How To Do the Deep Squat Hold"
+  },
+  "squat-jump": {
+   "v": "8Sl9h44XNJA",
+   "t": "Squat Jump: How To (3 steps to proper form)"
+  },
+  "step-up": {
+   "v": "dQqApCGd5Ss",
+   "t": "How to Do Step-Ups"
+  },
+  "sternum-pull": {
+   "v": "MttjyaLbzbc",
+   "t": "Sternum Pull Ups - OPEX Exercise Library"
+  },
+  "stick-landing": {
+   "v": "_UXFKwcb1Go",
+   "t": "Step Off/ Drop and Land"
+  },
+  "straight-bridge": {
+   "v": "WGzONlUYCwI",
+   "t": "Straight Leg Bridge"
+  },
+  "strict-attempt": {
+   "v": "0wDEO6shVjc",
+   "t": "The Strict Handstand Push-Up"
+  },
+  "strict-pistol": {
+   "v": "hfNYuja5xTw",
+   "t": "How to Do a Pistol Squat Correctly"
+  },
+  "strict-pull": {
+   "v": "rVRiy_HVz2g",
+   "t": "The Strict Pull-Up Technique and Progression"
+  },
+  "strict-pull-oap": {
+   "v": "wpR3prb0T5s",
+   "t": "How To Do A Strict Pull-up"
+  },
+  "t2b": {
+   "v": "n2zoiCjBcbc",
+   "t": "Strict Toes To Bar & Progressions"
+  },
+  "test-heel": {
+   "v": "W2NyAre-WZs",
+   "t": "Exercise Tutorial: Dumbbell Chair Supported Single Leg Heel Raise"
+  },
+  "test-nordic": {
+   "v": "QOBYe-JiKW8",
+   "t": "How To Nordic Curl (BEGINNER-ADVANCED)",
+   "fit": "close"
+  },
+  "test-pogo": {
+   "v": "Yq75-6SUn7A",
+   "t": "How To Do Single Leg Pogo Hops"
+  },
+  "test-pullup": {
+   "v": "QZue7F_Zk3A",
+   "t": "Weighted Pull-Up Tutorial"
+  },
+  "tgu": {
+   "v": "6BiS4LKjxuk",
+   "t": "Mastering the Kettlebell Turkish Get-up (Hands-on Tutorial)"
+  },
+  "tgu-light": {
+   "v": "9GSYdnNTzsE",
+   "t": "Improving Your Turkish Get Up with a Shoe"
+  },
+  "thoracic-ext": {
+   "v": "2H5HsTsG-s0",
+   "t": "How to Perform Thoracic Extension with a Foam Roller for Back Pain Relief"
+  },
+  "toes-to-bar": {
+   "v": "F84DUeiAR3g",
+   "t": "How to Perform the Toe to Bar Straight Leg Raise (Strict Form, No Kipping)"
+  },
+  "turnover": {
+   "v": "2c_uXcHQX7E",
+   "t": "Low Bar Jumping Muscle Up"
+  },
+  "unassisted": {
+   "v": "xDoCF9CfH68",
+   "t": "Bar muscle up tutorial: progressions and tips"
+  },
+  "wall-hold": {
+   "v": "udZZb1mif_I",
+   "t": "Chest to Wall Handstand - Tutorial"
+  },
+  "wall-reach": {
+   "v": "r8A0hUYgiWs",
+   "t": "Overhead Reach on a Wall"
+  },
+  "wall-stand-to-stand": {
+   "v": "HB03TWpohvA",
+   "t": "How to Back Bend Into a BRIDGE from Standing [Tips + Progression]",
+   "fit": "close"
+  },
+  "wall-touch-test": {
+   "v": "TH4ANicJaV8",
+   "t": "Vertical Jump Test: How to Measure Jump Height",
+   "fit": "close"
+  },
+  "wall-walk-down": {
+   "v": "BEaRvXtN_z8",
+   "t": "Bridge wall walk (full ROM)"
+  },
+  "wall-walk-up": {
+   "v": "Qi_0GdeVTqc",
+   "t": "Chest-To-Wall Supported Handstand"
+  },
+  "weighted-dip": {
+   "v": "hVVVEPB2ntw",
+   "t": "How To: Weighted Parallel Bar Dips With Weight Plate And Belt"
+  },
+  "weighted-nordic": {
+   "v": "fihvhUR89Lg",
+   "t": "HOW TO: Weight Nordic Hamstring Curl"
+  },
+  "wide-pull": {
+   "v": "9A6NPVPzkqQ",
+   "t": "How to Do Wide Grip Pullups"
+  },
+  "wrist-prep": {
+   "v": "5mil82fqj30",
+   "t": "Wrist Rocks"
+  },
+  "wrist-roller": {
+   "v": "gUYXMoBpT8o",
+   "t": "How to use The Wrist Roller for Stronger Wrists and Forearms"
+  },
+  "wtd-c2b": {
+   "v": "_6GK0xoktzw",
+   "t": "Weighted Chest to Bar Pull-Up"
+  },
+  "wtd-dips": {
+   "v": "rKV-3YDubJE",
+   "t": "WEIGHTED DIP TUTORIAL"
+  },
+  "wtd-pull": {
+   "v": "5joIx-VL2XI",
+   "t": "GET A STRONGER WEIGHTED PULLUP (TECHNIQUE REVEALED)"
+  },
+  "wtd-top": {
+   "v": "KOw6VhY8McQ",
+   "t": "Weighted Pullups and how to work the weight belt"
+  },
+  "wtd-warmup": {
+   "v": "QZue7F_Zk3A",
+   "t": "Weighted Pull-Up Tutorial"
+  }
+ }
+}

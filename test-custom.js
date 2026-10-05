@@ -107,7 +107,7 @@ ok('reps as a number', has(mut(o=>{o.stages[0].exercises[0].reps=5;}),'"reps" mu
 ok('a negative rest', has(mut(o=>{o.stages[0].exercises[0].restSec=-5;}),'"restSec"'));
 ok('an unknown load', has(mut(o=>{o.stages[0].exercises[0].load={type:'stones'};}),'"load.type" must be one of:'));
 ok('an exercise id used twice', has(mut(o=>{o.stages[0].exercises[1].id='drill';}),'the id is used twice in this stage.'));
-ok('an exercise field that is not one', has(mut(o=>{o.stages[0].exercises[0].video='x';}),'exercise "drill": unknown field "video".'));
+ok('an exercise field that is not one', has(mut(o=>{o.stages[0].exercises[0].photo='x';}),'exercise "drill": unknown field "photo".'));
 ok('a type the area does not have', has(mut(o=>{o.stages[0].exercises[0].type='heavy';}),'must be one of the area’s sessionTypes'));
 ok('some typed, some not', has(mut(o=>{o.sessionTypes=['a'];o.stages[0].exercises[0].type='a';}),'either every exercise has a "type" or none does'));
 ok('equipment that is not in the list', has(mut(o=>{o.stages[0].equipment=['jetpack'];}),'unknown equipment "jetpack". Known:'));

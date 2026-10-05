@@ -2,7 +2,7 @@
    Bump CACHE on every deploy. skipWaiting + clients.claim so the phone
    never keeps serving yesterday's build. */
 
-var CACHE = 'plan-v1.19.1-lookahead';
+var CACHE = 'plan-v1.20.0-videos';
 
 var PRECACHE = [
   './',
@@ -13,6 +13,7 @@ var PRECACHE = [
   'data/plan.json',
   'data/rules.json',
   'data/legacy.json',
+  'data/videos.json',
   'data/areas/index.json',
   'icons/icon-192.png',
   'icons/icon-512.png'

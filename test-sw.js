@@ -41,7 +41,7 @@ const ids = JSON.parse(read('data/areas/index.json')).areas;
   console.log('the real files:');
   let r = await install(real);
   eq('every area file is precached', ids.map(i => 'data/areas/' + i + '.json').filter(u => !r.urls.includes(u)), []);
-  ok('the index, rules and legacy map are precached', ['data/areas/index.json', 'data/rules.json', 'data/legacy.json'].every(u => r.urls.includes(u)));
+  ok('the index, rules, legacy map and exercise videos are precached', ['data/areas/index.json', 'data/rules.json', 'data/legacy.json', 'data/videos.json'].every(u => r.urls.includes(u)));
   ok('the plan and the shell still are', ['data/plan.json', 'index.html', 'app.js', 'style.css'].every(u => r.urls.includes(u)));
   eq('nothing warned', r.warnings, []);
 

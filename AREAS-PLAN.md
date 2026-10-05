@@ -840,6 +840,21 @@ export imports and is seeded as above.
    - **Red lights card first:** it now sits above the week grid, so a hold that is
      thinning the week is the first thing seen, with its one-tap lift.
 
+10. **After M16 — a video for every exercise (build 1.20.0-videos):** every exercise
+    has a link to a demonstration on YouTube: a small **Video ↗** on the exercise
+    card (Today, Plan, the review's next-stage list) and on the runner next to Log
+    actual. The links live in `data/videos.json`, keyed by exercise id (153 ids; a key
+    like `nordic|Weighted Nordic curl` is for one named variant of an id that several
+    stages share), each with the title it was found under. They were found by
+    searching YouTube, and each was checked for being a real search result with that
+    title; the videos themselves could not be opened from where this was built, so
+    the fit comes from the title and description. 29 are marked `close` (the same
+    movement family or a nearby step, not this exact variation) and the link says
+    **Similar video ↗**. Rest and protocol placeholders have no link, and the one
+    exercise that is a three-part circuit has a search link, **Find video ↗**, as
+    does anything else without an entry. A pack's exercise may carry its own `video`
+    (the 11-character id), which wins; the validator checks it.
+
 ---
 
 ## 12. Caveats
