@@ -805,6 +805,18 @@ export imports and is seeded as above.
    targets are respected. It is never saved, it changes as you go, and the real
    menu is still made from what has happened when you open the day. Tapping a day
    ahead lists its suggestions. Past weeks and the Plan tab are unchanged.
+8. **After M16 — red lights you can lift (build 1.18.0-redlift):** a red check-in
+   still pauses the areas its body area guards for seven days, but the delay is now
+   explained and can be ended. The Areas tab has a **Red lights** card (what is
+   paused, why, the day it is back, a **Lift hold** button, and **Clear all reds**
+   when there is more than one); Today's red callout and a held area's card have the
+   same button; and tapping a day ahead shows why each area is on it and why each
+   other one is left out. Two things end a red early, and neither touches a
+   check-in: you lift it, or a later check-in shows that body area **green**, which
+   the app does by itself (a switch on the Progress tab turns that off). Lifting
+   counts from that day on, so earlier days read as they did; a worse reading the
+   same day, or any new red, holds again; amber holds are not touched. A lift can be
+   put back from the same card, and a clear check-in says when it lifted something.
 
 ---
 

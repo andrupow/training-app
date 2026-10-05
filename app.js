@@ -7,7 +7,7 @@
 
 'use strict';
 
-var BUILD = '1.17.0-weekplan';
+var BUILD = '1.18.0-redlift';
 var PLAN_URL = 'data/plan.json';
 var LS_PLAN = 'plan.cache.v1';
 var LS_LOGS = 'setLogs';
@@ -1943,8 +1943,9 @@ function ensureDayPlan(date, days) {
    done as suggested, so the same area is not offered twice inside its gap and the week's
    targets are spread out. It is a forecast, not a plan: nothing is saved, and the real
    menu is still made, from what has really happened, the first time a day is opened.
-     { 'YYYY-MM-DD': { real, minutes, picks: [ids], why: { id: text } } }
-   `real` marks a day that already has its own menu. */
+     { 'YYYY-MM-DD': { real, minutes, picks: [ids], why: { id: text }, left: [{ id, kind, why }] } }
+   `real` marks a day that already has its own menu; `left` is every area that did not
+   make it, with the recommender's own reason (held, too soon, no time, target met...). */
 function weekForecast(today, days) {
   var out = {};
   if (!areaData) return out;
@@ -1955,7 +1956,7 @@ function weekForecast(today, days) {
   for (var i = isoDow(today); i < 7; i++) {
     var date = addDays(start, i);
     var plan = dayPlans[date];
-    var picks, minutes, why = {};
+    var picks, minutes, why = {}, left = [];
 
     if (plan) {
       picks = plannedAreaIds(plan);
@@ -1965,8 +1966,10 @@ function weekForecast(today, days) {
       var rec = recommendFor(date, [minutes], sim);
       picks = rec.picked.slice();
       why = whyOf(rec, picks);
+      left = areaList().filter(function (a) { return picks.indexOf(a.id) < 0; })
+        .map(function (a) { return { id: a.id, kind: rec.lines[a.id].kind, why: rec.lines[a.id].why }; });
     }
-    out[date] = { real: !!plan, minutes: minutes, picks: picks, why: why };
+    out[date] = { real: !!plan, minutes: minutes, picks: picks, why: why, left: left };
 
     /* the next day sees this one as done, except what a red light would stop */
     picks.forEach(function (id) {
@@ -3659,7 +3662,8 @@ function heldCallouts(date) {
     if (!paused.length) return null;
     return el('div', { class: 'callout callout-red' }, [
       el('strong', { text: 'Red · ' + bodyLabel(body).toLowerCase() }),
-      document.createTextNode('Paused until ' + fmtDateShort(addDays(red[body], 1)) + ': ' + paused.join(', ') + '.')
+      document.createTextNode('Paused until ' + fmtDateShort(addDays(red[body], 1)) + ': ' + paused.join(', ') + '.'),
+      liftButton(body, repaintToday)
     ]);
   }).filter(Boolean);
 }
@@ -3831,6 +3835,8 @@ function areaDayCard(date, sittingIdx, areaId, plan, onlyOne) {
 
   if (paused) {
     card.appendChild(el('div', { class: 'ad-note', text: 'Held: ' + heldReason(area, date) + '. Nothing to do here until it clears.' }));
+    var heldBody = redGuards(area, date)[0];
+    if (heldBody) card.appendChild(liftButton(heldBody, repaintToday));
   } else if (hold) {
     card.appendChild(el('div', { class: 'ad-note', text: 'Hold: ' + hold + '. Train it, but keep the load where it is.' }));
   }
@@ -4839,14 +4845,21 @@ function renderCheckIn() {
     var entry = { date: today, pain: draft.pain, stiffness: draft.stiffness };
     if (draft.note.trim()) entry.note = draft.note.trim();
 
+    var heldBefore = Object.keys(redHolds(today));
     checkIns = checkIns.filter(function (c) { return c.date !== today; });
     checkIns.push(entry);
     sortCheckIns();
     saveCheckIns();
 
+    /* a check-in that is clear lifts a red by itself: say so */
+    var heldNow = redHolds(today);
+    var freed = heldBefore.filter(function (b) { return !heldNow[b]; });
+
     renderCheckIn();
     paintTabBadge();
-    toast('Check-in saved.');
+    toast(freed.length
+      ? 'Check-in saved. ' + freed.map(function (b) { return bodyLabel(b); }).join(', ') + ' hold lifted: this check-in is clear.'
+      : 'Check-in saved.');
   });
   nodes.push(save);
 
@@ -5055,21 +5068,176 @@ function heldAreasFromWeek(week) {
   return out;
 }
 
-/* Areas under the red protocol on a given date, and when each one lifts. */
-function redAreasOn(date) {
+/* --- red lights, and letting go of one ----------------------------------------- */
+/* A red check-in pauses the areas its body area guards for seven days. Two things end
+   that early, and neither touches a check-in:
+     - you lift it, with one tap: from that day on, the reds logged up to then no longer
+       count. A worse reading logged the same day, or any red after it, holds again.
+     - a later check-in shows that body area green. The app does this by itself; the
+       Progress tab can turn it off.
+   Both change what happens from then on only: an earlier day reads exactly as it did. */
+
+function redAutoOn() { return !settings || settings.redAuto !== false; }
+
+function stiffRank(v) {
+  for (var i = 0; i < STIFFNESS.length; i++) if (STIFFNESS[i].value === v) return i;
+  return 0;
+}
+
+/* What you have lifted, cleaned: { body: { date, pain, stiff } }. `pain` and `stiff` are
+   the reading the day you lifted it, so a worse one later that day holds again. */
+function redLifts() {
+  var raw = settings && settings.redLifted, out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  var known = areas();
+  Object.keys(raw).forEach(function (body) {
+    var l = raw[body], pain = l ? Number(l.pain) : NaN;
+    if (known.indexOf(body) < 0 || !l || typeof l.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(l.date)) return;
+    out[body] = {
+      date: l.date,
+      pain: isFinite(pain) && pain >= 0 ? pain : 0,
+      stiff: STIFFNESS.some(function (s) { return s.value === l.stiff; }) ? l.stiff : 'none'
+    };
+  });
+  return out;
+}
+
+/* Is the red logged in check-in `c` let go of, for this body area, on this date?
+   Returns why ('lifted' or 'clear'), or null if it still holds. */
+function redReleased(body, c, date, opts) {
+  opts = opts || {};
+  var lift = opts.ignoreLifts ? null : redLifts()[body];
+  if (lift && lift.date <= date) {
+    if (c.date < lift.date) return 'lifted';
+    if (c.date === lift.date && painOf(c, body) <= lift.pain && stiffRank(c.stiffness) <= stiffRank(lift.stiff)) return 'lifted';
+  }
+  if (redAutoOn() && !opts.ignoreAuto) {
+    var clear = checkIns.some(function (l) {
+      return l.date > c.date && l.date <= date && areaState(body, l, priorTo(l.date)) === 'green';
+    });
+    if (clear) return 'clear';
+  }
+  return null;
+}
+
+/* The body areas under the red protocol on a date: { body: { from, until } }, from being
+   the check-in that did it and until the last day of the seven. */
+function redHolds(date, opts) {
   var out = {};
   checkIns.forEach(function (c) {
     if (c.date > date) return;                       /* not yet happened */
-    if (addDays(c.date, RED_DAYS - 1) < date) return; /* the seven days are up */
+    var until = addDays(c.date, RED_DAYS - 1);
+    if (until < date) return;                        /* the seven days are up */
 
     var states = areaStates(c, priorTo(c.date));
     areas().forEach(function (a) {
-      if (states[a] !== 'red') return;
-      var until = addDays(c.date, RED_DAYS - 1);
-      if (!out[a] || out[a] < until) out[a] = until;
+      if (states[a] !== 'red' || redReleased(a, c, date, opts)) return;
+      if (!out[a] || out[a].until < until) out[a] = { from: c.date, until: until };
     });
   });
   return out;
+}
+
+/* Areas under the red protocol on a given date, and when each one lifts. */
+function redAreasOn(date) {
+  var held = redHolds(date), out = {};
+  Object.keys(held).forEach(function (body) { out[body] = held[body].until; });
+  return out;
+}
+
+/* Lift the hold on one body area, from `date` on. False if nothing was holding. */
+function liftRed(body, date) {
+  date = date || todayISO();
+  if (!redHolds(date)[body]) return false;
+  var c = checkInOn(date);
+  if (!settings.redLifted || typeof settings.redLifted !== 'object' || Array.isArray(settings.redLifted)) settings.redLifted = {};
+  settings.redLifted[body] = { date: date, pain: c ? painOf(c, body) : 0, stiff: c && c.stiffness ? c.stiffness : 'none' };
+  saveSettings();
+  return true;
+}
+
+/* Clear every red there is: the body areas that were lifted. */
+function liftAllReds(date) {
+  date = date || todayISO();
+  return Object.keys(redHolds(date)).filter(function (body) { return liftRed(body, date); });
+}
+
+/* Undo a lift. */
+function putRedBack(body) {
+  if (settings.redLifted && typeof settings.redLifted === 'object') delete settings.redLifted[body];
+  saveSettings();
+}
+
+/* "A, B and C" */
+function joinNames(list) {
+  if (list.length < 2) return list.join('');
+  return list.slice(0, -1).join(', ') + ' and ' + list[list.length - 1];
+}
+
+/* One tap to lift a hold, wherever it is shown. `after` redraws the screen it is on. */
+function liftButton(body, after, label) {
+  var b = el('button', { class: 'btn btn-quiet lift-btn', type: 'button', text: label || 'Lift hold' });
+  b.addEventListener('click', function () {
+    if (!liftRed(body, todayISO())) return;
+    toast(bodyLabel(body) + ' hold lifted. Your check-ins are unchanged.');
+    after();
+  });
+  return b;
+}
+
+/* What the red lights are holding back, why, until when, and a tap to lift it. Nothing
+   when nothing is held (and nothing of yours to put back). */
+function holdsCard(today, after) {
+  var holds = redHolds(today), bodies = Object.keys(holds), back = liftedReds(today);
+  if (!bodies.length && !back.length) return null;
+
+  var kids = [el('p', { class: 'section-label', text: 'Red lights' })];
+  bodies.forEach(function (body) {
+    var names = guardedAreas(body).map(function (a) { return a.name; });
+    kids.push(el('div', { class: 'holds-row' }, [
+      el('div', { class: 'holds-main' }, [
+        el('strong', { text: bodyLabel(body) + ' · red' }),
+        el('div', { class: 'card-sub', text: (names.length ? 'Pausing ' + joinNames(names) + '. ' : '')
+          + 'Back on ' + fmtDateShort(addDays(holds[body].until, 1)) + ', seven days after your check-in on ' + fmtDateShort(holds[body].from) + '.' })
+      ]),
+      liftButton(body, after)
+    ]));
+  });
+
+  if (bodies.length > 1) {
+    var all = el('button', { class: 'btn btn-block', type: 'button', text: 'Clear all reds' });
+    all.addEventListener('click', function () {
+      var done = liftAllReds(todayISO());
+      if (done.length) toast('Cleared: ' + done.map(function (b) { return bodyLabel(b).toLowerCase(); }).join(', ') + '. Your check-ins are unchanged.');
+      after();
+    });
+    kids.push(all);
+  }
+
+  back.forEach(function (l) {
+    var undo = el('button', { class: 'btn btn-quiet lift-btn', type: 'button', text: 'Put it back' });
+    undo.addEventListener('click', function () { putRedBack(l.body); after(); });
+    kids.push(el('div', { class: 'holds-row holds-lifted' }, [
+      el('div', { class: 'holds-main' }, [
+        el('strong', { text: bodyLabel(l.body) + ' · lifted by you' }),
+        el('div', { class: 'card-sub', text: 'It would have held until ' + fmtDateShort(l.until) + '. A worse reading, or a new red, holds again.' })
+      ]),
+      undo
+    ]));
+  });
+
+  kids.push(el('p', { class: 'hint', text: redAutoOn()
+    ? 'A red also lifts by itself when a later check-in shows that area green.'
+    : 'Lifting by itself is switched off (Progress tab, Red lights).' }));
+  return el('div', { class: 'card holds-card' }, kids);
+}
+
+/* Lifts you made that are holding something open right now: what the hold would be
+   without them. These are the ones worth offering to undo. */
+function liftedReds(date) {
+  var now = redHolds(date), without = redHolds(date, { ignoreLifts: true });
+  return Object.keys(without).filter(function (body) { return !now[body]; })
+    .map(function (body) { return { body: body, from: without[body].from, until: without[body].until }; });
 }
 
 /* Hardcoded, and deliberately not folded into the week rule: the medial
@@ -5790,6 +5958,7 @@ function renderProgress() {
 
   nodes.push(unitsSection());               /* it changes the loads just above, so it sits beside them */
   nodes.push(soundSection());
+  nodes.push(redSection());
   nodes.push(scheduleSection());
   nodes.push(installSection());
   nodes.push(chartsSection());
@@ -6195,6 +6364,25 @@ function detailRow(item, extra) {
   ]);
 }
 
+/* An area the forecast left out of a day, and why; a held one says when it is back and
+   has the tap to lift it. */
+function leftOutRow(l, date) {
+  var area = areaById(l.id);
+  var why = l.why, body = null;
+  if (l.kind === 'held' && area) {
+    body = redGuards(area, date)[0] || null;
+    var h = body && redHolds(date)[body];
+    if (h) why += ' Back on ' + fmtDateShort(addDays(h.until, 1)) + '.';
+  }
+  return el('div', { class: 'wk-left' }, [
+    el('div', { class: 'wk-left-main' }, [
+      el('span', { class: 'wk-left-name', text: area ? area.name : l.id }),
+      el('span', { class: 'wk-left-why', text: why })
+    ]),
+    body ? liftButton(body, repaintAreas) : null
+  ]);
+}
+
 /* One day: each sitting in turn, then anything logged that was not on the menu.
    A day nobody opened says so, rather than looking like a day off. */
 function dayDetail(date, today, days, forecast) {
@@ -6209,15 +6397,23 @@ function dayDetail(date, today, days, forecast) {
   /* a day with no menu yet: what would be suggested, if the forecast has it */
   var f = forecast && forecast[date];
   if (d.noPlan && date >= today && f && !f.real && !d.extras.length) {
-    if (!f.picks.length) {
+    if (f.picks.length) {
+      card.appendChild(el('div', { class: 'wk-sit', text: 'Suggested · ' + f.minutes + ' min' }));
+      f.picks.forEach(function (id) {
+        card.appendChild(detailRow({ area: areaById(id), state: 'suggested', record: null }));
+        if (f.why[id]) card.appendChild(el('div', { class: 'wk-why', text: f.why[id] }));
+      });
+    } else {
       card.appendChild(el('div', { class: 'card-sub', text: 'Nothing suggested for this day.' }));
-      return card;
     }
-    card.appendChild(el('div', { class: 'wk-sit', text: 'Suggested · ' + f.minutes + ' min' }));
-    f.picks.forEach(function (id) {
-      card.appendChild(detailRow({ area: areaById(id), state: 'suggested', record: null }));
-    });
-    card.appendChild(el('p', { class: 'hint wk-detail-note', text: 'Worked out from what you have done so far, as if the days before it get done. The real menu is made when you open the day.' }));
+    /* what was left out is explained even when nothing was picked: that is when it matters most */
+    if (f.left && f.left.length) {
+      card.appendChild(el('div', { class: 'wk-sit', text: 'Left out' }));
+      f.left.forEach(function (l) { card.appendChild(leftOutRow(l, date)); });
+    }
+    if (f.picks.length || (f.left && f.left.length)) {
+      card.appendChild(el('p', { class: 'hint wk-detail-note', text: 'Worked out from what you have done so far, as if the days before it get done. The real menu is made when you open the day.' }));
+    }
     return card;
   }
 
@@ -6386,6 +6582,7 @@ function renderAreas() {
   var nodes = [
     weekCard(start, today, days, forecast),
     dayDetail(areasView.day, today, days, forecast),
+    holdsCard(today, repaintAreas),
     el('p', { class: 'section-label', text: 'Areas' })
   ];
   areaList().forEach(function (a) { nodes.push(areaCard(a, days)); });
@@ -6689,6 +6886,22 @@ function unitsSection() {
   return el('div', {}, [
     el('p', { class: 'section-label', text: 'Units' }), row,
     el('p', { class: 'hint', text: 'Changes loads in sessions, logged sets and charts. Everything is stored in kg, and baselines are entered in kg.' })
+  ]);
+}
+
+/* --- red lights (on the Progress tab) --- */
+
+function redSection() {
+  var on = redAutoOn();
+  var row = el('div', { class: 'sit-row sound-row' }, [el('span', { class: 'sit-label', text: 'Lift a red by itself when a later check-in is green:' })]);
+  [[true, 'On'], [false, 'Off']].forEach(function (o) {
+    var chip = el('button', { class: 'sit-chip' + (on === o[0] ? ' is-on' : ''), type: 'button', 'aria-pressed': String(on === o[0]), text: o[1] });
+    chip.addEventListener('click', function () { settings.redAuto = o[0]; saveSettings(); repaintProgressInPlace(); });
+    row.appendChild(chip);
+  });
+  return el('div', {}, [
+    el('p', { class: 'section-label', text: 'Red lights' }), row,
+    el('p', { class: 'hint', text: 'A red check-in pauses the areas that body area guards for seven days. Lifting one, here or on the Areas tab, keeps your check-ins as logged, and a worse reading or a new red holds again.' })
   ]);
 }
 
