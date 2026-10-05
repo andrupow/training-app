@@ -245,6 +245,38 @@ eq('menus began mid-week: that whole week is judged', (ctx.settings.menuSince='2
 eq('an empty list of weeks is never "slipping"', ctx.verdictOf({weeks:[],firstTrained:'2026-08-03',lastTrained:'2026-10-20',today:'2026-10-26',intoLights:0},T).key, 'new');
 ctx.settings={};
 
+console.log('the warnings do not wait for history:');
+eq('first trained 10 days ago and already over its maximum last week: overreaching, not new', V(['over'],{firstTrained:'2026-09-25'}), 'overreaching');
+eq('first trained 10 days ago, trained twice into a light: overreaching', V([],{firstTrained:'2026-09-25',intoLights:2}), 'overreaching');
+eq('first trained 10 days ago and fine: still new', V(['hit'],{firstTrained:'2026-09-25'}), 'new');
+eq('never trained: new, and says so', [V([],{firstTrained:null,lastTrained:null}), ctx.verdictOf(F([],{firstTrained:null,lastTrained:null}),T).why], ['new','Not trained yet.']);
+
+console.log('a finished week is judged by the stage it was in:');
+reset(); ctx.areaData=real;
+const nd=ctx.areaById('nordic');
+const ndDays=[rec('2026-10-06','nordic'),rec('2026-10-13','nordic'),rec('2026-10-14','nordic')];
+eq('never moved: the stage it is at', ctx.stageAtDate(nd,'2026-10-06').id, 'N1');
+ctx.progress.nordic={stage:'N3',since:'2026-10-12',nextAsk:null};
+ctx.decisions=[{date:'2026-10-12',area:'nordic',from:'N2',to:'N3',action:'up',full:8}];
+eq('before the move: where it started from', [ctx.stageAtDate(nd,'2026-10-06').id, ctx.stageAtDate(nd,'2026-10-11').id], ['N2','N2']);
+eq('on the day of the move and after: the new stage', [ctx.stageAtDate(nd,'2026-10-12').id, ctx.stageAtDate(nd,'2026-11-30').id], ['N3','N3']);
+eq('N2 asks for 2 to 3 days, N3 for 1 to 3', [ctx.stageWeek(nd,ctx.stageById(nd,'N2')).min, ctx.stageWeek(nd,ctx.stageById(nd,'N3')).min], [2,1]);
+let ow=ctx.areaWeek(nd,'2026-10-05','2026-10-19',ndDays);
+eq('the one-day week before the move is still a miss (N2 wanted 2), not "met" by N3’s lower minimum', [ow.min,ow.status.key], [2,'missed']);
+ow=ctx.areaWeek(nd,'2026-10-12','2026-10-19',ndDays);
+eq('the week after, with two days, is judged by N3', [ow.min,ow.target,ow.status.key], [1,2,'hit']);
+eq('so the verdict history keeps what each week asked for', ctx.areaFeedback(nd,'2026-10-19',ndDays).weeks.map(w=>w.status).join(' '), 'missed hit');
+eq('the current week is the current stage', ctx.areaWeek(nd,'2026-10-19','2026-10-19',ndDays).min, 1);
+ctx.decisions.push({date:'2026-10-20',area:'nordic',from:'N3',to:'N3',action:'stay',full:8});
+eq('"not yet" changes nothing', ctx.stageAtDate(nd,'2026-10-21').id, 'N3');
+ctx.decisions.push({date:'2026-10-26',area:'nordic',from:'N3',to:'N2',action:'back',full:2});
+ctx.progress.nordic={stage:'N2',since:'2026-10-26',nextAsk:null};
+eq('stepping back counts too', [ctx.stageAtDate(nd,'2026-10-25').id, ctx.stageAtDate(nd,'2026-10-26').id], ['N3','N2']);
+ctx.decisions=[{date:'2026-10-12',area:'nordic',from:'N2',to:'N3',action:'set',full:0},{date:'2026-10-02',area:'nordic',from:'N1',to:'N2',action:'up',full:8}].sort((a,b)=>a.date<b.date?-1:1);
+eq('several moves in a row: each date finds its own', ['2026-10-01','2026-10-02','2026-10-11','2026-10-12'].map(d=>ctx.stageAtDate(nd,d).id), ['N1','N2','N2','N3']);
+eq('an unknown stage in storage falls back to where it is now', (ctx.decisions=[{date:'2026-10-12',area:'nordic',from:'N9',to:'N9',action:'up',full:0}], ctx.stageAtDate(nd,'2026-10-01').id), 'N2');
+ctx.decisions=[]; ctx.progress={}; ctx.settings={};
+
 console.log('last week, once, on Today:');
 const draws=(f)=>{try{f();return true;}catch(e){console.log('   ',String(e.stack).split('\n').slice(0,3).join(' | '));return false;}};
 reset(); pinWeeks(); ctx.todayISO=()=>'2026-10-12';          // a Monday; last week began 5 Oct

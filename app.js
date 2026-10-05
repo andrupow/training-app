@@ -1075,6 +1075,17 @@ function deloadSets(sets) {
 /* A week's worth of days is the easy block at the end of a stage. */
 function deloadDays(area, stage) { return stageWeek(area, stage).target; }
 
+/* The stage an area was at on a date, replaying what you decided: before the first
+   move it was where that move started from, and "not yet" changes nothing. An area
+   that never moved is where it is now. */
+function stageAtDate(area, date) {
+  var moves = decisions.filter(function (d) { return d.area === area.id && d.action !== 'stay'; });
+  if (!moves.length) return currentStage(area);
+  var at = null;
+  moves.forEach(function (d) { if (d.date <= date) at = d; });         /* oldest first, so the last one wins */
+  return stageById(area, at ? at.to : moves[0].from) || currentStage(area);
+}
+
 /* The stage a day was done in: what it was fixed to when first planned, and the
    first stage for anything from the old plan. */
 function stageOfDay(area, date) {
@@ -2135,7 +2146,9 @@ function weekStatus(area, per, gap, start, end, today, touched, mine) {
 
 function areaWeek(area, start, today, days) {
   var end = addDays(start, 6);
-  var stage = currentStage(area);
+  /* A week that has finished is judged by the stage the area was in then, not the one
+     it is in now: moving up must not change what an old week asked for. */
+  var stage = end < today ? stageAtDate(area, start) : currentStage(area);
   var authored = stageWeek(area, stage);
   var gap = stageGap(area, stage);
 
@@ -2214,14 +2227,18 @@ function verdictOf(f, T) {
   var recent = f.weeks.slice(-T.window);
   var quiet = f.lastTrained ? daysBetween(f.lastTrained, f.today) : null;
 
-  if (!f.firstTrained || daysBetween(f.firstTrained, f.today) < T.newWeeks * 7) {
-    return { key: 'new', why: 'Under ' + T.newWeeks + ' weeks of history, so too early to judge.' };
-  }
+  if (!f.firstTrained) return { key: 'new', why: 'Not trained yet.' };
   if (quiet !== null && quiet >= T.dormantDays) return { key: 'dormant', why: 'Nothing for ' + quiet + ' days.' };
 
+  /* The warnings come before anything about history: pushing too hard is no less
+     worth saying in the first week. */
   if (count(f.weeks.slice(-2), ['over'])) return { key: 'overreaching', why: 'Went over its weekly maximum recently.' };
   if (f.intoLights >= 2) {
     return { key: 'overreaching', why: 'Trained ' + f.intoLights + ' times in the last two weeks with a guarding body area amber or red.' };
+  }
+
+  if (daysBetween(f.firstTrained, f.today) < T.newWeeks * 7) {
+    return { key: 'new', why: 'Under ' + T.newWeeks + ' weeks of history, so too early to judge.' };
   }
 
   /* One finished week is not a pattern: say so rather than judge it. The warnings above
