@@ -57,7 +57,10 @@ function diff(a, b) { return Math.round((new Date(b) - new Date(a)) / 864e5); }
 function recommend(date, hist, cfg, opts) {
   opts = opts || {};
   var AREAS = cfg.areas, blocked = opts.blocked || {};
-  var dayMin = opts.dayMinutes != null ? opts.dayMinutes : RULES.dayMinutes;
+  /* The day's time: one number, or a list of session lengths (two sittings a day). */
+  var slots = Array.isArray(opts.dayMinutes) ? opts.dayMinutes
+            : [opts.dayMinutes != null ? opts.dayMinutes : RULES.dayMinutes];
+  var dayMin = slots.reduce(function (n, x) { return n + x; }, 0);
   var weekStart = addDays(date, -dow(date));
   var daysLeft = 7 - dow(date);                           /* including today */
 
@@ -110,6 +113,23 @@ function recommend(date, hist, cfg, opts) {
 
   var picked = [], reasons = {}, mins = 0, high = 0;
 
+  function pack(areaIds) {
+    var left = slots.slice(), out = slots.map(function () { return []; });
+    var order = areaIds.slice().sort(function (x, y) { return AREAS[y].mins - AREAS[x].mins; });
+    function go(i) {
+      if (i === order.length) return true;
+      for (var k = 0; k < left.length; k++) {
+        if (left[k] >= AREAS[order[i]].mins) {
+          left[k] -= AREAS[order[i]].mins; out[k].push(order[i]);
+          if (go(i + 1)) return true;
+          left[k] += AREAS[order[i]].mins; out[k].pop();
+        }
+      }
+      return false;
+    }
+    return go(0) ? out : null;
+  }
+
   function clashOf(area, others) {
     return cfg.conflicts.filter(function (k) {
       return (k.a === area && others.indexOf(k.b) >= 0) || (k.b === area && others.indexOf(k.a) >= 0);
@@ -121,7 +141,7 @@ function recommend(date, hist, cfg, opts) {
       var A = AREAS[c.area];
       if (c.need <= 0) return;                              /* target met: not recommended */
       if (picked.length >= RULES.maxAreas) return;
-      if (mins + A.mins > dayMin) return;                   /* the time budget is hard */
+      if (!pack(picked.concat([c.area]))) return;           /* the time budget is hard */
       if (A.load === 'high' && high >= RULES.maxHigh) return;
 
       var clash = clashOf(c.area, picked);
@@ -162,6 +182,7 @@ function recommend(date, hist, cfg, opts) {
         if (k && !(k.soft && (set[i].must || set[i].mustMin || set[j].must || set[j].mustMin))) ok = false;
       }
       if (!ok) continue;
+      if (slots.length > 1 && !pack(set.map(function (c) { return c.area; }))) continue;
       if (!best || v > best.v + 1e-9 || (Math.abs(v - best.v) < 1e-9 && t < best.t)) best = { set: set, v: v, t: t };
     }
     if (best) best.set.sort(function (x, y) { return AREAS[x.area].pri - AREAS[y.area].pri; }).forEach(function (c) {
@@ -176,7 +197,7 @@ function recommend(date, hist, cfg, opts) {
     });
   }
 
-  return { picked: picked, mins: mins, reasons: reasons, skipped: skipped };
+  return { picked: picked, mins: mins, reasons: reasons, skipped: skipped, sittings: picked.length ? pack(picked) : slots.map(function () { return []; }) };
 }
 
 /* ---- simulation ---- */
@@ -291,6 +312,15 @@ console.log('\nSeven areas instead of eight (mixed 30-60 week)');
 header();
 var noPlyoKb5 = [nordic3, softNordicKb, noPlyo];
 report('no plyometrics, KB 5, Nordic 3', cfgWith(noPlyoKb5), 10, { dayMinutes: MIXED });
+
+console.log('\nTwo sessions in a day (plan defaults). [45,30] means a 45-minute and a 30-minute sitting.');
+header();
+var BOTH = function (a, b) { return [a, b]; };
+report('mixed week, single sittings (330 min)', cfgWith(NOW), 10, { dayMinutes: MIXED });
+report('same 330 min, weekends as two 30-min sittings', cfgWith(NOW), 10, { dayMinutes: function (d) { return d >= 5 ? BOTH(30, 30) : [45, 45, 30, 45, 45][d]; } });
+report('45 every day (315) + a 30 on Sat and Sun (375)', cfgWith(NOW), 10, { dayMinutes: function (d) { return d >= 5 ? BOTH(45, 30) : 45; } });
+report('30 every day + a second 30 on Wed, Sat, Sun (300)', cfgWith(NOW), 10, { dayMinutes: function (d) { return [2, 5, 6].indexOf(d) >= 0 ? BOTH(30, 30) : 30; } });
+report('two 30-min sittings every day (420)', cfgWith(NOW), 10, { dayMinutes: BOTH(30, 30) });
 
 console.log('\nSafety: hamstring red for the first 5 days (nordic + kb blocked), 60 min');
 header();

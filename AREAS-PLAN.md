@@ -1,29 +1,27 @@
-# Areas, stages and the daily menu — draft v3 for review
+# Areas, stages and the daily menu — draft v4 for review
 
 Status: **draft, nothing in the app is implemented.** Numbers marked
-*(placeholder)* are mine, not sourced; change them freely. Section 13 lists what
-I still need from you.
+*(placeholder)* are mine, not sourced; change them freely. Section 13 lists the
+last things I need from you.
 
 ---
 
 ## 1. What changed
 
-| v1 | v2 | v3 (your last answers) |
-|---|---|---|
-| Fixed 7-session rotation | No rotation: the app recommends today's areas, you choose | same |
-| Unit = a session | Unit = one area on one day | **Full = every exercise of that area done**, whatever else happened that day |
-| 3–4 days a week | 7 days a week, partial allowed | time varies **30–60 min a day**, which changes the maths (section 5) |
-| 7 areas | 7 areas | **8 areas: plyometrics added** |
-| Per-rotation frequency | Weekly targets with feedback | Targets are **fitted to your week's time**: KB 3 (5 nominal), Nordic 3 |
-| Kettlebell in kg | same | **Your bells: 15 lb and 25 lb**, ladder shown in lb |
+Earlier versions: v1 had a fixed 7-session rotation; v2 replaced it with a daily
+recommender, one area on one day as the unit, and weekly tracking; v3 added
+plyometrics, time-fitted targets and bells in lb.
 
-Also decided: HSPU goal = 5 strict wall reps, Nordic goal = 5 unassisted,
-retire the old areas, track-only areas in the app and ladders as JSON, ladders
-a–g approved.
-
-**One reversal I'm proposing:** you said drop Achilles from the check-in, but
-plyometrics loads the Achilles more than anything else here, so I'd **keep it**
-(section 10).
+**This version (v4), from your last answers**
+- **Plyometrics goal = vertical jump**, measured by wall-touch. Y1 starts with a
+  baseline test; you set the target in cm after seeing it.
+- **Achilles stays in the check-in** as part of plyometrics.
+- **Time-fitted targets approved:** kettlebell 3 (nominal 5), Nordic 3 in N1–N2.
+- **Kettlebell target bell: 50 kg.** The ladder now runs to it. One check on units
+  in section 13.
+- **Up to 3 sittings in a day**, each with its own time and menu.
+- **The week view shows what was done, partial and skipped**, per area and per
+  day (section 6, and a rendered mock in `prototype/week-mock.html`).
 
 ---
 
@@ -33,10 +31,11 @@ plyometrics loads the Achilles more than anything else here, so I'd **keep it**
 |---|---|---|
 | **Area** | Something you are getting better at: goal, weekly targets, spacing rules. | `data/areas/<id>.json` |
 | **Stage** | A rung on an area's ladder: exercises, the "ready when" standard, sessions before the app asks, equipment, optional advisory prerequisites. | inside the area file |
-| **Area-day** | One area trained on one date. Partial allowed. The unit of tracking. Its content is frozen once you log it. | logs + a small `areaDays` record |
-| **Day menu** | The areas you chose for today, starting from the app's recommendation, within the time you have. | `dayPlans` |
+| **Sitting** | One training sitting inside a day (up to 3), with its own minutes and menu. | `dayPlans` |
+| **Area-day** | One area on one date, however many sittings it took. Partial allowed. The unit of tracking. Its content is frozen once you log it. | logs + a small `areaDays` record |
+| **Day plan** | What each sitting's menu was, saved when it is first shown and updated when you edit it. This is what lets the app say **skipped**. | `dayPlans` |
 | **Progress** | Per area: current stage, full area-days in it, decision history. | `progress`, `decisions` |
-| **Week stats** | Days trained per area per week, derived from logs. Never stored. | computed |
+| **Week stats** | Days trained per area per week, derived from logs and day plans. Never stored. | computed |
 | **Equipment** | What you own (bells 15 lb and 25 lb, bar, bands, box…). Stages say what they need. | `settings` |
 | **Rules** | Spacing, conflicts, shared budgets, time budget, thresholds. | `data/rules.json` |
 
@@ -45,34 +44,50 @@ level-up all read from the data.
 
 ---
 
-## 3. A day: the menu and the recommender
+## 3. A day: sittings, the menu and the recommender
 
 ```
-Today · Thu 22 Oct                          time today:  30  [45]  60  min
+Today · Thu 22 Oct        Sitting 1 of 1             time:  30  [45]  60  min
  [x] Muscle-up         M1   30 min   0/2 this week, 4 d since last
  [x] Backward bridge   B1   12 min   2/3 this week, 1 d since last
  [ ] Nordic curl       N1   10 min   too soon: trained yesterday, needs 2 days
  [ ] One-arm pull-up   O1   20 min   not with muscle-up: both load the elbow tendons
  [ ] Handstand push-up H1   20 min   not with muscle-up: shoulders and triceps
  [ ] Pistol · Kettlebell · Plyometrics      don't fit today's 45 min
- Total 42 min                                      [ Start ]   [ + Add area ]
+ Total 42 min             [ Start ]  [ + Add area ]  [ + Another sitting today ]
 ```
 
 Real output from `prototype/recommender-sim.js`, with stage labels added.
 
-**Time.** You pick how long you have today (30 / 45 / 60 or a number). The app
-remembers a default per weekday. Everything fits inside it; adding something
-over budget shows "+12 min over".
+**Time and sittings**
+- You pick how long you have (30 / 45 / 60 or a number). The app remembers a
+  default per weekday.
+- **Up to 3 sittings a day**, each with its own time and menu. Declare them at
+  the start ("today: 30 + 30") so the planner can spread areas across them, or
+  tap **Another sitting today** later: the new menu is recomputed from what you
+  have already done.
+- An area's block stays whole inside one sitting by default. You can also **split
+  a block across sittings**: do half now and the rest later. It shows partial
+  until the rest is logged, then becomes a full area-day.
+- **The same area in two sittings of one day is allowed.** It counts once for the
+  day, and only completing the block counts toward level-up. High-load areas
+  show a warning, because tendons need the gap.
+- Spacing and conflict rules are measured in **days**, so two sittings don't
+  loosen them: a conflicting pair is still advised against on the same day.
+- Adding minutes helps; reshaping the same minutes doesn't (section 5).
+- Adding something over a sitting's time shows "+12 min over" instead of
+  blocking it.
 
 **What you can do**
 - Untick anything, or tick something the app advised against. You get a warning,
   not a block.
-- **Add area** puts any area on today's menu, including paused ones. Section 8
+- **Add area** puts any area on the menu, including paused ones. Section 8
   covers creating new ones.
 - **Partial is fine:** finish early at any point. What you logged counts as a
   touched day, and the area-day shows as partial.
 - **Log something done off-app:** pick the area and mark it.
-- Dismiss a recommendation for today with no penalty and no "missed" mark.
+- **Remove from today** takes a recommendation off the menu. One optional tap
+  gives a reason (no time / tired / pain / other); it then shows as skipped.
 
 **How the recommender decides** (deterministic, no learning, so you can always
 see why):
@@ -81,9 +96,9 @@ see why):
 2. **Value each remaining area.** Highest when its weekly minimum is about to
    become impossible, then when the spacing to its target is tight, then how long
    since you last trained it, all weighted by your priority order.
-3. **Pick the best combination that fits:** the highest total value within the
-   day's minutes, at most 4 areas, at most 2 high-load areas, and no conflicting
-   pair. Eight areas means at most 256 combinations, so it is instant.
+3. **Pick the best combination that fits:** the highest total value that packs
+   into the day's sittings, at most 4 areas, at most 2 high-load areas, and no
+   conflicting pair. Eight areas means at most 256 combinations, so it is instant.
 4. **Order** for doing: plyometrics and skill first → strength → mobility →
    kettlebell.
 5. An area that has already hit its target is not recommended (you can still add
@@ -115,9 +130,8 @@ All numbers are placeholders. **Days/week** is min · target · max.
 | g | One-arm pull-up | 1 · 2 · 2 | 3 | 20 | high | elbow, shoulder |
 | h | Plyometrics | 1 · 2 · 2 | 2 (3 in Y5–Y6) | 20 | high | **Achilles**, knee |
 
-Priority is your list order a → h, with **plyometrics last because you added it
-last. Tell me if it should rank higher.** Priority breaks ties and decides what
-is trimmed first.
+Priority is your list order a → h, with plyometrics last. Priority breaks ties
+and decides what is trimmed first.
 
 At these targets the week costs **372 min, about 53 min/day over 7 days.** At
 minimums it costs 280 (40 min/day). With KB at its nominal 5 it would be 432.
@@ -181,6 +195,20 @@ Nordic ran at 2.7, because areas with long gaps look more urgent. Picking the be
 combination each day fixed that. Honest limits: it assumes perfect compliance and no partial
 days, and the minutes, targets and gaps are mine.
 
+### Two sittings in a day
+
+| Setup (plan defaults) | Result |
+|---|---|
+| mixed week, single sittings (330 min) | the baseline: every minimum met |
+| **same 330 min**, weekends as two 30-min sittings | **HSPU falls to 1 (min 2).** Splitting the same minutes fits *worse*: each area's block stays whole inside a sitting |
+| 45 every day + a 30-min second sitting on Sat and Sun (375 min) | one-arm pull-up reaches its target of 2; every minimum met |
+| 30 every day + a second 30 on Wed, Sat, Sun (300 min) | muscle-up falls to 1. Doesn't fit |
+| two 30-min sittings every day (420 min) | **every area at target** |
+
+So **a second sitting helps when it adds minutes, not when it reshapes them.**
+The exception is splitting an area's block across sittings, which the app allows
+and the simulation doesn't model.
+
 ### How long each ladder takes
 
 Earliest finish, if every review passes the first time. Real life will be longer.
@@ -192,7 +220,7 @@ Earliest finish, if every review passes the first time. Real life will be longer
 | Backward bridge | 84 | 28 wk | 28 wk |
 | Pistol | 58 | 29 wk | 29 wk |
 | Nordic | 48 | ~21 wk | ~21 wk |
-| Kettlebell | 68 | 23 wk | 34 wk |
+| Kettlebell (to 50 kg) | 104 | 35 wk | 52 wk |
 | One-arm pull-up | 86 | 43 wk | **86 wk (~20 months)** |
 | Plyometrics | 70 | 35 wk | **70 wk (~16 months)** |
 
@@ -210,15 +238,55 @@ you have 330. Tight."
 ## 6. Tracking: are you doing well?
 
 **What counts**
-- A **touched day** has ≥ 1 set logged for the area (partial included, shown as
-  a half dot). It counts toward weekly frequency, as you asked.
+- A **touched day** has ≥ 1 set logged for the area (partial included). It counts
+  toward weekly frequency, as you asked.
 - A **full area-day** is **every exercise of that area's block completed**,
-  whatever else you did or skipped that day. Only full area-days count toward
-  level-up. The threshold is a setting (`fullAreaPct`, default 100) in case 100%
-  proves too strict.
+  whatever else you did or skipped that day, and across however many sittings it
+  took. Only full area-days count toward level-up. The threshold is a setting
+  (`fullAreaPct`, default 100) in case 100% proves too strict.
 - **Completion** = sets done ÷ prescribed on touched days.
 
-**This week, per area** (weeks run Mon–Sun)
+**Done, partial, skipped: what the week view shows**
+- **Planned** = on that day's saved menu. The menu is saved when it is first
+  shown, and updated when you edit it.
+- **● Done**: a full area-day. **◐ Partial**: something logged, block not finished.
+- **✕ Skipped**: planned, and nothing logged by the end of that day. If you took
+  it off the menu yourself, it is skipped with the reason you tapped.
+- **○ Planned**: today or later, not yet done. **░ No plan recorded**: you never
+  opened the app that day. It is shown as a hatch and **never as skipped**,
+  because the app can't know.
+- Unplanned extras you add and do are simply done.
+
+```
+This week · Mon 5 – Sun 11      M    T    W²   T    F    S    S     days  status
+Muscle-up       M1              ●    ·    ◐    ✕    ·    ·    ·     1/2   Behind
+Handstand PU    H1              ·    ●    ·    ·    ●    ·    ·     2/2   Done
+Backward bridge B1              ●    ●    ●    ·    ·    ·    ·     3/3   Done
+Pistol          P1              ·    ✕    ●    ✕    ·    ·    ·     1/2   Due
+Nordic          N1              ·    ·    ·    ·    ·    ·    ·     0/3   Held: hamstring red
+Kettlebell      K1              ◐    ·    ●    ·    ●    ○    ·     2/3   On track
+One-arm         O1              ·    ·    ·    ✕    ·    ·    ·     0/2   Behind
+Plyometrics     Y1              ░    ░    ·    ✕    ·    ·    ·     0/2   At risk
+● done  ◐ partial  ✕ skipped  ○ planned  ░ no plan recorded  · nothing planned     W² = two sittings
+```
+(Illustrative. The real thing is the rendered mock in `prototype/week-mock.html`.)
+
+**Underneath the grid, the week in one line**
+
+```
+Planned 14 · Done 6 · Partial 2 · Skipped 4        Skipped: Muscle-up (Thu), Pistol (Tue, Thu)
+                                                    · One-arm (Thu), Plyometrics (Thu)
+```
+
+**Tap a day to see its sittings**
+
+```
+Wed 7 Oct · 2 sittings
+  Sitting 1 · 30 min   ● Muscle-up (M1)        ● Backward bridge (B1)
+  Sitting 2 · 30 min   ◐ Kettlebell (K1) 18/30   ● Pistol (P1)
+```
+
+**This week, per area**
 
 | Status | Meaning |
 |---|---|
@@ -242,29 +310,15 @@ you have 330. Tight."
 
 A **"mostly partial"** tag appears when completion stays under 70 % for two
 weeks. Targets use the **time-fitted** values, so a trimmed target is judged
-against what you could actually do.
-
-```
-This week · Mon 5 – Sun 11      M  T  W  T  F  S  S   days  status     last 4 wk
-Muscle-up       M1   7/12       ●  ·  ◐  ·  ·  ·  ·   2/2   Done       2 3 2 2  Consistent
-Handstand PU    H1   3/8        ·  ●  ·  ·  ·  ·  ·   1/2   On track   2 2 1 2  Building
-Backward bridge B1   5/8        ●  ●  ●  ·  ·  ·  ·   3/3   Done       3 3 3 2  Consistent
-Pistol          P1   2/8        ·  ·  ○  ·  ·  ·  ·   0/2   Due        1 2 0 0  Slipping
-Nordic          N1   1/8        ·  ·  ·  ·  ·  ·  ·   0/3   Held: hamstring red
-Kettlebell      K1   0/8        ◐  ·  ●  ·  ·  ·  ·   2/3   On track   3 2 3 2  Consistent
-One-arm         O1   0/12       ·  ·  ·  ·  ·  ·  ·   0/2   On track    – – – –  New
-Plyometrics     Y1   3/10       ·  ·  ·  ·  ·  ·  ·   0/2   On track    – – – –  New
-● full area-day   ◐ partial   ○ planned for today   · none or future
-```
-(Illustrative. "7/12" = full area-days in the stage out of `askAfter`.)
+against what you could actually do. Repeated skips with the same reason ("no
+time") also feed the time-fitted trim.
 
 **Where it shows up**
 - **Today:** a one-line strip ("5 of 8 areas on track") and at most two gentle
-  nudges, e.g. "Pistol: 6 days since last, you aim for every 3–4".
-- **Areas tab:** the grid, verdict chips and the 4-week numbers.
-- **Monday card:** last week in one screen.
-- **Pace:** projected review date per area from your *actual* 4-week average. "At
-  your pace the muscle-up review lands about 21 Oct."
+  nudges, e.g. "Pistol: skipped twice this week".
+- **Areas tab:** the grid, the done/skipped line, verdict chips, the 4-week numbers.
+- **Monday card:** last week's grid and what was skipped, in one screen.
+- **Pace:** projected review date per area from your *actual* 4-week average.
 
 The thresholds are data, not code.
 
@@ -389,30 +443,36 @@ is from memory.
 | **N5 Full Nordic** | No hands: eccentric and concentric | **5 strict reps** ★ | 12 |
 | *N6 Optional* | Weighted, +2.5 → +5 kg at the chest (the old feat) | 3 × 3 at 5 kg | — |
 
-### f) Kettlebell strength (Simple & Sinister) — target 3 days/week (5 when time allows) — goal: Simple standard
+### f) Kettlebell strength (Simple & Sinister) — target 3 days/week (5 when time allows) — goal: 50 kg bell
 
 Progression is by **bell weight**, as in the book. **You own 15 lb (6.8 kg) and
-25 lb (11.3 kg).** The ladder is stored in kg and shown in lb beside it.
+25 lb (11.3 kg).** The ladder is stored in kg and shown in lb beside it. Your
+target bell is **50 kg**, which is above the book's own top standard.
 
 Protocol, **as I remember it — please check against your copy**:
 - 10 sets × 10 one-arm swings, alternating the hand each set
 - 10 Turkish get-ups total, 5 per side, alternating
 - interleaved: a get-up between swing sets
-- Simple = 32 kg (70 lb), Sinister = 48 kg (106 lb), the book's standard for men
+- Simple = 32 kg (70 lb), Sinister = 48 kg (106 lb), the book's standards for men
 
 | Stage | Bell | Work | Ready when | Ask |
 |---|---|---|---|---|
 | **K1 Foundation** | 15 and 25 lb (**you have these**) | KB deadlift, goblet squat, two-hand swings 5 × 10, shoe get-up then 15 lb get-up; a light S&S-style session with what you own | 10 × 10 two-hand swings with a clean hinge; 5 get-ups per side with the 15 lb | 8 |
-| **K2 S&S** | 35 lb · 16 kg — **buy** | Full S&S | Full protocol clean, not wrecked | 12 |
-| **K3 S&S** | 44 lb · 20 kg | Full S&S | same | 12 |
-| **K4 S&S** | 53 lb · 24 kg | Full S&S | same | 12 |
-| **K5 S&S** | 62 lb · 28 kg | Full S&S | same | 12 |
-| **K6 Simple** | 70 lb · 32 kg | Full S&S, plus the book's time standard | **Simple standard met** ★ | 12 |
-| *K7 Optional* | 88 → 106 lb · 40 → 48 kg | Sinister | Sinister standard | — |
+| **K2 S&S** | 16 kg · 35 lb — **buy** | Full S&S | Full protocol clean, not wrecked | 12 |
+| **K3 S&S** | 20 kg · 44 lb | Full S&S | same | 12 |
+| **K4 S&S** | 24 kg · 53 lb | Full S&S | same | 12 |
+| **K5 S&S** | 28 kg · 62 lb | Full S&S | same | 12 |
+| **K6 Simple** | 32 kg · 70 lb | Full S&S, plus the book's time standard | **Simple standard met** (milestone) | 12 |
+| **K7 S&S** | 40 kg · 88 lb | Full S&S | Full protocol clean | 12 |
+| **K8 Sinister** | 48 kg · 106 lb | Full S&S, plus the book's time standard | **Sinister standard met** (milestone) | 12 |
+| **K9 Target bell** | 50 kg · 110 lb | Full S&S | **Full protocol with the 50 kg bell** ★ | 12 |
 
-**Buying path.** You need a 35 lb bell before K2. An adjustable kettlebell
-avoids buying five. The level-up preview will always say which bell the next
-stage needs, so you can buy just in time.
+**Honest notes.** 50 kg is a long way up: it is 2 kg above Sinister, which is
+already an advanced standard. 48 kg is the common top size, and **I'm not sure a
+50 kg bell is easy to buy**, so check before planning around it. The bell
+weights are data, so changing the target later is a one-line edit. **You
+need a 35 lb bell before K2.** An adjustable bell avoids buying several, and the
+level-up preview will always say which bell the next stage needs.
 
 The book also lets swings and get-ups advance independently. v1 keeps one bell
 per stage; splitting them is a data change, not a rewrite.
@@ -420,7 +480,7 @@ per stage; splitting them is a data change, not a rewrite.
 **Frequency.** S&S is designed to be near-daily and you asked for 5 a week. At
 30–60 minute days with eight areas it can't be 5 without pushing muscle-up below
 its minimum (section 5), so the default target is **3, with 5 as the nominal
-target** that the app moves toward when your weekly time allows.
+target** the app moves toward when your weekly time allows.
 
 ### g) One-arm pull-up — target 2 days/week — goal: 1 strict rep each arm
 
@@ -438,7 +498,7 @@ the area alternates a heavy session with a light technique session.
 
 Elbow amber blocks level-ups and holds the load here and in muscle-up.
 
-### h) Plyometrics — target 2 days/week — goal: your high-jump goal ⚠
+### h) Plyometrics — target 2 days/week — goal: vertical jump +X cm
 
 New. Purpose: jumping explosiveness and tendon strength. Volume is counted in
 **foot contacts**, not sets. Your heel-raise and pogo work from W2–W3 lives on
@@ -453,17 +513,16 @@ Contact caps and heights are placeholders from general guidance, from memory.
 | **Y3 Single-leg elastic** | Single-leg pogos, in-place and lateral hops, low hurdle hops; ≤ 80 contacts | 20 continuous single-leg pogos per leg with short contacts (film it) | 12 |
 | **Y4 Bounds and reactive** | Alternate-leg bounds, reactive hurdle hops (30 cm), single-leg box jumps; ≤ 100 contacts. *Advisory: Pistol P3* | 5 reactive hurdle hops with minimal ground time; 5 single-leg box jumps per leg to 30 cm | 12 |
 | **Y5 Depth jumps** | Drop jumps from 20 → 30 → 40 cm (use the height where the rebound is highest), countermovement jumps with arm swing; ≤ 100 contacts, ≤ 30 of them depth. *Advisory: Pistol P4 and Nordic N3* | 5 depth jumps with a rebound at least as high as your countermovement jump | 14 |
-| **Y6 Approach jumps** | 3–5 step approach, single-leg take-off to a touch target or bar; ≤ 60 maximal contacts | **Your jump goal** ★, retested every 4 weeks | 12 |
+| **Y6 Approach jumps** | 3–5 step approach, single-leg take-off to a touch target; ≤ 60 maximal contacts | **Vertical jump ≥ baseline + X cm** ★, retested every 4 weeks | 12 |
 
 **Advisory prerequisites** are a new stage field: the level-up review shows
 "not met" when, say, Pistol P4 is still ahead of you, and you can override. They
 protect the tendons that depth jumps hit hardest.
 
-**The goal needs a number.** Plan: a baseline vertical jump (standing reach vs
-wall-touch), retested every 4 weeks, with a target in cm that you set. If you
-meant an athletic high-jump bar height, the stages stay the same and only the
-test changes.
-
+**The goal is a vertical jump.** Y1 starts with a baseline: standing reach vs
+wall-touch jump, best of 3, same warm-up each time. You set X (cm) after seeing
+it. The jump is retested every 4 weeks and charted, so you can see the effect of
+the stages before you reach Y6.
 
 ---
 
@@ -540,6 +599,10 @@ Copenhagen 3, KB shoulder circuit 2. One heel-raise set is logged at 500 kg ×
                  { "areas": ["nordic", "kb"], "soft": true, "why": "both load the hamstrings" } ],
   "budgets":   [ { "areas": ["mu", "oap"], "maxPerWeek": 4, "why": "elbow tendon" } ],
   "verdicts":  { "consistentWeeks": 3, "slippingMisses": 2, "dormantDays": 14 } }
+// dayPlans["2026-10-07"]: what each sitting's menu was, so the week view can say "skipped"
+{ "sittings": [ { "minutes": 30, "planned": ["mu", "bridge"] },
+                { "minutes": 30, "planned": ["kb", "pistol"] } ],
+  "removed": { "pistol": "no time" } }
 // stage-level overrides, e.g. Nordic N1: "perWeek": {"min":2,"target":3,"max":3}, "minGapDays": 2
 // advisory prerequisite, e.g. Plyometrics Y5: "requires": [{"area":"pistol","stage":"P4"}]
 ```
@@ -556,10 +619,12 @@ export imports and is seeded as above.
    red until 9 Oct and today's session has Nordic.
 1. **M11 — data and rules:** area files for all eight, `rules.json`, a validator
    test, and a read-only *Areas* tab (ladders, week grid from your legacy
-   history). No change to how you train.
-2. **M12 — area-days:** log per area instead of per fixed session, with legacy
-   mapping and the 500 kg flag. A manual *Today* menu (pick areas, time chooser,
-   partial finish, log off-app) and a live week grid.
+   history). No change to how you train. The grid shows done and partial only;
+   **skipped appears once menus are saved, from M12.**
+2. **M12 — area-days and sittings:** log per area instead of per fixed session,
+   with legacy mapping and the 500 kg flag. A manual *Today* menu (pick areas,
+   time chooser, up to 3 sittings, partial finish, log off-app), saved day
+   plans, and a live week grid with done / partial / skipped.
 3. **M13 — recommender:** port the prototype as a tested pure function, with
    reasons on every line, time-fitted targets, the feasibility line, ramp-in, and
    the seven-area check-in with guard mapping.
@@ -585,20 +650,21 @@ export imports and is seeded as above.
   are from general guidance, from memory.
 - The simulation is a paper prototype with my placeholder numbers.
 - The Simple & Sinister details are from memory. The book wins.
+- A 50 kg kettlebell may be hard to buy; 48 kg is the usual top size.
 - `askAfter` values and the verdict thresholds are placeholders.
 
 ---
 
 ## 13. What I need from you
 
-1. **Plyometrics goal and rank.** By "high jumping" do you mean a vertical jump
-   (wall-touch, plus X cm) or an athletic high-jump bar height? And should it
-   stay last in priority?
-2. **Keep Achilles in the check-in?** It reverses your earlier yes, because
-   plyometrics loads it hardest.
-3. **Time-fitted targets:** kettlebell nominal 5 trimmed to 3 for a 30–60 minute
-   week, and Nordic 3 in N1–N2 then 2 from N3. OK?
-4. **Bells:** buy a 35 lb (16 kg) first, or an adjustable? Is 70 lb (32 kg) the
-   target bell, or something lighter?
-5. **Time chooser** at the start of each day (30 / 45 / 60 / number), remembered
-   per weekday. OK?
+1. **Units on the bell target.** You wrote "50 kG". Is that **50 kg (110 lb)**, or
+   did you mean **50 lb (22.7 kg)**, which would stop the ladder around K3–K4?
+   I built it for 50 kg.
+2. **Skipped, as defined in section 6:** planned means on that day's saved menu,
+   and a day you never opened the app shows as "no plan recorded", never as
+   skipped. OK?
+3. **Two sittings:** the same area may be done in both, counts once, and only
+   completing the block counts toward level-up. Up to 3 sittings a day. OK?
+
+Everything else is settled. If those three are fine I'd treat the plan as
+**approved** and start with the runner red-light fix, then M11.
