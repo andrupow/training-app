@@ -1,5 +1,5 @@
 /* The Integrated Plan — Milestones 1-8, complete; M9-M10 runner and rescheduling;
-   M11 workout areas, M12 the daily menu, M13 the recommender, M14 stages and level-up
+   M11 workout areas, M12 the daily menu, M13 the recommender, M14 stages and level-up, M15 weekly feedback
    Shell + PWA + plan browser + today's session with set logging
    + dated baselines and the load calculator + rest timer + JSON backup
    + morning check-in, the traffic light, HOLD gating and progression charts.
@@ -7,7 +7,7 @@
 
 'use strict';
 
-var BUILD = '1.13.0-m14';
+var BUILD = '1.14.0-m15';
 var PLAN_URL = 'data/plan.json';
 var LS_PLAN = 'plan.cache.v1';
 var LS_LOGS = 'setLogs';
@@ -2224,6 +2224,12 @@ function verdictOf(f, T) {
     return { key: 'overreaching', why: 'Trained ' + f.intoLights + ' times in the last two weeks with a guarding body area amber or red.' };
   }
 
+  /* One finished week is not a pattern: say so rather than judge it. The warnings above
+     (gone quiet, pushing too hard) do not wait for one. */
+  if (f.weeks.length < 2) {
+    return { key: 'new', why: f.weeks.length ? 'Only one finished week so far.' : 'No finished week to judge yet.' };
+  }
+
   /* With fewer finished weeks than the rule looks at, it is all of the weeks you have. */
   var lately = f.weeks.slice(-T.slippingWindow);
   var misses = count(lately, ['missed']);
@@ -2264,10 +2270,14 @@ function areaFeedback(area, today, days) {
   });
   var firstWeek = firstTrained ? weekStartOf(firstTrained) : null;
 
+  /* Weeks from before the areas existed were asked for something else, so they are
+     history, not misses. */
+  var era = settings.menuSince ? weekStartOf(settings.menuSince) : null;
+
   var weeks = [];
   for (var k = T.window; k >= 1; k--) {
     var s = addDays(current, -7 * k);
-    if (!firstWeek || s < firstWeek) continue;               /* before it began: not a miss */
+    if (!firstWeek || s < firstWeek || (era && s < era)) continue;      /* before it began: not a miss */
     var w = areaWeek(area, s, today, days);
     weeks.push({ start: s, touched: w.touched, min: w.min, target: w.target, max: w.max, status: w.status.key, completion: weekCompletion(area.id, s, days) });
   }
@@ -3121,6 +3131,39 @@ function heldCallouts(date) {
   }).filter(Boolean);
 }
 
+/* The week in one line, and a couple of gentle things worth knowing. Tap for the grid. */
+function weekStripBlock(today, days) {
+  var strip = weekStrip(today, days);
+  var kids = [el('div', { class: 'ws-main', text: 'This week: ' + strip.text })];
+  nudgesFor(today, days).forEach(function (n) { kids.push(el('div', { class: 'nudge', text: n.text })); });
+  return el('a', { class: 'week-strip', href: '#/areas' }, kids);
+}
+
+/* The week that has just finished, once: what was done, what was skipped. It stays
+   until you put it away, and only for the week before this one. */
+function lastWeekCard(today, days) {
+  var start = addDays(weekStartOf(today), -7), end = addDays(start, 6);
+  if (settings.lastWeekSeen === start) return null;
+  var happened = days.some(function (r) { return r.date >= start && r.date <= end; })
+    || Object.keys(dayPlans).some(function (d) { return d >= start && d <= end; });
+  if (!happened) return null;
+
+  var sum = weekSummary(start, today, days);
+  var open = el('button', { class: 'btn', type: 'button', text: 'See it in Areas' });
+  open.addEventListener('click', function () { areasView.week = start; areasView.day = null; location.hash = '#/areas'; });
+  var away = el('button', { class: 'btn btn-quiet', type: 'button', text: 'Put it away' });
+  away.addEventListener('click', function () { settings.lastWeekSeen = start; saveSettings(); repaintToday(); });
+
+  return el('div', { class: 'card monday-card' }, [
+    el('div', { class: 'card-top' }, [el('span', { class: 'card-title', text: 'Last week · ' + fmtDateShort(start) + ' – ' + fmtDateShort(end) })]),
+    weekGrid(start, today, days, { static: true }),
+    weekLegend(sum, weekHasNoPlan(start, today, days)),
+    el('p', { class: 'wk-sum', text: 'Done ' + sum.done + ' · Partial ' + sum.partial + ' · Skipped ' + sum.skipped }),
+    skippedList(sum),
+    el('div', { class: 'sheet-actions', style: 'margin-top:10px' }, [open, away])
+  ]);
+}
+
 /* When even the minimums do not fit the minutes you have, say so where you will
    see it. Tight and comfortable weeks say nothing here; the Areas tab has them. */
 function overBooked(today, days) {
@@ -3344,9 +3387,12 @@ function renderToday() {
   todaySessions = [];
 
   var nodes = heldCallouts(today);
+  var lastWeek = lastWeekCard(today, days);
+  if (lastWeek) nodes.push(lastWeek);
   reviewCards(today, days).forEach(function (c) { nodes.push(c); });
   var over = overBooked(today, days);
   if (over) nodes.push(over);
+  nodes.push(weekStripBlock(today, days));
   nodes.push(sittingBar(today, plan));
 
   var load = sittingLoad(sitting);
@@ -5506,7 +5552,8 @@ function repaintAreas() {
 }
 
 /* Areas down the side, Monday to Sunday across. Tap a day to see it. */
-function weekGrid(start, today, days) {
+function weekGrid(start, today, days, opts) {
+  var live = !(opts && opts.static);                /* static: for reading, nothing to tap */
   var grid = el('div', { class: 'wk-grid', role: 'grid', 'aria-label': 'Areas by day' });
   var LETTER = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -5515,12 +5562,12 @@ function weekGrid(start, today, days) {
   grid.appendChild(el('div'));
   LETTER.forEach(function (letter, i) {
     var date = addDays(start, i);
-    var b = el('button', {
-      class: 'wk-day' + (date === today ? ' is-today' : '') + (date === areasView.day ? ' is-sel' : ''),
-      type: 'button',
+    var b = el(live ? 'button' : 'div', {
+      class: 'wk-day' + (date === today ? ' is-today' : '') + (live && date === areasView.day ? ' is-sel' : ''),
+      type: live ? 'button' : null,
       'aria-label': fmtDateShort(date) + (date === today ? ', today' : '')
     }, [letter, el('b', { text: String(Number(date.slice(8, 10))) })]);
-    b.addEventListener('click', function () { pickDay(date); });
+    if (live) b.addEventListener('click', function () { pickDay(date); });
     grid.appendChild(b);
   });
 
@@ -5533,13 +5580,13 @@ function weekGrid(start, today, days) {
     ]));
 
     w.cells.forEach(function (c) {
-      var cell = el('button', {
+      var cell = el(live ? 'button' : 'div', {
         class: 'wk-cell' + (c.isToday ? ' is-today' : '') + (c.state === 'future' ? ' is-future' : '')
-          + (c.date === areasView.day ? ' is-sel' : ''),
-        type: 'button',
+          + (live && c.date === areasView.day ? ' is-sel' : ''),
+        type: live ? 'button' : null,
         'aria-label': area.name + ', ' + fmtDateShort(c.date) + ': ' + STATE_TEXT[c.state]
       }, [c.state === 'future' ? null : stateGlyph(c.state)]);
-      cell.addEventListener('click', function () { pickDay(c.date); });
+      if (live) cell.addEventListener('click', function () { pickDay(c.date); });
       grid.appendChild(cell);
     });
   });
@@ -5695,8 +5742,19 @@ function ladderRow(area, here) {
   }));
 }
 
+/* The verdict as a small label, coloured by what it means. */
+function verdictChip(fb) {
+  return el('span', { class: 'vd vd-' + fb.verdict, title: fb.why, text: fb.label });
+}
+
+/* "2 2 3 1": days trained in each of the last finished weeks, oldest first. */
+function weeksText(fb) {
+  return fb.weeks.length ? fb.weeks.map(function (w) { return w.touched; }).join('  ') : 'nothing yet';
+}
+
 function areaCard(area, days) {
   var prog = stageProgress(area, days);
+  var fb = areaFeedback(area, todayISO(), days);
   return el('a', { class: 'card', href: '#/areas/' + area.id }, [
     el('div', { class: 'card-top' }, [
       el('span', { class: 'card-title', text: area.name }),
@@ -5708,7 +5766,12 @@ function areaCard(area, days) {
     el('div', { class: 'card-sub', text: area.goal }),
     ladderRow(area, prog.stage.id),
     el('div', { class: 'card-sub', text: 'Stage ' + prog.stage.id + ' · ' + prog.stage.name
-      + (prog.askAfter ? ' · ' + prog.full + ' of ' + prog.askAfter + ' full days' : ' · ' + prog.full + ' full days') })
+      + (prog.askAfter ? ' · ' + prog.full + ' of ' + prog.askAfter + ' full days' : ' · ' + prog.full + ' full days') }),
+    el('div', { class: 'vd-row' }, [
+      verdictChip(fb),
+      fb.mostlyPartial ? el('span', { class: 'vd vd-partial', text: 'Mostly partial' }) : null,
+      el('span', { class: 'vd-weeks', text: 'Last weeks: ' + weeksText(fb) })
+    ])
   ]);
 }
 
@@ -6124,7 +6187,6 @@ function renderAreaDetail(id) {
   ensureWeekFit(start, days);        /* the target shown here is the one the week is judged by */
   var w = areaWeek(area, start, today, days);
   var prog = stageProgress(area, days);
-  var recent = recentWeekCounts(area, start, 3, days, firstWeekStart(days));
 
   var nodes = [
     el('a', { class: 'back', href: '#/areas', text: '‹ Areas' }),
@@ -6135,9 +6197,10 @@ function renderAreaDetail(id) {
   ];
 
   var ladderKv = el('div', { class: 'kv kv-text' });
+  var pace = paceText(paceFor(area, today, days));
   [['Stage', prog.stage.id + ' · ' + prog.stage.name],
    ['Full days here', prog.full + (prog.askAfter ? ' of ' + prog.askAfter : '')],
-   ['Where that is', phaseText(prog)]].forEach(function (r) {
+   ['Where that is', phaseText(prog)]].concat(pace ? [['Review', pace]] : []).forEach(function (r) {
     ladderKv.appendChild(el('div', { class: 'kv-row' }, [el('span', { class: 'kv-key', text: r[0] }), el('span', { class: 'kv-val', text: r[1] })]));
   });
   var pick = el('button', { class: 'btn btn-quiet', type: 'button', text: 'Set the stage yourself' });
@@ -6150,9 +6213,13 @@ function renderAreaDetail(id) {
   var decided = decisionList(area);
   if (decided) nodes.push(decided);
 
+  var fb = areaFeedback(area, today, days);
+  var last = fb.weeks.length ? fb.weeks[fb.weeks.length - 1] : null;
   var rows = [
     ['This week', w.touched + ' of ' + w.target + (w.status.label ? ' · ' + w.status.label : '')],
-    ['Last 3 weeks', recent.map(function (n) { return n === null ? '–' : n; }).join('  ')],
+    ['How it is going', fb.label + '. ' + fb.why],
+    ['Last weeks', fb.weeks.length ? fb.weeks.map(function (x) { return x.touched + '/' + x.target; }).join('  ') : 'nothing yet'],
+    ['Completion', last && last.completion !== null ? last.completion + '% of sets last week' + (fb.mostlyPartial ? ' · mostly partial lately' : '') : 'no sets last week'],
     ['Days a week', w.min + ' · ' + w.target + ' · ' + w.max + '  (min · target · max)'],
     ['Days apart', 'at least ' + w.gap],
     ['A session takes', 'about ' + area.minutes + ' min'],

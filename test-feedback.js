@@ -66,6 +66,9 @@ eq('2 of 4 but only 1 of the last 3 is not', V(['missed','met','hit','missed']),
 eq('slipping beats consistent', V(['hit','missed','missed','hit']), 'slipping');
 eq('the reason counts the weeks', ctx.verdictOf(F(['hit','missed','missed']),T).why, 'Missed its minimum in 2 of the last 3 weeks.');
 eq('with only two finished weeks, both missed is slipping', V(['missed','missed']), 'slipping');
+eq('one finished week is not a pattern, missed or hit', [V(['missed']), V(['hit'])], ['new','new']);
+eq('and says so', ctx.verdictOf(F(['missed']),T).why, 'Only one finished week so far.');
+eq('but the warnings do not wait for a pattern: gone quiet, or pushing too hard', [V(['hit'],{lastTrained:'2026-09-01'}), V(['over']), V(['hit'],{intoLights:2})], ['dormant','overreaching','overreaching']);
 eq('and one of two is not', V(['hit','missed']), 'mixed');
 
 console.log('consistent, building, uneven:');
@@ -226,6 +229,49 @@ ctx.progress.nordic={stage:'N6',since:null,nextAsk:null};
 eq('a stage with nothing above it has no review', [ctx.paceFor(ctx.areaById('nordic'),'2026-10-26',[]).kind, ctx.paceText({kind:'none'})], ['none','']);
 reset();
 eq('a recent move restarts it: the days at the old stage are not counted', (ctx.progress.mu={stage:'M2',since:'2026-10-20',nextAsk:null}, ctx.paceFor(mu,'2026-10-26',muFull).remaining), 12);
+
+console.log('weeks from before the areas are history, not misses:');
+reset(); ctx.todayISO=()=>'2026-10-26';
+const oldPlanWeeks=['2026-09-20','2026-09-27','2026-10-03'].map(d=>rec(d,'mu'));        // one a week, as the old plan asked
+fb=ctx.areaFeedback(mu,'2026-10-12',oldPlanWeeks);
+eq('with no menus yet every week is judged (one a week is a miss against 2)', [fb.weeks.length, fb.verdict], [4,'slipping']);
+ctx.settings.menuSince='2026-10-12';
+fb=ctx.areaFeedback(mu,'2026-10-12',oldPlanWeeks);
+eq('once menus began on 12 Oct, those weeks are not judged', [fb.weeks.length, fb.verdict], [0,'new']);
+eq('and say so', fb.why, 'No finished week to judge yet.');
+fb=ctx.areaFeedback(mu,'2026-10-26',oldPlanWeeks.concat([rec('2026-10-13','mu'),rec('2026-10-16','mu'),rec('2026-10-20','mu'),rec('2026-10-22','mu')]));
+eq('the weeks since are', [fb.weeks.map(w=>w.start+':'+w.status), fb.verdict], [['2026-10-12:hit','2026-10-19:hit'],'consistent']);
+eq('menus began mid-week: that whole week is judged', (ctx.settings.menuSince='2026-10-15', ctx.areaFeedback(mu,'2026-10-26',oldPlanWeeks.concat([rec('2026-10-16','mu')])).weeks.map(w=>w.start)), ['2026-10-12','2026-10-19']);
+eq('an empty list of weeks is never "slipping"', ctx.verdictOf({weeks:[],firstTrained:'2026-08-03',lastTrained:'2026-10-20',today:'2026-10-26',intoLights:0},T).key, 'new');
+ctx.settings={};
+
+console.log('last week, once, on Today:');
+const draws=(f)=>{try{f();return true;}catch(e){console.log('   ',String(e.stack).split('\n').slice(0,3).join(' | '));return false;}};
+reset(); pinWeeks(); ctx.todayISO=()=>'2026-10-12';          // a Monday; last week began 5 Oct
+const lw=['2026-10-05','2026-10-07'].map(d=>rec(d,'mu'));
+ok('last week had training: there is a card', ctx.lastWeekCard('2026-10-12',lw)!==null);
+eq('a week with nothing in it has none', ctx.lastWeekCard('2026-10-12',[rec('2026-09-20','mu')]), null);
+ctx.dayPlans['2026-10-06']={sittings:[{minutes:45,areas:['mu']}],suggested:['mu'],removed:{},why:{}};
+ok('a menu with nothing done still counts as a week that happened', ctx.lastWeekCard('2026-10-12',[])!==null);
+ctx.settings.lastWeekSeen='2026-10-05';
+eq('put away, it stays away', ctx.lastWeekCard('2026-10-12',lw), null);
+ctx.settings.lastWeekSeen='2026-09-28';
+ok('having put away the week before does not hide this one', ctx.lastWeekCard('2026-10-12',lw)!==null);
+eq('only the week before this one: three weeks on there is nothing for it', (ctx.settings.lastWeekSeen=undefined, ctx.lastWeekCard('2026-10-26',lw)), null);
+ok('it draws, with a skipped line', draws(()=>{ctx.dayPlans['2026-10-08']={sittings:[{minutes:45,areas:['kb']}],suggested:['kb','plyo'],removed:{plyo:'tired'},why:{}}; ctx.lastWeekCard('2026-10-12',lw);}));
+
+console.log('the pieces on screen draw (the fake DOM cannot be read):');
+reset(); pinWeeks(); ctx.todayISO=()=>'2026-10-26';
+eq('four numbers for four weeks', ctx.weeksText(ctx.areaFeedback(mu,'2026-10-26',steady)), '2  2  2  2');
+eq('nothing yet', ctx.weeksText(ctx.areaFeedback(mu,'2026-10-26',[])), 'nothing yet');
+ok('a static grid, and a live one', draws(()=>{ctx.weekGrid('2026-10-19','2026-10-26',steady,{static:true});ctx.weekGrid('2026-10-19','2026-10-26',steady);}));
+ok('the strip and its nudges', draws(()=>ctx.weekStripBlock('2026-10-26',steady)));
+ok('a chip for each verdict', Object.keys(ctx.VERDICT_LABEL).every(k=>draws(()=>ctx.verdictChip({verdict:k,label:ctx.VERDICT_LABEL[k],why:'w'}))));
+const states={'no history':[],'steady':steady,'thin':thin,'slipping':steady.filter(r=>['2026-09-28','2026-10-01','2026-10-05','2026-10-19','2026-10-22'].includes(r.date)),'half done':steady.map(r=>Object.assign({},r,{done:2,total:4,full:false})),'long ago':[rec('2026-08-03','mu'),rec('2026-08-10','mu')]};
+Object.keys(states).forEach(k=>{
+  ctx.areaDays=()=>states[k];
+  ok('Today, the Areas tab and every area page with '+k, draws(()=>{ctx.renderToday();ctx.renderAreas();real.list.forEach(a=>ctx.renderAreaDetail(a.id));real.list.forEach(a=>ctx.areaCard(a,states[k]));}));
+});
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail?1:0);

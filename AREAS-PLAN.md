@@ -1,6 +1,6 @@
 # Areas, stages and the daily menu — draft v4 for review
 
-Status: **built through M14** (section 11). M15 and M16 are still design. Numbers
+Status: **built through M15** (section 11). Only M16 is still design. Numbers
 marked *(placeholder)* are mine, not sourced; change them freely.
 
 ---
@@ -735,8 +735,38 @@ export imports and is seeded as above.
      first-run screen; the Areas tab hints at it until you have decided anything.
      Each decision (moved up, not yet, stepped back, set) is kept with the day
      and the number of full days, in the backup.
-5. **M15 — feedback:** statuses, verdicts, nudges, the Monday card, pace
-   projection.
+5. **M15 — feedback — done (build 1.14.0-m15):** every area now says how it is
+   doing, Today says how the week is going, and last week gets a look back. What
+   shipped differs from the sketch in six ways:
+   - **Verdicts only judge weeks since menus began** (the week of `menuSince`).
+     Weeks of the old 14-week plan were asked for something else, so they are
+     history, not misses; until two finished weeks exist an area reads **New**
+     (the warnings, Dormant and Overreaching, do not wait). With fewer finished
+     weeks than a rule looks at, it is all of the weeks there are, so two clean
+     weeks since the start read Consistent. A sixth label, **Uneven**, covers
+     what none of the rules catches. Each week is judged against the target it
+     was fitted to at the time, or as authored for a week nobody looked at.
+   - **Today gets one line and at most two nudges**, ranked: a minimum slipping
+     out of reach, skipped twice, behind, Slipping, mostly partial, Dormant, and
+     a note when three things were taken off for no time in the week. One per
+     area, never for an area a red light has paused, and held areas are counted
+     apart in the line ("6 of 6 areas on track · 2 held").
+   - **Last week's card is on Today until you put it away**, not only on Monday,
+     and only for the week just finished. It is the grid, the done, partial and
+     skipped counts, and what was skipped with your reasons.
+   - **Pace is the review date at your real rate**: full days in the last 28 days
+     (or since the first day, if later), against the days the review needs. It
+     says plainly when it is too early, when nothing has been done lately, and
+     when the review is due.
+   - **"No time" feeds the fit.** If areas were taken off for no time at least
+     twice in the last two weeks, their minutes (averaged over those weeks) are
+     cut from the week's stated minutes before targets are fitted, and the Areas
+     tab says so. Other reasons do not count. The fit keeps what you said and
+     what was cut.
+   - **The area page** shows how it is going (the verdict and why), the last
+     weeks as days over target, last week's completion, and the pace; the Areas
+     tab shows a chip and the last weeks on each card. A **Mostly partial** tag
+     appears when completion is under 70% for two finished weeks running.
 6. **M16 — adding areas:** track-only areas in the app, area-pack import,
    units and equipment settings, how-to.
 
