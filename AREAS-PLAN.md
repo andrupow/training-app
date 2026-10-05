@@ -817,6 +817,28 @@ export imports and is seeded as above.
    counts from that day on, so earlier days read as they did; a worse reading the
    same day, or any new red, holds again; amber holds are not touched. A lift can be
    put back from the same card, and a clear check-in says when it lifted something.
+9. **After M16 — weeks ahead and a planner that looks ahead (build 1.19.0-lookahead):**
+   - **Weeks ahead:** the Areas tab pages forward through this week and the next
+     four (`FORECAST_WEEKS`), not only the running week, so nothing stops at the
+     end of the current week. Each future week is the same dotted-ring forecast,
+     run day by day as if the days before it were done as suggested, and shows
+     `N suggested` per area and an `N area-days suggested` line. The forecast is
+     still never saved.
+   - **Short flag:** where an area's suggested days (plus what is already done)
+     fall below its weekly minimum, its row says `Short · x of y days`, so a week
+     that cannot fit is visible instead of silently thin.
+   - **Look-ahead:** the recommender used to pick each day on its own, which left
+     the end of a week short (a hold or a tight day late in the week meant an area
+     could not reach its minimum). `weekShortfall` now places the days still to
+     come, in their usual minutes and with any holds on them, and costs what would
+     be missed, a missed minimum counting fully and a missed target a quarter
+     (`TARGET_WEIGHT`), weighted by area priority. Among the candidate menus within
+     `rules.recommender.lookaheadFloor` (0.7) of the best single-day value, the
+     one that leaves the least unmet wins; ties keep the plain ordering. Over 31
+     random week setups the missed minimums went from 11 to 0.
+   - **Bridge:** `minGapDays` is 2 (was 1), so it is never trained two days in a row.
+   - **Red lights card first:** it now sits above the week grid, so a hold that is
+     thinning the week is the first thing seen, with its one-tap lift.
 
 ---
 

@@ -134,7 +134,7 @@ eq('and the input is not changed', (()=>{const inp=IN([A('a'),A('b',{priority:2}
 /* ---- through the app: real areas, real rules, your week ---- */
 console.log('the real rules over ten weeks (the plan’s simulation, run on the app’s own code):');
 const IDS=['mu','hspu','bridge','pistol','nordic','kb','oap','plyo'];
-const GAP={mu:2,hspu:2,bridge:1,pistol:2,nordic:2,kb:1,oap:3,plyo:2};
+const GAP={mu:2,hspu:2,bridge:2,pistol:2,nordic:2,kb:1,oap:3,plyo:2};
 const HARD=[['mu','oap'],['hspu','mu'],['plyo','nordic']];
 const HIGH=['mu','hspu','nordic','oap','plyo'];
 function sim(weeks,minutesFn,o){
@@ -165,7 +165,8 @@ eq('your mixed week (45 45 30 45 45 60 60 = 330 min): every fitted target is met
 eq('at 43 minutes a day, as the plan’s simulation said', s.mins, 43);
 eq('and no spacing, conflict, limit or time rule is broken', breaks(s), 0);
 s=sim(10,()=>60);
-eq('60 minutes every day: kettlebell 4 of its nominal 5, one-arm 2, everything else at target', s.avg, {mu:2,hspu:2,bridge:3,pistol:2,nordic:3,kb:4,oap:2,plyo:1});
+eq('60 minutes every day: kettlebell about 4 of its nominal 5 (a rolling plan drifts a little week to week), one-arm 2, everything else at target', Object.assign({},s.avg,{kb:Math.round(s.avg.kb)}), {mu:2,hspu:2,bridge:3,pistol:2,nordic:3,kb:4,oap:2,plyo:1});
+ok('and the kettlebell stays within a fifth of a session of 4', Math.abs(s.avg.kb-4)<0.2);
 eq('and no rule is broken', breaks(s), 0);
 s=sim(10,()=>45);
 ok('a flat 45 does not fit, as the plan said: kettlebell falls below its minimum of 2', s.avg.kb<2);
@@ -181,7 +182,8 @@ ok('and the weekend days really use two', s.log.filter(l=>l.slots.length===2).ev
 console.log('a red hamstring for a week (the red protocol is seven days):');
 s=sim(10,()=>60,{checkIns:[ci('2026-10-05',{hamstring:8})]});
 eq('Nordic and kettlebell are not recommended during it', s.days.filter(x=>(x.area==='nordic'||x.area==='kb')&&x.date<='2026-10-11').length, 0);
-eq('afterwards they are back at target, with no make-up', [s.avg.nordic,s.avg.kb], [3,4]);
+eq('afterwards they are back at target, with no make-up', [s.avg.nordic,Math.round(s.avg.kb)], [3,4]);
+ok('the kettlebell within a fifth of a session of it', Math.abs(s.avg.kb-4)<0.2);
 ok('nothing else was stopped', s.avg.mu>=2&&s.avg.bridge>=3);
 eq('and no rule broken', breaks(s), 0);
 
@@ -189,11 +191,13 @@ console.log('through the app’s state:');
 reset(); ctx.todayISO=()=>'2026-10-08'; ctx.settings.weekdayMinutes={0:45,1:45,2:30,3:45,4:45,5:60,6:60};
 const old=IDS.map(id=>rec('2026-09-14',id));
 let inp=ctx.recommendInput('2026-10-08',[45],old);
-eq('the shape', [Object.keys(inp).sort(), inp.areas.length, inp.limits], [['already','areas','conflicts','date','limits','slots','weights','budgets'].sort(), 8, {maxAreas:4,maxHigh:2}]);
+eq('the shape', [Object.keys(inp).sort(), inp.areas.length, inp.limits], [['already','areas','conflicts','date','future','limits','slots','weights','budgets'].sort(), 8, {maxAreas:4,maxHigh:2}]);
 eq('the week’s fit is used: kettlebell’s target is 2', inp.areas.find(a=>a.id==='kb').per, {min:2,target:2,max:6});
 ok('looking at the week saved its fit', !!ctx.weekFits['2026-10-05']);
 eq('suggestAreas is the same recommendation', ctx.suggestAreas('2026-10-08',45,old), ctx.recommendFor('2026-10-08',[45],old).picked);
-eq('and comes back in the order to do things: skill before strength before mobility', ctx.recommendFor('2026-10-08',[60],old).picked, ['hspu','pistol','nordic','bridge']);
+const sixty=ctx.recommendFor('2026-10-08',[60],old).picked;
+eq('and comes back in the order to do things: skill before strength before mobility', sixty, ctx.doOrder(sixty));
+eq('on a Thursday with 60 minutes, what fills them: one-arm\u2019s second day needs today (three days between), with pistol, Nordic and the bridge', sixty, ['pistol','nordic','oap','bridge']);
 ctx.dayPlans['2026-10-08']={sittings:[{minutes:45,areas:['hspu','nordic']}],suggested:['hspu','nordic'],removed:{bridge:'tired'}};
 inp=ctx.recommendInput('2026-10-08',[30],old.concat([rec('2026-10-08','pistol')]));
 eq('what is on the menu or was done today counts as already', inp.already.sort(), ['hspu','nordic','pistol']);

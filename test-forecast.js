@@ -30,7 +30,8 @@ const MINUTES={0:45,1:45,2:30,3:45,4:45,5:60,6:60};
 const reset=(today)=>{pinWeeks();ctx.setLogs=[];ctx.logIndex={};ctx.dayPlans={};ctx.frozenDays={};ctx.checkIns=[];ctx.schedule={};ctx.settings={weekdayMinutes:Object.assign({},MINUTES)};
   delete store.dayPlans;delete store.areaDays;delete store.settings;ctx.todayISO=()=>today;};
 const MON='2026-10-05', WED='2026-10-07';
-const dates=(from)=>Array.from({length:7-ctx.isoDow(from)},(_,i)=>ctx.addDays(from,i));
+const dates=(from)=>Array.from({length:7-ctx.isoDow(from)},(_,i)=>ctx.addDays(from,i));   // the rest of that week
+const horizon=(from)=>Array.from({length:7*(1+ctx.FORECAST_WEEKS)-ctx.isoDow(from)},(_,i)=>ctx.addDays(ctx.weekStartOf(from),ctx.isoDow(from)+i));   // and the weeks after it
 const seed=(date,areas,minutes=45)=>{ctx.dayPlans[date]={sittings:[{minutes,areas:ctx.doOrder(areas)}],suggested:areas.slice(),removed:{}};areas.forEach(id=>ctx.freezeAreaDay(date,id));};
 const row=(date,area)=>({date,area,done:5,total:5,full:true});
 const fc=(today,days)=>ctx.weekForecast(today,days||[]);
@@ -38,11 +39,13 @@ const lim=ctx.areaData.rules.defaults;
 
 console.log('which days are forecast:');
 reset(MON);
-eq('on a Monday, all seven days', Object.keys(fc(MON)), dates(MON));
+eq('on a Monday, this week and the four after it', Object.keys(fc(MON)), horizon(MON));
+eq('that is 35 days, ending on a Sunday five weeks on', [horizon(MON).length,ctx.isoDow(horizon(MON)[34])], [35,6]);
 reset(WED);
-eq('on a Wednesday, Wednesday to Sunday only: the days gone are not forecast', Object.keys(fc(WED)), dates(WED));
+eq('on a Wednesday, from Wednesday: the days gone are not forecast', Object.keys(fc(WED)), horizon(WED));
+ok('and it starts on the Wednesday', Object.keys(fc(WED))[0]==='2026-10-07');
 reset('2026-10-11');
-eq('on a Sunday, just Sunday', Object.keys(fc('2026-10-11')), ['2026-10-11']);
+eq('on a Sunday, from that Sunday and the four weeks after', Object.keys(fc('2026-10-11')), horizon('2026-10-11'));
 reset(MON); const saveAD=ctx.areaData; ctx.areaData=null;
 eq('with no areas loaded it is empty, not an error', ctx.weekForecast(MON,[]), {});
 ctx.areaData=saveAD;
