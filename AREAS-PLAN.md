@@ -855,6 +855,29 @@ export imports and is seeded as above.
     does anything else without an entry. A pack's exercise may carry its own `video`
     (the 11-character id), which wins; the validator checks it.
 
+11. **After M16 — change the plan yourself (build 1.21.0-planedit):** on the Areas tab you
+    can add an area to a day ahead or take one off it, for the running week and the
+    four after it. Tap a ring (or an empty day) in the week grid, or use the **Take
+    out**, **Add**, **Put back** and **Undo** buttons in the day below; the day shows
+    what changed in words and **Undo my changes to this day** forgets them. What you
+    changed looks different: a blue disc with a plus is an area you added, a slashed
+    ring on a reddish cell one you took off, with their own legend entries and a count
+    in the week line. Today's own menu is still changed on the Today tab.
+    - **How it is kept:** for a day with no menu yet, as `settings.planEdits`
+      (`{ date: { add, remove } }`, read cleaned, in the backup, past days dropped). The
+      forecast plans around it, so the other days adjust: taking Muscle-up off Sunday
+      moves its session to Saturday, and Sunday still reads "taken out by you". A
+      take-off counts only if the day would have had the area without it. When the
+      day's menu is made, it starts from the edits (what you added reads as yours, what
+      you took off as a take-off) and the edits are used up. A day that already has a
+      menu is changed in the menu, with the same functions Today uses.
+    - **What it will not do:** add an area a red light holds (and one that is held later
+      drops out of the day, with the reason, until the hold ends). Nothing else blocks
+      you; if the area would not have been suggested (too soon, at its weekly max), the
+      confirmation says so.
+    - **Spacing both ways:** an area is no longer suggested inside its spacing of a day
+      that already holds it (one you added, or a real menu), the same as after a session.
+
 ---
 
 ## 12. Caveats

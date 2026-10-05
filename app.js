@@ -7,7 +7,7 @@
 
 'use strict';
 
-var BUILD = '1.20.0-videos';
+var BUILD = '1.21.0-planedit';
 var PLAN_URL = 'data/plan.json';
 var LS_PLAN = 'plan.cache.v1';
 var LS_LOGS = 'setLogs';
@@ -1720,7 +1720,26 @@ function weekShortfall(input, picked) {
 
   future.forEach(function (day, i) {
     var idx = i + 1, room = day.minutes, chosen = [], high = 0;
-    states.filter(function (s) { return left(s) > 0 && s.next <= idx && !(s.a.heldOn && s.a.heldOn[day.date]); })
+
+    /* What a day already holds comes first: the menu it has, or what you put on it. It is
+       trained (unless a red light holds it), whatever the spacing, and takes its room. */
+    (day.add || []).forEach(function (id) {
+      var a = input.areas.filter(function (x) { return x.id === id; })[0];
+      if (!a || (a.heldOn && a.heldOn[day.date])) return;
+      room -= a.minutes; chosen.push(id);
+      if (a.load === 'high') high++;
+      states.forEach(function (s) {
+        if (s.a.id !== id) return;
+        if (s.need > 0) s.need--; else if (s.extra > 0) s.extra--;
+        s.next = idx + a.gap;
+      });
+    });
+    if (day.fixed) return;                                  /* a day with a menu gets nothing else */
+
+    states.filter(function (s) {
+      return left(s) > 0 && s.next <= idx && !(s.a.heldOn && s.a.heldOn[day.date])
+        && !(day.remove && day.remove.indexOf(s.a.id) >= 0);
+    })
       .sort(function (x, y) {
         var sx = (future.length - (left(x) - 1) * x.a.gap) - idx, sy = (future.length - (left(y) - 1) * y.a.gap) - idx;
         return ((y.need > 0) - (x.need > 0)) || (sx - sy) || (x.a.priority - y.a.priority) || (y.a.minutes - x.a.minutes);
@@ -1949,6 +1968,9 @@ function recommendInput(date, slots, days, opts) {
 
   var plan = opts && opts.fresh ? null : dayPlans[date];      /* fresh: ask as if the menu were empty */
   var onMenu = plan ? plannedAreaIds(plan) : [];
+  /* a day with no menu yet can still carry what you put on it (add) or took off it (remove) */
+  var putOn = opts && opts.add || [], takenOff = opts && opts.remove || [];
+  putOn.forEach(function (id) { if (onMenu.indexOf(id) < 0) onMenu.push(id); });
 
   /* What is already taking up room today: what is on the menu, and what was done.
      An area that a check-in has since turned red cannot be trained, so it takes up
@@ -1964,7 +1986,26 @@ function recommendInput(date, slots, days, opts) {
   var future = [];
   for (var di = isoDow(date) + 1; di < 7; di++) {
     var fd = addDays(start, di), fp = dayPlans[fd];
-    future.push({ date: fd, minutes: fp ? fp.sittings.reduce(function (n, st) { return n + st.minutes; }, 0) : defaultMinutes(fd) });
+    var day = { date: fd, minutes: fp ? fp.sittings.reduce(function (n, st) { return n + st.minutes; }, 0) : defaultMinutes(fd) };
+    if (fp) { day.fixed = true; day.add = plannedAreaIds(fp); }            /* a day with a menu is settled: it holds what it holds */
+    else {                                                                 /* otherwise it holds what you have put on it or taken off it */
+      var fe = planEditsFor(fd);
+      var rm = removalsInForce ? (removalsInForce[fd] || []) : fe.remove;
+      if (fe.add.length) day.add = fe.add;
+      if (rm.length) day.remove = rm;
+    }
+    future.push(day);
+  }
+
+  /* the days after this one that are already settled, up to a week on (past the week's end too):
+     a day with a menu, or what you have put on a day. An area is not offered today inside its spacing
+     of one of them, the same as it is not offered soon after a session it has already had. */
+  var settled = [];
+  for (var si = 1; si <= 6; si++) {
+    var sd = addDays(date, si), sp = dayPlans[sd];
+    var sids = sp ? plannedAreaIds(sp) : planEditsFor(sd).add;
+    sids = sids.filter(function (id) { var sa = areaById(id); return sa && !heldReason(sa, sd); });
+    if (sids.length) settled.push({ date: sd, ahead: si, ids: sids });
   }
 
   var rules = areaData.rules;
@@ -1975,8 +2016,11 @@ function recommendInput(date, slots, days, opts) {
       future.forEach(function (day) { if (heldReason(a, day.date)) heldOn[day.date] = true; });
       var w = areaWeek(a, start, date, days);
       var excluded = null;
-      if (plan && onMenu.indexOf(a.id) >= 0) excluded = 'Already on today’s menu.';
+      var close = settled.filter(function (s) { return s.ids.indexOf(a.id) >= 0 && s.ahead < w.gap; })[0];
+      if (onMenu.indexOf(a.id) >= 0) excluded = 'Already on today’s menu.';
       else if (plan && a.id in plan.removed) excluded = 'Taken off today’s menu' + (plan.removed[a.id] ? ' (' + plan.removed[a.id] + ')' : '') + '.';
+      else if (takenOff.indexOf(a.id) >= 0) excluded = 'Taken out by you.';
+      else if (close) excluded = 'Too close to its session on ' + fmtDateShort(close.date) + ' (wants ' + w.gap + '+ days between).';
       return {
         id: a.id, name: a.name, priority: a.priority, minutes: a.minutes, load: a.load,
         per: { min: w.min, target: w.target, max: w.max }, gap: w.gap,
@@ -2011,16 +2055,80 @@ function whyOf(rec, ids) {
   return out;
 }
 
-/* The menu is made the first time the day is shown. */
+/* --- editing the plan -------------------------------------------------------- */
+/* Your own changes to the days ahead: an area you put on a day, or took off it. Kept with the
+   settings as { 'YYYY-MM-DD': { add: [ids], remove: [ids] } }, and they apply to a day that has no
+   menu yet: the forecast plans around them, and the day's menu starts from them when it is made.
+   A day that already has a menu is changed in the menu itself. Read cleaned, so junk in storage
+   (an area that is gone, a list that is not one) is never believed. */
+function planEditsFor(date) {
+  var out = { add: [], remove: [] };
+  var all = settings && settings.planEdits;
+  var raw = all && typeof all === 'object' && !Array.isArray(all) ? all[date] : null;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  ['add', 'remove'].forEach(function (k) {
+    (Array.isArray(raw[k]) ? raw[k] : []).forEach(function (id) {
+      if (typeof id === 'string' && areaById(id) && out.add.indexOf(id) < 0 && out.remove.indexOf(id) < 0) out[k].push(id);
+    });
+  });
+  return out;
+}
+
+/* Store a day's edits (none at all removes the day). Days that have gone by are dropped. */
+function savePlanEdits(date, edits) {
+  if (!settings.planEdits || typeof settings.planEdits !== 'object' || Array.isArray(settings.planEdits)) settings.planEdits = {};
+  if (edits.add.length || edits.remove.length) settings.planEdits[date] = { add: edits.add.slice(), remove: edits.remove.slice() };
+  else delete settings.planEdits[date];
+  var today = todayISO();
+  Object.keys(settings.planEdits).forEach(function (d) { if (d < today) delete settings.planEdits[d]; });
+  if (!Object.keys(settings.planEdits).length) delete settings.planEdits;
+  return saveSettings();
+}
+
+/* While a forecast is being worked out: which take-offs count, by day. A take-off counts if the day
+   would have had the area without it, and only the forecast can say that, because taking an area off
+   one day moves its sessions to others, which can make the day too soon for it anyway. Null the rest
+   of the time, when each day asks for itself. */
+var removalsInForce = null;
+
+/* What the recommender makes of a day that has your edits on it. What you added is on the day
+   (unless a red light holds it) and takes its room, and the rest is worked out around it. What
+   you took off counts as taken off only if the day would otherwise have had it; anything else is
+   just not suggested, as before. `notes` says why an area you added would not have been suggested
+   (too soon, at its max), so the day can say so. */
+function recommendWithEdits(date, minutes, days, edits) {
+  var adds = edits.add.filter(function (id) { var a = areaById(id); return a && !heldReason(a, date); });
+  var base = recommendFor(date, [minutes], days, adds.length ? { add: adds } : undefined);
+  var removed = removalsInForce ? (removalsInForce[date] || []).slice()
+    : edits.remove.filter(function (id) { return base.picked.indexOf(id) >= 0; });
+  var rec = removed.length ? recommendFor(date, [minutes], days, { add: adds, remove: removed }) : base;
+
+  var notes = {};
+  if (adds.length) {
+    var plain = recommendFor(date, [minutes], days);
+    adds.forEach(function (id) {
+      var line = plain.lines[id];
+      if (line && !line.picked && (line.kind === 'soon' || line.kind === 'max' || line.kind === 'budget')) notes[id] = line.why;
+    });
+  }
+  return { rec: rec, added: adds, removed: removed, notes: notes, picks: doOrder(adds.concat(rec.picked)) };
+}
+
+/* The menu is made the first time the day is shown, from what has happened and from anything you
+   put on it or took off it beforehand. */
 function ensureDayPlan(date, days) {
   if (dayPlans[date]) return dayPlans[date];
 
   var minutes = defaultMinutes(date);
-  var rec = recommendFor(date, [minutes], days);
-  var picks = rec.picked;
-  dayPlans[date] = { sittings: [{ minutes: minutes, areas: picks.slice() }], suggested: picks.slice(), removed: {}, why: whyOf(rec, picks) };
+  var w = recommendWithEdits(date, minutes, days, planEditsFor(date));
+  var picks = w.picks;
+  var suggested = w.rec.picked.slice();                    /* what the app suggested; what you added is not in it, so it reads as yours */
+  var removed = {};
+  w.removed.forEach(function (id) { removed[id] = ''; if (suggested.indexOf(id) < 0) suggested.push(id); });
+  dayPlans[date] = { sittings: [{ minutes: minutes, areas: picks.slice() }], suggested: suggested, removed: removed, why: whyOf(w.rec, w.rec.picked) };
   picks.forEach(function (id) { freezeAreaDay(date, id); });
 
+  if (settings.planEdits && settings.planEdits[date]) savePlanEdits(date, { add: [], remove: [] });    /* the menu has them now */
   if (!settings.menuSince) { settings.menuSince = date; saveSettings(); }
   saveDayPlans();
   return dayPlans[date];
@@ -2048,28 +2156,61 @@ function weekForecast(today, days) {
   var key = forecastKey(today, days);
   if (forecastMemo.key === key) return forecastMemo.value;
 
+  ensureWeekFit(weekStartOf(today), days);            /* from what has really happened, not from the forecast */
+
+  var out;
+  try {
+    /* What you took off counts only where the day would have had the area without that: so the days
+       are worked out first as if nothing were taken off, and then again with the take-offs that count. */
+    var asked = {}, any = false;
+    for (var i = isoDow(today); i < 7 * (1 + FORECAST_WEEKS); i++) {
+      var d = addDays(weekStartOf(today), i);
+      var rm = dayPlans[d] ? [] : planEditsFor(d).remove;
+      if (rm.length) { asked[d] = rm; any = true; }
+    }
+    if (any) {
+      removalsInForce = {};
+      var plain = forecastDays(today, days);
+      removalsInForce = {};
+      Object.keys(asked).forEach(function (d) { removalsInForce[d] = asked[d].filter(function (id) { return plain[d].picks.indexOf(id) >= 0; }); });
+    }
+    out = forecastDays(today, days);
+  } finally {
+    removalsInForce = null;
+  }
+  forecastMemo = { key: key, value: out };
+  return out;
+}
+
+/* The day-by-day pass behind weekForecast. */
+function forecastDays(today, days) {
   var out = {};
   var start = weekStartOf(today);
-  ensureWeekFit(start, days);            /* from what has really happened, not from the forecast */
-
   var sim = days.slice();
   for (var i = isoDow(today); i < 7 * (1 + FORECAST_WEEKS); i++) {
     var date = addDays(start, i);
     var plan = dayPlans[date];
-    var picks, minutes, why = {}, left = [];
+    var picks, minutes, why = {}, left = [], manual = { added: [], removed: [], notes: {} };
 
     if (plan) {
       picks = plannedAreaIds(plan);
       minutes = plan.sittings.reduce(function (n, st) { return n + st.minutes; }, 0);
+      /* on a menu, what is not from the suggestion is yours: added, or taken off */
+      manual.added = picks.filter(function (id) { return plan.suggested.indexOf(id) < 0; });
+      manual.removed = Object.keys(plan.removed).filter(function (id) { return picks.indexOf(id) < 0; });
     } else {
       minutes = defaultMinutes(date);
-      var rec = recommendFor(date, [minutes], sim);
-      picks = rec.picked.slice();
-      why = whyOf(rec, picks);
-      left = areaList().filter(function (a) { return picks.indexOf(a.id) < 0; })
-        .map(function (a) { return { id: a.id, kind: rec.lines[a.id].kind, why: rec.lines[a.id].why }; });
+      var w = recommendWithEdits(date, minutes, sim, planEditsFor(date));
+      picks = w.picks;
+      why = whyOf(w.rec, w.rec.picked);
+      w.added.forEach(function (id) { why[id] = 'Added by you.' + (w.notes[id] ? ' ' + w.notes[id] : ''); });
+      left = areaList().filter(function (a) { return picks.indexOf(a.id) < 0; }).map(function (a) {
+        var gone = w.removed.indexOf(a.id) >= 0;
+        return { id: a.id, kind: gone ? 'removed' : w.rec.lines[a.id].kind, why: gone ? 'Taken out by you.' : w.rec.lines[a.id].why };
+      });
+      manual = { added: w.added, removed: w.removed, notes: w.notes };
     }
-    out[date] = { real: !!plan, minutes: minutes, picks: picks, why: why, left: left };
+    out[date] = { real: !!plan, minutes: minutes, picks: picks, why: why, left: left, manual: manual };
 
     /* the next day sees this one as done, except what a red light would stop */
     picks.forEach(function (id) {
@@ -2079,7 +2220,6 @@ function weekForecast(today, days) {
       if (!have) sim.push({ date: date, area: id, done: 1, total: 1, full: true });
     });
   }
-  forecastMemo = { key: key, value: out };
   return out;
 }
 
@@ -2096,6 +2236,85 @@ function forecastReach(forecast, area, start, days) {
     n++;
   }
   return n;
+}
+
+/* The days you can change from the Areas tab: after today, as far ahead as the forecast goes.
+   Today's own menu is changed on the Today tab, where it has sittings and reasons. */
+function planEditable(date, today) {
+  return date > today && date <= addDays(weekStartOf(today), 7 * (1 + FORECAST_WEEKS) - 1);
+}
+
+/* One tap on an area on a day ahead: put it on the day if it is not there, take it off if it is.
+     added      it was not on the day, now it is
+     removed    it was suggested, now it is not
+     restored   you had taken it off, and it is back
+     reverted   you had added it, and it is gone again
+   A day with no menu keeps this as an edit that the forecast, and later the menu, start from; a
+   day that has a menu is changed in the menu. A red light still holds an area wherever it is, so
+   that cannot be added. Nothing else blocks you: if the area would not have been suggested (too
+   soon after the last time, at its weekly max) the result says so in `note`. */
+function togglePlanArea(date, areaId, days) {
+  var today = todayISO(), area = areaById(areaId);
+  if (!area) return { ok: false, why: 'No such area.' };
+  if (!planEditable(date, today)) {
+    return { ok: false, why: date <= today ? 'Only days ahead can be changed here. Today’s menu is on the Today tab.' : 'That is further ahead than the plan reaches.' };
+  }
+
+  var plan = dayPlans[date];
+  if (plan) {
+    var sit = -1;
+    plan.sittings.forEach(function (st, i) { if (sit < 0 && st.areas.indexOf(areaId) >= 0) sit = i; });
+    if (sit >= 0) {
+      var yours = plan.suggested.indexOf(areaId) < 0;
+      var gone = removeAreaFromDay(date, sit, areaId, '');
+      return gone.ok ? { ok: true, change: yours ? 'reverted' : 'removed', note: '' } : gone;
+    }
+    var back = areaId in plan.removed;
+    var put = addAreaToDay(date, 0, areaId);
+    return put.ok ? { ok: true, change: back ? 'restored' : 'added', note: '' } : put;
+  }
+
+  var edits = planEditsFor(date);
+  var f = weekForecast(today, days)[date];
+  var on = !!f && f.picks.indexOf(areaId) >= 0;
+  var change;
+  if (on) {
+    var mine = edits.add.indexOf(areaId);
+    if (mine >= 0) { edits.add.splice(mine, 1); change = 'reverted'; }
+    else { edits.remove.push(areaId); change = 'removed'; }
+  } else {
+    var held = heldReason(area, date);
+    if (held) return { ok: false, why: area.name + ' is held: ' + held + '.' };
+    var off = edits.remove.indexOf(areaId);
+    if (off >= 0) { edits.remove.splice(off, 1); change = 'restored'; }
+    else { edits.add.push(areaId); change = 'added'; }
+  }
+  savePlanEdits(date, edits);
+
+  /* a take-off that has gone stale (the day would not have had it any more) puts nothing back when
+     it is undone, so the tap would look like it did nothing: it adds the area instead */
+  if (change === 'restored') {
+    var again = weekForecast(today, days)[date];
+    if (!again || again.picks.indexOf(areaId) < 0) { edits.add.push(areaId); savePlanEdits(date, edits); change = 'added'; }
+  }
+  var after = weekForecast(today, days)[date];
+  return { ok: true, change: change, note: change === 'added' && after && after.manual.notes[areaId] || '' };
+}
+
+/* Forget what you changed on one day with no menu yet. Returns how many changes that was. */
+function resetPlanEdits(date) {
+  var had = planEditsFor(date), n = had.add.length + had.remove.length;
+  if (n) savePlanEdits(date, { add: [], remove: [] });
+  return n;
+}
+
+/* A day ahead's cell, if you changed it: 'added' or 'removed'. */
+function forecastMark(forecast, cell, today, areaId) {
+  var f = forecast && forecast[cell.date];
+  if (!f || !f.manual || cell.date <= today || cell.state !== 'future') return null;
+  if (f.manual.added.indexOf(areaId) >= 0) return 'added';
+  if (f.manual.removed.indexOf(areaId) >= 0) return 'removed';
+  return null;
 }
 
 /* A new sitting is a new question: what is still worth doing, given what is on
@@ -6395,13 +6614,15 @@ var areasView = { week: null, day: null };   /* the week and day the tab is show
 
 var STATE_TEXT = {
   full: 'done', partial: 'partial', skipped: 'skipped', planned: 'planned', suggested: 'suggested',
+  added: 'added by you', removed: 'taken out by you',
   noplan: 'no plan recorded', none: 'not trained', future: 'not yet'
 };
 
 /* One glyph per state. Shape carries the meaning, colour only reinforces it:
    filled disc done, half disc partial, dashed ring planned, dotted ring suggested
    (a forecast for a day with no menu yet), cross skipped, hatching no plan
-   recorded, dot nothing. */
+   recorded, dot nothing. What you changed by hand has its own: a disc with a plus is
+   an area you added to a day, a ring with a slash is one you took off it. */
 function stateGlyph(state) {
   var svg = svgEl('svg', { class: 'g', viewBox: '0 0 20 20', 'aria-hidden': 'true' });
   if (state === 'full') {
@@ -6413,6 +6634,12 @@ function stateGlyph(state) {
     svg.appendChild(svgEl('circle', { class: 'g-plan', cx: 10, cy: 10, r: 7.5 }));
   } else if (state === 'suggested') {
     svg.appendChild(svgEl('circle', { class: 'g-sug', cx: 10, cy: 10, r: 7.5 }));
+  } else if (state === 'added') {
+    svg.appendChild(svgEl('circle', { class: 'g-add', cx: 10, cy: 10, r: 7.8 }));
+    svg.appendChild(svgEl('path', { class: 'g-add-plus', d: 'M10 6 V14 M6 10 H14' }));
+  } else if (state === 'removed') {
+    svg.appendChild(svgEl('circle', { class: 'g-rm', cx: 10, cy: 10, r: 7.5 }));
+    svg.appendChild(svgEl('path', { class: 'g-rm-slash', d: 'M5.2 14.8 L14.8 5.2' }));
   } else if (state === 'skipped') {
     svg.appendChild(svgEl('path', { class: 'g-skip', d: 'M5.5 5.5 L14.5 14.5 M14.5 5.5 L5.5 14.5' }));
   } else if (state === 'noplan') {
@@ -6491,14 +6718,18 @@ function weekGrid(start, today, days, opts) {
     ]));
 
     w.cells.forEach(function (c) {
-      var state = forecastState(forecast, c, today, area.id) || c.state;
+      var mark = forecastMark(forecast, c, today, area.id);
+      var state = mark || forecastState(forecast, c, today, area.id) || c.state;
+      var editable = live && !!forecast && planEditable(c.date, today) && c.state === 'future';   /* a tap changes it */
+      var on = state === 'added' || state === 'suggested' || state === 'planned';
       var cell = el(live ? 'button' : 'div', {
         class: 'wk-cell' + (c.isToday ? ' is-today' : '') + (c.state === 'future' ? ' is-future' : '')
-          + (live && c.date === areasView.day ? ' is-sel' : ''),
+          + (mark ? ' is-' + mark : '') + (live && c.date === areasView.day ? ' is-sel' : ''),
         type: live ? 'button' : null,
+        title: editable ? (on ? 'Tap to take ' + area.short + ' out of this day' : 'Tap to add ' + area.short + ' to this day') : null,
         'aria-label': area.name + ', ' + fmtDateShort(c.date) + ': ' + STATE_TEXT[state]
       }, [state === 'future' ? null : stateGlyph(state)]);
-      if (live) cell.addEventListener('click', function () { pickDay(c.date); });
+      if (live) cell.addEventListener('click', function () { if (editable) changePlan(c.date, area.id); else pickDay(c.date); });
       grid.appendChild(cell);
     });
   });
@@ -6508,11 +6739,13 @@ function weekGrid(start, today, days, opts) {
 
 /* Only the shapes this week actually uses, so the legend never explains
    something that is not on screen. */
-function weekLegend(sum, hasNoPlan, hasSuggested) {
+function weekLegend(sum, hasNoPlan, hasSuggested, marks) {
   var wrap = el('div', { class: 'wk-legend' });
   var items = [['full', 'Done'], ['partial', 'Partial']];
   if (sum.planned) items.push(['planned', 'Planned']);
   if (hasSuggested) items.push(['suggested', 'Suggested']);
+  if (marks && marks.added) items.push(['added', 'Added by you']);
+  if (marks && marks.removed) items.push(['removed', 'Taken out']);
   if (sum.skipped) items.push(['skipped', 'Skipped']);
   if (hasNoPlan) items.push(['noplan', 'No plan recorded']);
   items.push(['none', 'Not trained']);
@@ -6527,27 +6760,57 @@ function recNote(r) {
   return r.done + ' of ' + r.total + ' sets' + (r.full ? '' : ' · partial');
 }
 
-function detailRow(item, extra) {
+function detailRow(item, extra, action) {
   var area = item.area;
   var note = '';
   if (item.record) note = recNote(item.record);
   else if (item.state === 'skipped') note = 'Skipped' + (item.reason ? ' · ' + reasonText(item.reason) : '');
   else if (item.state === 'planned' || item.state === 'future') note = 'Planned';
   else if (item.state === 'suggested') note = 'Suggested';
+  else if (item.state === 'added') note = 'Added by you';
+  else if (item.state === 'removed') note = 'Taken out by you';
 
   if (item.record && item.removed) note += ' · taken off the menu';
   if (extra) note += (note ? ' · ' : '') + extra;
 
-  return el('div', { class: 'wk-item' }, [
+  return el('div', { class: 'wk-item' + (item.state === 'added' ? ' is-added' : item.state === 'removed' ? ' is-removed' : '') }, [
     stateGlyph(item.state === 'future' ? 'planned' : item.state),
     el('span', { text: area ? area.name : '' }),
-    el('span', { class: 'wk-note', text: note })
+    el('span', { class: 'wk-note', text: note }),
+    action || null
   ]);
 }
 
-/* An area the forecast left out of a day, and why; a held one says when it is back and
-   has the tap to lift it. */
-function leftOutRow(l, date) {
+/* What was done, in words, for the line that confirms a change. */
+function planEditText(change, area, date, note) {
+  var when = fmtDateShort(date);
+  var text = change === 'added' ? 'Added ' + area.name + ' to ' + when + '.'
+    : change === 'removed' ? 'Took ' + area.name + ' out of ' + when + '.'
+    : change === 'restored' ? 'Put ' + area.name + ' back on ' + when + '.'
+    : area.name + ' is off ' + when + ' again.';
+  return text + (note ? ' ' + note : '');
+}
+
+/* A tap that changes the plan for a day ahead; the day opens below so the result can be read. */
+function changePlan(date, areaId) {
+  var r = togglePlanArea(date, areaId, areaDays());
+  areasView.day = date;
+  toast(r.ok ? planEditText(r.change, areaById(areaId), date, r.note) : r.why);
+  repaintAreas();
+}
+
+/* A small button in a day's detail that changes one area on that day. */
+function planButton(label, date, areaId) {
+  var area = areaById(areaId);
+  var b = el('button', { class: 'btn lift-btn plan-btn', type: 'button', text: label,
+    'aria-label': label + ' ' + (area ? area.name : areaId) + ' on ' + fmtDateShort(date) });
+  b.addEventListener('click', function () { changePlan(date, areaId); });
+  return b;
+}
+
+/* An area the forecast left out of a day, and why. A held one says when it is back and has the tap
+   to lift it; on a day ahead any other can be added with a tap, and one you took out can be put back. */
+function leftOutRow(l, date, canEdit) {
   var area = areaById(l.id);
   var why = l.why, body = null;
   if (l.kind === 'held' && area) {
@@ -6555,12 +6818,15 @@ function leftOutRow(l, date) {
     var h = body && redHolds(date)[body];
     if (h) why += ' Back on ' + fmtDateShort(addDays(h.until, 1)) + '.';
   }
-  return el('div', { class: 'wk-left' }, [
+  var action = body ? liftButton(body, repaintAreas)
+    : canEdit && area && l.kind !== 'held' ? planButton(l.kind === 'removed' ? 'Put back' : 'Add', date, l.id) : null;
+  return el('div', { class: 'wk-left' + (l.kind === 'removed' ? ' is-removed' : '') }, [
+    l.kind === 'removed' ? stateGlyph('removed') : null,
     el('div', { class: 'wk-left-main' }, [
       el('span', { class: 'wk-left-name', text: area ? area.name : l.id }),
       el('span', { class: 'wk-left-why', text: why })
     ]),
-    body ? liftButton(body, repaintAreas) : null
+    action
   ]);
 }
 
@@ -6578,22 +6844,42 @@ function dayDetail(date, today, days, forecast) {
   /* a day with no menu yet: what would be suggested, if the forecast has it */
   var f = forecast && forecast[date];
   if (d.noPlan && date >= today && f && !f.real && !d.extras.length) {
+    var canEdit = planEditable(date, today);
+    var mine = f.manual || { added: [], removed: [] };
     if (f.picks.length) {
       card.appendChild(el('div', { class: 'wk-sit', text: 'Suggested · ' + f.minutes + ' min' }));
       f.picks.forEach(function (id) {
-        card.appendChild(detailRow({ area: areaById(id), state: 'suggested', record: null }));
-        if (f.why[id]) card.appendChild(el('div', { class: 'wk-why', text: f.why[id] }));
+        var added = mine.added.indexOf(id) >= 0;
+        card.appendChild(detailRow({ area: areaById(id), state: added ? 'added' : 'suggested', record: null }, '', canEdit ? planButton(added ? 'Undo' : 'Take out', date, id) : null));
+        var line = added ? (mine.notes && mine.notes[id]) || '' : f.why[id];      /* "Added by you" is on the row; a line only when there is more to say */
+        if (line) card.appendChild(el('div', { class: 'wk-why', text: line }));
       });
     } else {
       card.appendChild(el('div', { class: 'card-sub', text: 'Nothing suggested for this day.' }));
     }
-    /* what was left out is explained even when nothing was picked: that is when it matters most */
-    if (f.left && f.left.length) {
+    /* what you took out comes first, then the rest of what was left out; the reasons are given
+       even when nothing was picked: that is when it matters most */
+    var gone = (f.left || []).filter(function (l) { return l.kind === 'removed'; });
+    var rest = (f.left || []).filter(function (l) { return l.kind !== 'removed'; });
+    if (gone.length) {
+      card.appendChild(el('div', { class: 'wk-sit', text: 'Taken out by you' }));
+      gone.forEach(function (l) { card.appendChild(leftOutRow(l, date, canEdit)); });
+    }
+    if (rest.length) {
       card.appendChild(el('div', { class: 'wk-sit', text: 'Left out' }));
-      f.left.forEach(function (l) { card.appendChild(leftOutRow(l, date)); });
+      rest.forEach(function (l) { card.appendChild(leftOutRow(l, date, canEdit)); });
     }
     if (f.picks.length || (f.left && f.left.length)) {
-      card.appendChild(el('p', { class: 'hint wk-detail-note', text: 'Worked out from what you have done so far, as if the days before it get done. The real menu is made when you open the day.' }));
+      card.appendChild(el('p', { class: 'hint wk-detail-note', text: 'Worked out from what you have done so far, as if the days before it get done. The real menu is made when you open the day.' + (canEdit ? ' Add or take out an area with the buttons, or tap its ring in the week.' : '') }));
+    }
+    if (canEdit && (mine.added.length || mine.removed.length || planEditsFor(date).add.length || planEditsFor(date).remove.length)) {
+      var undo = el('button', { class: 'btn plan-reset', type: 'button', text: 'Undo my changes to this day' });
+      undo.addEventListener('click', function () {
+        var n = resetPlanEdits(date);
+        toast(n ? 'Back to the suggestions for ' + fmtDateShort(date) + '.' : 'Nothing to undo.');
+        repaintAreas();
+      });
+      card.appendChild(undo);
     }
     return card;
   }
@@ -6661,6 +6947,25 @@ function forecastShows(forecast) {
   return !!forecast && Object.keys(forecast).some(function (d) { return !forecast[d].real && forecast[d].picks.length; });
 }
 
+/* How many areas you added to the days of a week, and how many you took off them. */
+function weekMarks(start, forecast) {
+  var out = { added: 0, removed: 0 };
+  for (var i = 0; i < 7; i++) {
+    var f = forecast && forecast[addDays(start, i)];
+    if (!f || !f.manual) continue;
+    out.added += f.manual.added.length;
+    out.removed += f.manual.removed.length;
+  }
+  return out;
+}
+
+function marksText(m) {
+  var bits = [];
+  if (m.added) bits.push('you added ' + m.added);
+  if (m.removed) bits.push((bits.length ? '' : 'you ') + 'took out ' + m.removed);
+  return bits.join(', ');
+}
+
 function weekCard(start, today, days, forecast) {
   var current = weekStartOf(today);
   var first = firstWeekStart(days);
@@ -6680,6 +6985,8 @@ function weekCard(start, today, days, forecast) {
     for (var wi = 0; wi < 7; wi++) { var wf = forecast && forecast[addDays(start, wi)]; if (wf) count += wf.picks.length; }
     line = count + ' area-days suggested';
   }
+  var marks = weekMarks(start, start >= current ? forecast : null);
+  if (marks.added || marks.removed) line += ' · ' + marksText(marks);
 
   return el('div', { class: 'card wk-card' }, [
     el('div', { class: 'wk-head' }, [
@@ -6691,8 +6998,8 @@ function weekCard(start, today, days, forecast) {
       next
     ]),
     weekGrid(start, today, days, { forecast: forecast }),
-    weekLegend(sum, weekHasNoPlan(start, today, days), forecastShows(forecast)),
-    forecastShows(forecast) ? el('p', { class: 'hint wk-forecast-note', text: 'Dotted rings are suggestions for the days ahead, as if each day’s menu gets done. They change as you go: the real menu is made when you open Today.' }) : null,
+    weekLegend(sum, weekHasNoPlan(start, today, days), forecastShows(forecast), marks),
+    forecastShows(forecast) ? el('p', { class: 'hint wk-forecast-note', text: 'Dotted rings are suggestions for the days ahead, as if each day’s menu gets done. They change as you go: the real menu is made when you open Today. Tap a ring, or an empty day, to take an area out of a day or add one; what you change stays marked.' }) : null,
     el('p', { class: 'wk-sum', text: line }),
     skippedList(sum),
     start > current ? null : fitBlock(start, today, days)

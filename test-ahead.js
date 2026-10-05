@@ -124,7 +124,8 @@ eq('an area no red light guards is never held', Object.keys(inp.areas.find(a=>a.
 eq('the days still to come are handed over, with each day\u2019s minutes', [inp.future.length,inp.future[0],inp.future[5]], [6,{date:ctx.addDays(MON,1),minutes:45},{date:ctx.addDays(MON,6),minutes:60}]);
 eq('on a Sunday there are none', ctx.recommendInput('2026-10-11',[60],[]).future, []);
 reset(MON); ctx.dayPlans['2026-10-08']={sittings:[{minutes:70,areas:['mu']}],suggested:['mu'],removed:{},why:{}};
-eq('a day that already has a menu is planned around at the minutes of that menu', ctx.recommendInput(MON,[45],[]).future[2], {date:'2026-10-08',minutes:70});
+eq('a day that already has a menu is planned around at the minutes of that menu, and holds what is on it and nothing else', ctx.recommendInput(MON,[45],[]).future[2], {date:'2026-10-08',minutes:70,fixed:true,add:['mu']});
+eq('the days around it say nothing of the kind', [ctx.recommendInput(MON,[45],[]).future[1],ctx.recommendInput(MON,[45],[]).future[3]], [{date:'2026-10-07',minutes:30},{date:'2026-10-09',minutes:45}]);
 
 console.log('the forecast is remembered until something changes:');
 reset(MON); ctx.checkIns=[ci(FRI,{hamstring:8})];
