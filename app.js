@@ -15,10 +15,12 @@ var LS_BASELINES = 'baselines';
 var LS_CHECKINS = 'checkIns';
 var LS_SETTINGS = 'settings';
 var LS_SCHEDULE = 'schedule';
+var LS_DAYPLANS = 'dayPlans';      /* the menu of each day, so the week can say what was skipped */
+var LS_AREADAYS = 'areaDays';      /* what each area-day contained, fixed when it was first planned */
 
 /* Everything the app owns, in one list. Export walks it, import restores it,
    and Milestone 5 gets checkIns backed up without touching this file. */
-var COLLECTIONS = [LS_BASELINES, LS_LOGS, LS_CHECKINS, LS_SCHEDULE, LS_SETTINGS];
+var COLLECTIONS = [LS_BASELINES, LS_LOGS, LS_CHECKINS, LS_SCHEDULE, LS_SETTINGS, LS_DAYPLANS, LS_AREADAYS];
 
 var EXPORT_NAG_DAYS = 7;
 var LS_TIMER = 'restTimer';
@@ -113,6 +115,7 @@ function hasDetail(entry) {
    leave the sums as well, or a session with one of them paused could never
    read as done. The logs themselves are untouched. */
 function activeExercises(session) {
+  if (areaPaused(session)) return [];
   var suppressed = sessionGate(session).suppressed;
   return session.exercises.filter(function (ex) { return !(ex.track && suppressed[ex.track]); });
 }
@@ -600,7 +603,10 @@ function sessionsForWeek(id) {
 }
 
 function sessionById(id) {
-  return plan.sessions.filter(function (s) { return s.id === id; })[0] || null;
+  var found = plan.sessions.filter(function (s) { return s.id === id; })[0];
+  if (found) return found;
+  var p = parseAreaDayId(id);                    /* "2026-10-06:mu": an area on a date */
+  return p && areaData ? areaDaySession(p.date, p.area) : null;
 }
 
 function checkpointsOn(date) {
@@ -750,8 +756,248 @@ function legacyAreaDays() {
   });
 }
 
-/* Everything trained, as { date, area, done, total, full } records. */
-function areaDays() { return legacyAreaDays(); }
+/* --- days, menus, and what each day held ------------------------------- */
+/* An area-day is one area on one date. Its id is "2026-10-06:mu", and it is
+   logged exactly like a plan session (sessionId|exerciseId|setIdx), so the set
+   chips, the set sheet, the runner and the rest timer all work on it as they
+   are. The session itself is never stored: it is built from the area's data
+   and from what was fixed on the day it was first planned. */
+
+var MAX_SITTINGS = 3;
+var FALLBACK_MINUTES = 45;
+var AREA_DAY_RE = /^(\d{4}-\d{2}-\d{2}):([a-z0-9-]+)$/;
+
+var dayPlans = {};    /* date -> { sittings: [{ minutes, areas }], suggested: [id], removed: { id: reason } } */
+var frozenDays = {};  /* "date:area" -> { stage, type } */
+
+function areaDayId(date, areaId) { return date + ':' + areaId; }
+
+function parseAreaDayId(id) {
+  var m = AREA_DAY_RE.exec(String(id));
+  return m ? { date: m[1], area: m[2] } : null;
+}
+
+function uniqueStrings(list) {
+  var seen = {}, out = [];
+  (Array.isArray(list) ? list : []).forEach(function (x) {
+    if (typeof x === 'string' && x && !seen[x]) { seen[x] = true; out.push(x); }
+  });
+  return out;
+}
+
+/* Storage can hold anything: a hand-edited file, an older build. Anything that
+   is not a well-formed day is dropped rather than trusted. */
+function cleanDayPlan(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+
+  var sittings = (Array.isArray(raw.sittings) ? raw.sittings : []).slice(0, MAX_SITTINGS).map(function (x) {
+    var m = x ? Number(x.minutes) : 0;
+    return { minutes: m > 0 && m <= 600 ? Math.round(m) : FALLBACK_MINUTES, areas: uniqueStrings(x && x.areas) };
+  });
+  if (!sittings.length) return null;
+
+  var removed = {};
+  if (raw.removed && typeof raw.removed === 'object' && !Array.isArray(raw.removed)) {
+    Object.keys(raw.removed).forEach(function (id) {
+      removed[id] = typeof raw.removed[id] === 'string' ? raw.removed[id] : '';
+    });
+  }
+  return { sittings: sittings, suggested: uniqueStrings(raw.suggested), removed: removed };
+}
+
+function loadDayPlans() {
+  var stored = lsGet(LS_DAYPLANS);
+  dayPlans = {};
+  if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return;
+  Object.keys(stored).forEach(function (date) {
+    var plan = /^\d{4}-\d{2}-\d{2}$/.test(date) ? cleanDayPlan(stored[date]) : null;
+    if (plan) dayPlans[date] = plan;
+  });
+}
+
+function loadFrozenDays() {
+  var stored = lsGet(LS_AREADAYS);
+  frozenDays = {};
+  if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return;
+  Object.keys(stored).forEach(function (key) {
+    var f = stored[key];
+    if (!parseAreaDayId(key) || !f || typeof f.stage !== 'string') return;
+    frozenDays[key] = f.type && typeof f.type === 'string' ? { stage: f.stage, type: f.type } : { stage: f.stage };
+  });
+}
+
+function saveCollection(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (err) {
+    console.warn(key + ' write failed', err);
+    toast('Could not save — phone storage is full or blocked.');
+    return false;
+  }
+}
+
+function saveDayPlans() { return saveCollection(LS_DAYPLANS, dayPlans); }
+function saveFrozenDays() { return saveCollection(LS_AREADAYS, frozenDays); }
+
+/* How long you usually have on this weekday, from the last time you said. */
+function defaultMinutes(date) {
+  var m = settings.weekdayMinutes && Number(settings.weekdayMinutes[isoDow(date)]);
+  if (m > 0) return m;
+  return areaData ? areaData.rules.defaults.dayMinutes : FALLBACK_MINUTES;
+}
+
+function rememberMinutes(date, minutes) {
+  settings.weekdayMinutes = settings.weekdayMinutes || {};
+  settings.weekdayMinutes[isoDow(date)] = minutes;
+  saveSettings();
+}
+
+function stageById(area, id) {
+  return area.stages.filter(function (s) { return s.id === id; })[0] || null;
+}
+
+/* Sets done so far per area-day, in one pass over the logs. */
+function doneByAreaDay() {
+  var out = {};
+  setLogs.forEach(function (e) {
+    if (e.done && parseAreaDayId(e.sessionId)) out[e.sessionId] = (out[e.sessionId] || 0) + 1;
+  });
+  return out;
+}
+
+/* The session types a stage actually has exercises for, in the area's order. */
+function stageTypes(area, stage) {
+  var used = {};
+  (stage.exercises || []).forEach(function (e) { if (e.type) used[e.type] = true; });
+  return (area.sessionTypes || []).filter(function (t) { return used[t]; });
+}
+
+/* Which kind of day an area is due: the type it did longest ago, one it has
+   never done first, ties in the order the area lists them. */
+function nextSessionType(area, stage, beforeDate) {
+  var types = stageTypes(area, stage);
+  if (!types.length) return null;
+
+  var last = {}, done = doneByAreaDay();
+  types.forEach(function (t) { last[t] = ''; });
+  Object.keys(frozenDays).forEach(function (key) {
+    var p = parseAreaDayId(key), f = frozenDays[key];
+    if (p.area !== area.id || p.date >= beforeDate || !f.type || last[f.type] === undefined) return;
+    if (done[key] && p.date > last[f.type]) last[f.type] = p.date;
+  });
+
+  var pick = types[0];
+  types.forEach(function (t) { if (last[t] < last[pick]) pick = t; });
+  return pick;
+}
+
+/* Fix what this area contains today, the first time it is planned. A stage
+   change or the next type in the rotation must never rewrite a day you did. */
+function freezeAreaDay(date, areaId) {
+  var key = areaDayId(date, areaId);
+  if (frozenDays[key]) return frozenDays[key];
+
+  var area = areaById(areaId);
+  var stage = area && currentStage(area);
+  if (!stage || !stage.exercises) return null;
+
+  var f = { stage: stage.id };
+  var type = nextSessionType(area, stage, date);
+  if (type) f.type = type;
+  frozenDays[key] = f;
+  saveFrozenDays();
+  return f;
+}
+
+/* Taken off before anything was done: forget what it would have held, so
+   planning it again picks fresh. Anything already logged stays put. */
+function unfreezeAreaDay(date, areaId) {
+  var key = areaDayId(date, areaId);
+  if (!frozenDays[key] || doneByAreaDay()[key]) return;
+  delete frozenDays[key];
+  saveFrozenDays();
+}
+
+var DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+/* A session-shaped object for one area on one date, so everything that already
+   knows how to show and log a session can show and log this. */
+function areaDaySession(date, areaId) {
+  var area = areaById(areaId);
+  if (!area) return null;
+
+  var f = frozenDays[areaDayId(date, areaId)] || null;
+  var stage = f ? stageById(area, f.stage) : currentStage(area);
+  if (!stage || !stage.exercises) return null;
+
+  var type = f ? (f.type || null) : nextSessionType(area, stage, date);
+  var exercises = stage.exercises.filter(function (e) { return !type || !e.type || e.type === type; });
+
+  return {
+    id: areaDayId(date, areaId),
+    areaId: areaId,
+    date: date,
+    week: null,                                  /* weeks here are Mon–Sun, not plan weeks */
+    weekLabel: fmtDateShort(date),
+    day: DAY_SHORT[isoDow(date)],
+    name: area.name + ' · ' + stage.id + (type ? ' · ' + type : ''),
+    stageId: stage.id,
+    type: type,
+    draft: !!stage.draft,
+    frozen: !!f,
+    exercises: exercises
+  };
+}
+
+/* An area is paused as a whole when a body area that guards it is red. */
+function areaPaused(session) {
+  var area = session && session.areaId ? areaById(session.areaId) : null;
+  return !!area && redGuards(area, sessionDate(session)).length > 0;
+}
+
+/* One record per area per date from the new logs, in the same shape as the
+   old plan's. Sets logged against an exercise the day no longer holds are not
+   counted. */
+function loggedAreaDays() {
+  var byId = {};
+  setLogs.forEach(function (e) {
+    if (!e.done || !parseAreaDayId(e.sessionId)) return;
+    (byId[e.sessionId] = byId[e.sessionId] || []).push(e);
+  });
+
+  var fullPct = areaData.rules.defaults.fullAreaPct;
+  var out = [];
+  Object.keys(byId).forEach(function (id) {
+    var p = parseAreaDayId(id);
+    var s = areaDaySession(p.date, p.area);
+    if (!s) return;
+
+    var inBlock = {}, total = 0;
+    s.exercises.forEach(function (ex) { inBlock[ex.id] = Number(ex.sets) || 0; total += inBlock[ex.id]; });
+    var done = byId[id].filter(function (e) { return e.setIdx < (inBlock[e.exerciseId] || 0); }).length;
+    if (!done) return;
+
+    out.push({ date: p.date, area: p.area, done: done, total: total, full: done * 100 >= total * fullPct });
+  });
+  return out;
+}
+
+/* Everything trained, old plan and new, as { date, area, done, total, full }.
+   If both ever land on the same area and date they are added together. */
+function areaDays() {
+  if (!areaData) return [];
+  var byKey = {};
+  legacyAreaDays().concat(loggedAreaDays()).forEach(function (r) {
+    var key = r.date + '|' + r.area;
+    var have = byKey[key];
+    if (!have) { byKey[key] = { date: r.date, area: r.area, done: r.done, total: r.total, full: r.full }; return; }
+    have.done += r.done;
+    have.total += r.total;
+    have.full = have.done * 100 >= have.total * areaData.rules.defaults.fullAreaPct;
+  });
+  return Object.keys(byKey).map(function (k) { return byKey[k]; });
+}
 
 /* How many full days an area has in its current stage. Everything so far counts,
    because nobody has left the first stage yet. */
@@ -1717,7 +1963,7 @@ function inspectBackup(raw) {
     var key = COLLECTIONS[i];
     if (!(key in data)) continue;
     var v = data[key];
-    var wantArray = key !== LS_SETTINGS && key !== LS_SCHEDULE;
+    var wantArray = [LS_SETTINGS, LS_SCHEDULE, LS_DAYPLANS, LS_AREADAYS].indexOf(key) < 0;
 
     if (wantArray ? !Array.isArray(v) : (typeof v !== 'object' || v === null || Array.isArray(v))) {
       return { error: '“' + key + '” is the wrong shape in that file.' };
@@ -1736,8 +1982,26 @@ function describeBackup(found) {
   if (found[LS_BASELINES]) bits.push(found[LS_BASELINES].length + ' baseline ' + (found[LS_BASELINES].length === 1 ? 'entry' : 'entries'));
   if (found[LS_LOGS]) bits.push(found[LS_LOGS].length + ' logged ' + (found[LS_LOGS].length === 1 ? 'set' : 'sets'));
   if (found[LS_CHECKINS]) bits.push(found[LS_CHECKINS].length + ' check-' + (found[LS_CHECKINS].length === 1 ? 'in' : 'ins'));
+  if (found[LS_DAYPLANS]) {
+    var planned = Object.keys(found[LS_DAYPLANS]).length;
+    bits.push(planned + ' planned ' + (planned === 1 ? 'day' : 'days'));
+  }
   if (!bits.length) return 'no records';
   return bits.every(function (b) { return b.indexOf('0 ') === 0; }) ? 'nothing yet' : bits.join(', ');
+}
+
+/* Write a checked backup to storage. Menus and what each day contained hang off
+   the logs, so when a file brings logs but not them (it predates them) they are
+   cleared: a restore must never leave a menu pointing at sets that are gone. */
+function writeBackup(data) {
+  COLLECTIONS.forEach(function (key) {
+    if (key in data) localStorage.setItem(key, JSON.stringify(data[key]));
+  });
+  if (LS_LOGS in data) {
+    [LS_DAYPLANS, LS_AREADAYS].forEach(function (key) {
+      if (!(key in data)) localStorage.removeItem(key);
+    });
+  }
 }
 
 /* Restore replaces what is on the phone. Say so plainly, with both sides of
@@ -1770,9 +2034,7 @@ function importData(file) {
     if (!ok) return;
 
     try {
-      COLLECTIONS.forEach(function (key) {
-        if (key in result.data) localStorage.setItem(key, JSON.stringify(result.data[key]));
-      });
+      writeBackup(result.data);
     } catch (err) {
       console.warn('import write failed', err);
       toast('Could not write the restored data — storage is full or blocked.');
@@ -1784,6 +2046,8 @@ function importData(file) {
     loadCheckIns();
     loadSchedule();
     loadSettings();
+    loadDayPlans();
+    loadFrozenDays();
     renderProgress();
     paintTabBadge();
     toast('Restored ' + incoming + '.');
@@ -1891,6 +2155,7 @@ function firstUndoneSet(session, ex) {
    an exercise off Today and Plan; the runner has to agree, or one tap on
    "Start session" walks you straight back into what it just pulled. */
 function runnableIndexes(session) {
+  if (areaPaused(session)) return [];
   var suppressed = sessionGate(session).suppressed;
   var out = [];
   session.exercises.forEach(function (ex, i) {
@@ -4022,6 +4287,8 @@ loadPlan().then(function (json) {
   loadSettings();
   loadCheckIns();
   loadSchedule();
+  loadDayPlans();
+  loadFrozenDays();
   restoreTimer();
   scheduleReminder();
   if (!location.hash) location.replace('#/today');
