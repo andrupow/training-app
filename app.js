@@ -7,7 +7,7 @@
 
 'use strict';
 
-var BUILD = '1.18.0-redlift';
+var BUILD = '1.19.0-lookahead';
 var PLAN_URL = 'data/plan.json';
 var LS_PLAN = 'plan.cache.v1';
 var LS_LOGS = 'setLogs';
@@ -1674,6 +1674,69 @@ function menuWarnings(area, date, plan, days) {
              conflicts, budgets, limits: {maxAreas, maxHigh}, weights, already: [ids] }
    `already` are areas planned or done in an earlier sitting today: they use up
    room under the limits and count in conflicts, but are not minutes to fill. */
+/* What the rest of the week would cost if `picked` (and what is already on today's menu)
+   is what happens today: the sessions that could no longer fit in the days that are left.
+   Each area that still needs sessions is placed on the later days, its minimum first and
+   then its target, most pressed first, with its spacing, the minutes of each day, the area
+   and high-load limits, hard conflicts and any day a red light holds it. A rough pass, not a
+   search: it only has to tell a day that keeps the week reachable from one that does not.
+   A session left over costs more the higher the area's priority (so when the week cannot
+   hold everything, it is the lowest priority that goes), and a missed minimum costs far
+   more than a missed target. 0 when nothing is left to plan around (the last day of the
+   week, or no days given). */
+function weekShortfall(input, picked) {
+  var future = input.future;
+  if (!future || !future.length) return 0;
+  var TARGET_WEIGHT = 0.25;
+
+  var date = input.date, start = weekStartOf(date), L = input.limits;
+  var maxPri = input.areas.reduce(function (n, a) { return Math.max(n, a.priority); }, 0);
+  var todayIds = picked.concat(input.already || []);
+  var states = [];
+
+  input.areas.forEach(function (a) {
+    var doneToday = a.days.indexOf(date) >= 0;
+    var trained = doneToday || todayIds.indexOf(a.id) >= 0;
+    var count = a.days.filter(function (d) { return d >= start && d <= date; }).length + (trained && !doneToday ? 1 : 0);
+    var need = Math.max(0, a.per.min - count);
+    var extra = Math.max(0, a.per.target - count - need);
+    if (!need && !extra) return;
+
+    var last = trained ? date : null;
+    if (!last) a.days.forEach(function (d) { if (d <= date && (!last || d > last)) last = d; });
+    var next = last ? Math.max(1, a.gap - daysBetween(last, date)) : 1;      /* days after today */
+    states.push({ a: a, need: need, extra: extra, next: next });
+  });
+  if (!states.length) return 0;
+
+  function hardClash(id, others) {
+    return input.conflicts.some(function (c) {
+      return !c.soft && c.areas.indexOf(id) >= 0 && others.some(function (o) { return c.areas.indexOf(o) >= 0 && o !== id; });
+    });
+  }
+  function left(s) { return s.need + s.extra; }
+
+  future.forEach(function (day, i) {
+    var idx = i + 1, room = day.minutes, chosen = [], high = 0;
+    states.filter(function (s) { return left(s) > 0 && s.next <= idx && !(s.a.heldOn && s.a.heldOn[day.date]); })
+      .sort(function (x, y) {
+        var sx = (future.length - (left(x) - 1) * x.a.gap) - idx, sy = (future.length - (left(y) - 1) * y.a.gap) - idx;
+        return ((y.need > 0) - (x.need > 0)) || (sx - sy) || (x.a.priority - y.a.priority) || (y.a.minutes - x.a.minutes);
+      })
+      .forEach(function (s) {
+        if (s.a.minutes > room || chosen.length >= L.maxAreas) return;
+        if (s.a.load === 'high' && high >= L.maxHigh) return;
+        if (hardClash(s.a.id, chosen)) return;
+        room -= s.a.minutes; chosen.push(s.a.id);
+        if (s.a.load === 'high') high++;
+        if (s.need > 0) s.need--; else s.extra--;
+        s.next = idx + s.a.gap;
+      });
+  });
+
+  return states.reduce(function (n, s) { return n + (s.need + TARGET_WEIGHT * s.extra) * (maxPri + 1 - s.a.priority); }, 0);
+}
+
 function recommendDay(input) {
   var date = input.date, slots = input.slots, W = input.weights, L = input.limits;
   var total = slots.reduce(function (n, x) { return n + x; }, 0);
@@ -1773,7 +1836,7 @@ function recommendDay(input) {
   }
 
   var baseHigh = already.filter(function (id) { return byId[id].load === 'high'; }).length;
-  var best = null;
+  var best = null, cands = [];
 
   for (var m = 1; m < (1 << pool.length); m++) {
     var set = [], mins = 0, high = baseHigh, v = 0, fits = true;
@@ -1796,7 +1859,22 @@ function recommendDay(input) {
     }
     if (!fits) continue;
     if (slots.length > 1 && !pack(set.map(function (x) { return x.id; }))) continue;
-    if (!best || v > best.v + 1e-9 || (Math.abs(v - best.v) < 1e-9 && mins < best.mins)) best = { set: set, v: v, mins: mins };
+    cands.push({ set: set, v: v, mins: mins });
+  }
+
+  /* The best value, unless a pick nearly as good leaves more of the week's minimums with
+     room in the days ahead. A greedy day-by-day pick is only urgent about an area late in
+     the week, by which time the days are full; this is a tie-break among the near-best, so
+     it never overrides a clearly better pick. */
+  cands.sort(function (x, y) { return (y.v - x.v) > 1e-9 ? 1 : (x.v - y.v) > 1e-9 ? -1 : x.mins - y.mins; });
+  if (input.future && input.future.length && cands.length) {
+    var floor = cands[0].v * (input.weights.lookaheadFloor === undefined ? 0.7 : input.weights.lookaheadFloor);
+    cands.filter(function (c) { return c.v >= floor; }).slice(0, 60).forEach(function (c) {
+      c.unmet = weekShortfall(input, c.set.map(function (x) { return x.id; }));
+      if (!best || c.unmet < best.unmet) best = c;
+    });
+  } else {
+    best = cands[0] || null;
   }
 
   var picked = [], used = 0;
@@ -1880,10 +1958,19 @@ function recommendInput(date, slots, days, opts) {
   });
   doneToday.forEach(function (id) { if (already.indexOf(id) < 0) already.push(id); });
 
+  /* the days still to come this week: their minutes, and where a red light still holds an area */
+  var future = [];
+  for (var di = isoDow(date) + 1; di < 7; di++) {
+    var fd = addDays(start, di), fp = dayPlans[fd];
+    future.push({ date: fd, minutes: fp ? fp.sittings.reduce(function (n, st) { return n + st.minutes; }, 0) : defaultMinutes(fd) });
+  }
+
   var rules = areaData.rules;
   return {
-    date: date, slots: slots, already: already,
+    date: date, slots: slots, already: already, future: future,
     areas: areaList().map(function (a) {
+      var heldOn = {};
+      future.forEach(function (day) { if (heldReason(a, day.date)) heldOn[day.date] = true; });
       var w = areaWeek(a, start, date, days);
       var excluded = null;
       if (plan && onMenu.indexOf(a.id) >= 0) excluded = 'Already on today’s menu.';
@@ -1892,7 +1979,7 @@ function recommendInput(date, slots, days, opts) {
         id: a.id, name: a.name, priority: a.priority, minutes: a.minutes, load: a.load,
         per: { min: w.min, target: w.target, max: w.max }, gap: w.gap,
         days: days.filter(function (r) { return r.area === a.id; }).map(function (r) { return r.date; }),
-        held: heldReason(a, date), hold: holdReason(a, date), excluded: excluded
+        held: heldReason(a, date), hold: holdReason(a, date), excluded: excluded, heldOn: heldOn
       };
     }),
     conflicts: rules.conflicts, budgets: rules.budgets,
@@ -1937,8 +2024,8 @@ function ensureDayPlan(date, days) {
   return dayPlans[date];
 }
 
-/* The rest of this week, day by day, as the recommender would see it: for each day
-   from today to Sunday, today's menu if it has one, otherwise what it would suggest in
+/* The rest of this week and the next few, day by day, as the recommender would see it: for each day
+   from today on, today's menu if it has one, otherwise what it would suggest in
    that day's usual minutes. Each day is worked out as if the days before it had been
    done as suggested, so the same area is not offered twice inside its gap and the week's
    targets are spread out. It is a forecast, not a plan: nothing is saved, and the real
@@ -1946,14 +2033,25 @@ function ensureDayPlan(date, days) {
      { 'YYYY-MM-DD': { real, minutes, picks: [ids], why: { id: text }, left: [{ id, kind, why }] } }
    `real` marks a day that already has its own menu; `left` is every area that did not
    make it, with the recommender's own reason (held, too soon, no time, target met...). */
+var FORECAST_WEEKS = 4;                 /* this week and four more */
+var forecastMemo = { key: '', value: null };
+
+/* Everything the forecast reads, as one string: when it has not changed, neither has the forecast. */
+function forecastKey(today, days) {
+  return JSON.stringify([today, days, dayPlans, checkIns, settings, progress, decisions, weekFits, customAreas]);
+}
+
 function weekForecast(today, days) {
+  if (!areaData) return {};
+  var key = forecastKey(today, days);
+  if (forecastMemo.key === key) return forecastMemo.value;
+
   var out = {};
-  if (!areaData) return out;
   var start = weekStartOf(today);
   ensureWeekFit(start, days);            /* from what has really happened, not from the forecast */
 
   var sim = days.slice();
-  for (var i = isoDow(today); i < 7; i++) {
+  for (var i = isoDow(today); i < 7 * (1 + FORECAST_WEEKS); i++) {
     var date = addDays(start, i);
     var plan = dayPlans[date];
     var picks, minutes, why = {}, left = [];
@@ -1979,7 +2077,21 @@ function weekForecast(today, days) {
       if (!have) sim.push({ date: date, area: id, done: 1, total: 1, full: true });
     });
   }
+  forecastMemo = { key: key, value: out };
   return out;
+}
+
+/* How many more days the forecast puts an area on in one week, not counting days already
+   trained (those are in `touched`). */
+function forecastReach(forecast, area, start, days) {
+  var n = 0;
+  for (var i = 0; i < 7; i++) {
+    var d = addDays(start, i), f = forecast && forecast[d];
+    if (!f || f.picks.indexOf(area.id) < 0) continue;
+    if (days.some(function (r) { return r.area === area.id && r.date === d; })) continue;
+    n++;
+  }
+  return n;
 }
 
 /* A new sitting is a new question: what is still worth doing, given what is on
@@ -6303,10 +6415,15 @@ function weekGrid(start, today, days, opts) {
 
   areaList().forEach(function (area) {
     var w = areaWeek(area, start, today, days);
+    var ahead = start > today;                       /* a week that has not started: only the forecast knows */
+    var reach = forecast && start >= weekStartOf(today) ? w.touched + forecastReach(forecast, area, start, days) : null;
     grid.appendChild(el('div', { class: 'wk-lab' }, [
       el('div', { class: 'n', text: area.short }),
-      el('div', { class: 's', text: currentStage(area).id + ' · ' + w.touched + '/' + w.target + (w.ramp ? ' · ramp' : '') }),
-      statusTag(w.status)
+      el('div', { class: 's', text: ahead && reach !== null
+        ? currentStage(area).id + ' · ' + reach + ' suggested'
+        : currentStage(area).id + ' · ' + w.touched + '/' + w.target + (w.ramp ? ' · ramp' : '') }),
+      statusTag(w.status),
+      reach !== null && reach < w.min ? el('span', { class: 'st st-short', text: 'Short · ' + reach + ' of ' + w.min + ' days' }) : null
     ]));
 
     w.cells.forEach(function (c) {
@@ -6485,21 +6602,27 @@ function weekCard(start, today, days, forecast) {
   var first = firstWeekStart(days);
   var end = addDays(start, 6);
 
+  var last = addDays(current, 7 * FORECAST_WEEKS);
   var prev = el('button', { class: 'wk-nav', type: 'button', 'aria-label': 'Previous week', text: '‹', disabled: start <= first });
-  var next = el('button', { class: 'wk-nav', type: 'button', 'aria-label': 'Next week', text: '›', disabled: start >= current });
+  var next = el('button', { class: 'wk-nav', type: 'button', 'aria-label': 'Next week', text: '›', disabled: start >= last });
   prev.addEventListener('click', function () { areasView.week = addDays(start, -7); areasView.day = null; repaintAreas(); });
   next.addEventListener('click', function () { areasView.week = addDays(start, 7); areasView.day = null; repaintAreas(); });
 
   var sum = weekSummary(start, today, days);
   var line = 'Done ' + sum.done + ' · Partial ' + sum.partial + ' · Skipped ' + sum.skipped;
   if (sum.planned) line += ' · Planned today ' + sum.planned;
+  if (start > current) {                             /* a week ahead has nothing done yet: say what is suggested */
+    var count = 0;
+    for (var wi = 0; wi < 7; wi++) { var wf = forecast && forecast[addDays(start, wi)]; if (wf) count += wf.picks.length; }
+    line = count + ' area-days suggested';
+  }
 
   return el('div', { class: 'card wk-card' }, [
     el('div', { class: 'wk-head' }, [
       prev,
       el('div', { class: 'wk-title' }, [
         el('span', { class: 'card-title', text: fmtDateShort(start) + ' – ' + fmtDateShort(end) }),
-        el('span', { class: 'card-sub', text: start === current ? 'This week' : 'Week of ' + fmtDateShort(start) })
+        el('span', { class: 'card-sub', text: start === current ? 'This week' : start === addDays(current, 7) ? 'Next week' : 'Week of ' + fmtDateShort(start) })
       ]),
       next
     ]),
@@ -6508,7 +6631,7 @@ function weekCard(start, today, days, forecast) {
     forecastShows(forecast) ? el('p', { class: 'hint wk-forecast-note', text: 'Dotted rings are suggestions for the days ahead, as if each day’s menu gets done. They change as you go: the real menu is made when you open Today.' }) : null,
     el('p', { class: 'wk-sum', text: line }),
     skippedList(sum),
-    fitBlock(start, today, days)
+    start > current ? null : fitBlock(start, today, days)
   ]);
 }
 
@@ -6568,7 +6691,7 @@ function renderAreas() {
   ensureWeekFit(current, days);
 
   var start = areasView.week || current;
-  if (start > current) start = current;
+  if (start > addDays(current, 7 * FORECAST_WEEKS)) start = addDays(current, 7 * FORECAST_WEEKS);
   if (start < first) start = first;
   areasView.week = start;
 
@@ -6577,12 +6700,12 @@ function renderAreas() {
     areasView.day = (today >= start && today <= end) ? today : start;
   }
 
-  var forecast = start === current ? weekForecast(today, days) : null;     /* only the week that is running */
+  var forecast = start >= current ? weekForecast(today, days) : null;     /* this week and the ones ahead */
 
   var nodes = [
+    holdsCard(today, repaintAreas),                  /* a red light that is delaying things comes first */
     weekCard(start, today, days, forecast),
     dayDetail(areasView.day, today, days, forecast),
-    holdsCard(today, repaintAreas),
     el('p', { class: 'section-label', text: 'Areas' })
   ];
   areaList().forEach(function (a) { nodes.push(areaCard(a, days)); });

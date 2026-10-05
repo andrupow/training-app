@@ -9,7 +9,7 @@
     "target": 3,
     "max": 5
   },
-  "minGapDays": 1,
+  "minGapDays": 2,
   "minutes": 12,
   "load": "low",
   "order": "mobility",

@@ -109,7 +109,8 @@
     "staleWeight": 0.25,
     "staleCap": 4,
     "priorityStep": 0.12,
-    "maxPool": 12
+    "maxPool": 12,
+    "lookaheadFloor": 0.7
   },
   "verdicts": {
     "window": 4,

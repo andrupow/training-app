@@ -151,9 +151,9 @@ eq('the nudge and pace settings are data too', [N,P], [{maxShown:2,skippedTimes:
 
 console.log('the strip:');
 reset(); pinWeeks();
-eq('a Thursday with nothing done: only Nordic is behind (three days still need two between each)', ctx.weekStrip(THU,[]), {onTrack:7,total:8,held:0,text:'7 of 8 areas on track'});
+eq('a Thursday with nothing done: Nordic and the bridge are behind (each wants three days two apart, and four days are left)', ctx.weekStrip(THU,[]), {onTrack:6,total:8,held:0,text:'6 of 8 areas on track'});
 ctx.checkIns=[ci('2026-10-07',{hamstring:8})];
-eq('a red hamstring holds Nordic and kettlebell, which are counted apart', ctx.weekStrip(THU,[]), {onTrack:6,total:6,held:2,text:'6 of 6 areas on track · 2 held'});
+eq('a red hamstring holds Nordic and kettlebell, which are counted apart (the bridge is still behind)', ctx.weekStrip(THU,[]), {onTrack:5,total:6,held:2,text:'5 of 6 areas on track · 2 held'});
 ctx.checkIns=[];
 eq('Saturday with nothing done: the minimums are slipping away', ctx.weekStrip(SAT,[]).onTrack, 0);
 const done8=ctx.areaList().reduce((a,x)=>a.concat([rec('2026-10-05',x.id),rec('2026-10-07',x.id),rec('2026-10-09',x.id)]),[]);
@@ -165,7 +165,7 @@ let n=ctx.nudgesFor(SAT,[]);
 eq('Saturday, nothing done: at most two, the most urgent first, highest priority first', n.map(x=>[x.area,x.kind]), [['mu','risk'],['hspu','risk']]);
 eq('in plain words', n[0].text, 'Muscle-up: 2 more days needed for its minimum, and 2 days left this week.');
 ctx.areaData.rules.nudges.maxShown=20;
-eq('every area at risk is listed when there is room, once each', ctx.nudgesFor(SAT,[]).map(x=>x.area+':'+x.kind).join(' '), 'mu:risk hspu:risk pistol:risk nordic:risk bridge:behind kb:behind oap:behind plyo:behind');
+eq('every area at risk is listed when there is room, once each', ctx.nudgesFor(SAT,[]).map(x=>x.area+':'+x.kind).join(' '), 'mu:risk hspu:risk bridge:risk pistol:risk nordic:risk kb:behind oap:behind plyo:behind');
 ctx.areaData.rules.nudges.maxShown=2;
 ctx.checkIns=[ci('2026-10-09',{hamstring:8})];
 ctx.areaData.rules.nudges.maxShown=20;
@@ -182,7 +182,7 @@ n=ctx.nudgesFor(THU,[]);
 eq('planned twice, never done: skipped twice; three taken off for no time', n.filter(x=>x.rank<=2).map(x=>[x.area,x.kind,x.text]), [
   [null,'noTime','3 things taken off for no time this week. Fewer areas, or a longer day, may fit better.'],
   ['pistol','skipped','Pistol squat: skipped twice this week.']]);
-eq('Nordic is the one behind', n.filter(x=>x.kind==='behind').map(x=>[x.area,x.text]), [['nordic','Nordic curl is behind this week: 3 more days for its target.']]);
+eq('Nordic and the bridge are the ones behind', n.filter(x=>x.kind==='behind').map(x=>[x.area,x.text]), [['bridge','Backward bridge is behind this week: 3 more days for its target.'],['nordic','Nordic curl is behind this week: 3 more days for its target.']]);
 ctx.dayPlans['2026-10-07']=plan(['pistol'],{kb:'no time'});
 ctx.dayPlans['2026-10-05']=plan(['pistol','mu'],{});
 ctx.dayPlans['2026-10-06']=plan(['pistol','mu'],{});
