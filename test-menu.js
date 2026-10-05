@@ -364,8 +364,7 @@ eq('the runner', ctx.routeNeedsAreas('#/run/2026-10-05:mu/0'), true);
 eq('Plan does not', ctx.routeNeedsAreas('#/plan/W4'), false);
 eq('a plan session does not', ctx.routeNeedsAreas('#/session/W4-Mon'), false);
 eq('Check-in does too: it asks about seven body areas once they are in', ctx.routeNeedsAreas('#/checkin'), true);
-eq('Progress does not', ctx.routeNeedsAreas('#/progress'), false);
-eq('Progress does not', ctx.routeNeedsAreas('#/progress'), false);
+eq('Progress does too: the equipment card needs them', ctx.routeNeedsAreas('#/progress'), true);
 eq('undefined is Today', ctx.routeNeedsAreas(undefined), true);
 
 console.log(`\n${pass} passed, ${fail} failed`);

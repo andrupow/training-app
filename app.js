@@ -1,5 +1,5 @@
 /* The Integrated Plan — Milestones 1-8, complete; M9-M10 runner and rescheduling;
-   M11 workout areas, M12 the daily menu, M13 the recommender
+   M11 workout areas, M12 the daily menu, M13 the recommender, M14 stages and level-up
    Shell + PWA + plan browser + today's session with set logging
    + dated baselines and the load calculator + rest timer + JSON backup
    + morning check-in, the traffic light, HOLD gating and progression charts.
@@ -7,7 +7,7 @@
 
 'use strict';
 
-var BUILD = '1.12.0-m13';
+var BUILD = '1.13.0-m14';
 var PLAN_URL = 'data/plan.json';
 var LS_PLAN = 'plan.cache.v1';
 var LS_LOGS = 'setLogs';
@@ -17,11 +17,13 @@ var LS_SETTINGS = 'settings';
 var LS_SCHEDULE = 'schedule';
 var LS_DAYPLANS = 'dayPlans';      /* the menu of each day, so the week can say what was skipped */
 var LS_AREADAYS = 'areaDays';      /* what each area-day contained, fixed when it was first planned */
+var LS_PROGRESS = 'progress';      /* which stage each area is at, and since when */
+var LS_DECISIONS = 'decisions';    /* every move up, step back and "not yet", with the day and the numbers */
 var LS_WEEKFITS = 'weekFits';      /* each week's targets, fitted to your time and saved when the week is first looked at */
 
 /* Everything the app owns, in one list. Export walks it, import restores it,
    and Milestone 5 gets checkIns backed up without touching this file. */
-var COLLECTIONS = [LS_BASELINES, LS_LOGS, LS_CHECKINS, LS_SCHEDULE, LS_SETTINGS, LS_DAYPLANS, LS_AREADAYS, LS_WEEKFITS];
+var COLLECTIONS = [LS_BASELINES, LS_LOGS, LS_CHECKINS, LS_SCHEDULE, LS_SETTINGS, LS_DAYPLANS, LS_AREADAYS, LS_WEEKFITS, LS_PROGRESS, LS_DECISIONS];
 
 var EXPORT_NAG_DAYS = 7;
 var LS_TIMER = 'restTimer';
@@ -716,7 +718,10 @@ function weekStartOf(iso) { return addDays(iso, -isoDow(iso)); }
 
 /* A stage may override its area's weekly targets and spacing (Nordic does,
    in the banded stages, where lower load allows more often). */
-function currentStage(area) { return area.stages[0]; }
+function currentStage(area) {
+  var p = progress[area.id];
+  return (p && stageById(area, p.stage)) || area.stages[0];
+}
 function stageWeek(area, stage) { return stage.perWeek || area.perWeek; }
 function stageGap(area, stage) { return stage.minGapDays || area.minGapDays; }
 
@@ -774,7 +779,9 @@ var FALLBACK_MINUTES = 45;
 var AREA_DAY_RE = /^(\d{4}-\d{2}-\d{2}):([a-z0-9-]+)$/;
 
 var dayPlans = {};    /* date -> { sittings: [{ minutes, areas }], suggested: [id], removed: { id: reason }, why: { id: why it was suggested } } */
-var frozenDays = {};  /* "date:area" -> { stage, type } */
+var frozenDays = {};  /* "date:area" -> { stage, type, deload } */
+var progress = {};    /* area -> { stage, since, nextAsk }: where each area is on its ladder */
+var decisions = [];   /* what you decided at each review, oldest first */
 
 function areaDayId(date, areaId) { return date + ':' + areaId; }
 
@@ -833,6 +840,7 @@ function loadFrozenDays() {
     var f = stored[key];
     if (!parseAreaDayId(key) || !f || typeof f.stage !== 'string') return;
     frozenDays[key] = f.type && typeof f.type === 'string' ? { stage: f.stage, type: f.type } : { stage: f.stage };
+    if (f.deload === true) frozenDays[key].deload = true;
   });
 }
 
@@ -915,6 +923,7 @@ function freezeAreaDay(date, areaId) {
   var f = { stage: stage.id };
   var type = nextSessionType(area, stage, date);
   if (type) f.type = type;
+  if (areaDayPhase(area, date, areaDays()) === 'deload') f.deload = true;     /* the easy end of the stage */
   frozenDays[key] = f;
   saveFrozenDays();
   return f;
@@ -943,6 +952,8 @@ function areaDaySession(date, areaId) {
 
   var type = f ? (f.type || null) : nextSessionType(area, stage, date);
   var exercises = stage.exercises.filter(function (e) { return !type || !e.type || e.type === type; });
+  var deload = !!(f && f.deload);
+  if (deload) exercises = exercises.map(function (e) { var c = Object.assign({}, e); c.sets = deloadSets(e.sets); return c; });
 
   return {
     id: areaDayId(date, areaId),
@@ -951,9 +962,10 @@ function areaDaySession(date, areaId) {
     week: null,                                  /* weeks here are Mon–Sun, not plan weeks */
     weekLabel: fmtDateShort(date),
     day: DAY_SHORT[isoDow(date)],
-    name: area.name + ' · ' + stage.id + (type ? ' · ' + type : ''),
+    name: area.name + ' · ' + stage.id + (type ? ' · ' + type : '') + (deload ? ' · deload' : ''),
     stageId: stage.id,
     type: type,
+    deload: deload,
     draft: !!stage.draft,
     frozen: !!f,
     exercises: exercises
@@ -1007,6 +1019,249 @@ function areaDays() {
     have.full = have.done * 100 >= have.total * areaData.rules.defaults.fullAreaPct;
   });
   return Object.keys(byKey).map(function (k) { return byKey[k]; });
+}
+
+/* --- stages and level-up -------------------------------------------------- */
+/* Each area is on one rung of its ladder. Full area-days are counted in the
+   current stage only, from the day you moved there. Near the end of a stage the
+   work eases off for a block (the deload), then the app asks whether you are
+   ready. You always decide: it never moves you on its own. Moving up waits while
+   a body area that guards the area is amber or red; "not yet" and stepping back
+   never wait. Everything here is a plain function of progress, the logs and the
+   area files. */
+
+var DECISION_ACTIONS = ['up', 'stay', 'back', 'set'];
+
+function cleanProgress(raw) {
+  var out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  Object.keys(raw).forEach(function (id) {
+    var p = raw[id];
+    if (!p || typeof p.stage !== 'string' || !p.stage) return;
+    var na = p.nextAsk === null || p.nextAsk === undefined ? NaN : Number(p.nextAsk);
+    out[id] = {
+      stage: p.stage,
+      since: typeof p.since === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.since) ? p.since : null,
+      nextAsk: isFinite(na) && na >= 0 ? Math.round(na) : null
+    };
+  });
+  return out;
+}
+
+function cleanDecisions(raw) {
+  var out = [];
+  (Array.isArray(raw) ? raw : []).forEach(function (d) {
+    if (!d || typeof d.area !== 'string' || typeof d.to !== 'string' || DECISION_ACTIONS.indexOf(d.action) < 0) return;
+    if (typeof d.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(d.date)) return;
+    var full = Number(d.full);
+    var e = { date: d.date, area: d.area, from: typeof d.from === 'string' ? d.from : d.to, to: d.to, action: d.action, full: isFinite(full) && full >= 0 ? Math.round(full) : 0 };
+    if (typeof d.note === 'string' && d.note) e.note = d.note;
+    out.push(e);
+  });
+  return out;
+}
+
+function loadProgress() { progress = cleanProgress(lsGet(LS_PROGRESS)); }
+function loadDecisions() { decisions = cleanDecisions(lsGet(LS_DECISIONS)); }
+function saveProgress() { return saveCollection(LS_PROGRESS, progress); }
+function saveDecisions() { return saveCollection(LS_DECISIONS, decisions); }
+
+/* Sets in an easy block: about 60% of the usual, never fewer than one. */
+function deloadSets(sets) {
+  var factor = areaData ? areaData.rules.defaults.deloadFactor : 0.6;
+  return Math.max(1, Math.round((Number(sets) || 0) * factor));
+}
+
+/* A week's worth of days is the easy block at the end of a stage. */
+function deloadDays(area, stage) { return stageWeek(area, stage).target; }
+
+/* The stage a day was done in: what it was fixed to when first planned, and the
+   first stage for anything from the old plan. */
+function stageOfDay(area, date) {
+  var f = frozenDays[areaDayId(date, area.id)];
+  return f ? f.stage : area.stages[0].id;
+}
+
+/* Full area-days in a stage, since the day you moved there. */
+function stageFullDays(area, stage, days, beforeDate) {
+  var since = (progress[area.id] || {}).since;
+  return days.filter(function (r) {
+    return r.area === area.id && r.full && (!beforeDate || r.date < beforeDate)
+      && (!since || r.date >= since) && stageOfDay(area, r.date) === stage.id;
+  }).length;
+}
+
+/* Where a stage is, from plain numbers:
+     top     nothing above it, so nothing to ask
+     build   the full prescription
+     deload  the easy block before the review
+     ask     ready for a review
+   After "not yet" (nextAsk set) the stage stays at its top prescription, with no
+   easy block, until that many full area-days. */
+function stagePhase(stage, full, deload, nextAsk) {
+  if (!stage.askAfter) return 'top';
+  if (nextAsk !== null && nextAsk !== undefined) return full >= nextAsk ? 'ask' : 'build';
+  if (full >= stage.askAfter) return 'ask';
+  var easyFrom = Math.max(stage.askAfter - deload, Math.ceil(stage.askAfter / 2));
+  return full >= easyFrom ? 'deload' : 'build';
+}
+
+function nextAskOf(area) {
+  var p = progress[area.id];
+  return p && p.nextAsk !== null && p.nextAsk !== undefined ? p.nextAsk : null;
+}
+
+/* The phase a new area-day on `date` falls in: judged by the full days before it. */
+function areaDayPhase(area, date, days) {
+  var stage = currentStage(area);
+  return stagePhase(stage, stageFullDays(area, stage, days, date), deloadDays(area, stage), nextAskOf(area));
+}
+
+/* Where an area stands on its ladder. */
+function stageProgress(area, days) {
+  var stage = currentStage(area);
+  var full = stageFullDays(area, stage, days);
+  var deload = deloadDays(area, stage);
+  var phase = stagePhase(stage, full, deload, nextAskOf(area));
+  var index = stageIndex(area, stage.id);
+  return {
+    stage: stage, full: full, askAfter: stage.askAfter, deload: deload, phase: phase,
+    nextAsk: nextAskOf(area), index: index, top: index === area.stages.length - 1, due: phase === 'ask'
+  };
+}
+
+/* Why moving up has to wait, or null. Amber and red on a guarding body area. */
+function levelUpBlock(area, date) {
+  return heldReason(area, date) || holdReason(area, date);
+}
+
+/* The other areas a stage asks for first. Advisory: they are shown, never enforced. */
+function prereqStatus(stage) {
+  return (stage.requires || []).map(function (r) {
+    var a = areaById(r.area);
+    if (!a) return { area: r.area, stage: r.stage, name: r.area, have: null, met: false };
+    var have = currentStage(a);
+    return { area: r.area, stage: r.stage, name: a.name, have: have.id, met: stageIndex(a, have.id) >= stageIndex(a, r.stage) };
+  });
+}
+
+/* --- equipment you own --- */
+
+var DEFAULT_BELLS_LB = [15, 25];
+
+function equipmentList() { return areaData ? areaData.rules.equipment : []; }
+
+function equipmentOwned(id) {
+  if (settings.equipment && typeof settings.equipment[id] === 'boolean') return settings.equipment[id];
+  var q = equipmentList().filter(function (x) { return x.id === id; })[0];
+  return !!(q && q.owned);
+}
+
+function setEquipment(id, owned) {
+  settings.equipment = settings.equipment || {};
+  settings.equipment[id] = !!owned;
+  saveSettings();
+}
+
+function bellsOwned() {
+  var b = settings.bellsLb;
+  return Array.isArray(b) ? b.slice() : DEFAULT_BELLS_LB.slice();
+}
+
+function setBells(list) {
+  var seen = {}, out = [];
+  (Array.isArray(list) ? list : []).forEach(function (x) {
+    var n = Math.round(Number(x));
+    if (isFinite(n) && n > 0 && n <= 200 && !seen[n]) { seen[n] = true; out.push(n); }
+  });
+  settings.bellsLb = out.sort(function (a, b) { return a - b; });
+  saveSettings();
+}
+
+/* What a stage needs, and what of that you have. */
+function stageNeeds(stage) {
+  var equipment = (stage.equipment || []).map(function (id) {
+    var q = equipmentList().filter(function (x) { return x.id === id; })[0];
+    return { id: id, label: q ? q.label : id, owned: equipmentOwned(id) };
+  });
+  var have = bellsOwned();
+  var bells = (stage.bells || []).map(function (b) { return { kg: b.kg, lb: b.lb, owned: have.indexOf(b.lb) >= 0 }; });
+  var missing = equipment.filter(function (x) { return !x.owned; }).map(function (x) { return x.label; })
+    .concat(bells.filter(function (b) { return !b.owned; }).map(function (b) { return 'a ' + b.lb + ' lb (' + b.kg + ' kg) bell'; }));
+  return { equipment: equipment, bells: bells, missing: missing };
+}
+
+/* --- deciding --- */
+
+/* Enter a stage: the full-day count starts again from today. */
+function enterStage(area, stage, action, date, full) {
+  var from = currentStage(area).id;
+  progress[area.id] = { stage: stage.id, since: date, nextAsk: null };
+  decisions.push({ date: date, area: area.id, from: from, to: stage.id, action: action, full: full });
+  saveProgress(); saveDecisions();
+
+  /* A stage can change how often the area is done (Nordic does, N2 to N3). The
+     week's saved fit knows only the old stage, so work it out again. */
+  var start = weekStartOf(date);
+  if (weekFits[start]) {
+    delete weekFits[start];
+    if (!ensureWeekFit(start, areaDays())) saveWeekFits();
+  }
+  refreshAreaDay(area.id, date);
+  return { ok: true, stage: stage };
+}
+
+/* If today's menu has this area and nothing is done yet, plan it again at the
+   stage you are now in. */
+function refreshAreaDay(areaId, date) {
+  var plan = dayPlans[date];
+  if (!plan || plannedAreaIds(plan).indexOf(areaId) < 0) return;
+  if (doneByAreaDay()[areaDayId(date, areaId)]) return;
+  delete frozenDays[areaDayId(date, areaId)];
+  freezeAreaDay(date, areaId);
+}
+
+function moveUp(areaId, days, date) {
+  var area = areaById(areaId);
+  if (!area) return { ok: false, why: 'No such area.' };
+  var stage = currentStage(area), next = area.stages[stageIndex(area, stage.id) + 1];
+  if (!next) return { ok: false, why: 'This is the top of the ladder.' };
+  var block = levelUpBlock(area, date);
+  if (block) return { ok: false, why: 'Waiting: ' + block + '.' };
+  if (!next.exercises || !next.exercises.length) return { ok: false, why: next.id + ' has nothing written yet.' };
+  return enterStage(area, next, 'up', date, stageFullDays(area, stage, days));
+}
+
+/* Not yet: stay at the top prescription, and ask again after a few more days. */
+function notYet(areaId, days, date) {
+  var area = areaById(areaId);
+  if (!area) return { ok: false, why: 'No such area.' };
+  var stage = currentStage(area), full = stageFullDays(area, stage, days);
+  var every = areaData.rules.defaults.repeatEvery;
+  var p = progress[area.id] || { stage: stage.id, since: null };
+  p.nextAsk = full + every;
+  progress[area.id] = p;
+  decisions.push({ date: date, area: area.id, from: stage.id, to: stage.id, action: 'stay', full: full });
+  saveProgress(); saveDecisions();
+  return { ok: true, nextAsk: p.nextAsk };
+}
+
+function stepBack(areaId, days, date) {
+  var area = areaById(areaId);
+  if (!area) return { ok: false, why: 'No such area.' };
+  var stage = currentStage(area), prev = area.stages[stageIndex(area, stage.id) - 1];
+  if (!prev) return { ok: false, why: 'This is the first stage.' };
+  return enterStage(area, prev, 'back', date, stageFullDays(area, stage, days));
+}
+
+/* Set the stage yourself: where you start, or somewhere other than the next rung. */
+function placeAt(areaId, stageId, days, date) {
+  var area = areaById(areaId);
+  var stage = area && stageById(area, stageId);
+  if (!stage) return { ok: false, why: 'No such stage.' };
+  if (stage.id === currentStage(area).id) return { ok: false, why: 'Already at ' + stage.id + '.' };
+  if (!stage.exercises || !stage.exercises.length) return { ok: false, why: stage.id + ' has nothing written yet.' };
+  return enterStage(area, stage, 'set', date, stageFullDays(area, currentStage(area), days));
 }
 
 /* --- the daily menu ----------------------------------------------------- */
@@ -1652,13 +1907,7 @@ function dayDetailItems(date, today, days) {
   return out;
 }
 
-/* How many full days an area has in its current stage. Everything so far counts,
-   because nobody has left the first stage yet. */
-function stageProgress(area, days) {
-  var stage = currentStage(area);
-  var full = days.filter(function (r) { return r.area === area.id && r.full; }).length;
-  return { stage: stage, full: full, askAfter: stage.askAfter };
-}
+/* (where an area stands on its ladder: see the stage engine, above the daily menu) */
 
 /* --- the week's time budget ----------------------------------------------- */
 /* Each area asks for a number of days a week. Whether they all fit depends on the
@@ -2750,6 +2999,7 @@ function areaDayCard(date, sittingIdx, areaId, plan, onlyOne) {
   var badges = el('div', { class: 'badges' }, [
     paused ? badge('Held', 'badge-test') : null,
     hold ? badge('Hold', 'badge-test') : null,
+    s.deload ? badge('Easy block') : null,
     finished ? badge('Done', 'badge-green') : null,
     s.draft ? badge('Draft') : null
   ]);
@@ -2775,6 +3025,9 @@ function areaDayCard(date, sittingIdx, areaId, plan, onlyOne) {
     card.appendChild(el('div', { class: 'ad-note', text: 'Held: ' + heldReason(area, date) + '. Nothing to do here until it clears.' }));
   } else if (hold) {
     card.appendChild(el('div', { class: 'ad-note', text: 'Hold: ' + hold + '. Train it, but keep the load where it is.' }));
+  }
+  if (!paused && s.deload) {
+    card.appendChild(el('div', { class: 'ad-note', text: 'Easy block: about 60% of the usual sets, clean and unhurried. It still counts as a full day, and the review comes after it.' }));
   }
   if (!paused && s.draft && open) {
     card.appendChild(el('div', { class: 'ad-note', text: 'First-draft prescription: sets and reps for this stage have not been reviewed yet.' }));
@@ -2867,6 +3120,7 @@ function renderToday() {
   todaySessions = [];
 
   var nodes = heldCallouts(today);
+  reviewCards(today, days).forEach(function (c) { nodes.push(c); });
   var over = overBooked(today, days);
   if (over) nodes.push(over);
   nodes.push(sittingBar(today, plan));
@@ -3044,7 +3298,7 @@ function inspectBackup(raw) {
     var key = COLLECTIONS[i];
     if (!(key in data)) continue;
     var v = data[key];
-    var wantArray = [LS_SETTINGS, LS_SCHEDULE, LS_DAYPLANS, LS_AREADAYS, LS_WEEKFITS].indexOf(key) < 0;
+    var wantArray = [LS_SETTINGS, LS_SCHEDULE, LS_DAYPLANS, LS_AREADAYS, LS_WEEKFITS, LS_PROGRESS].indexOf(key) < 0;
 
     if (wantArray ? !Array.isArray(v) : (typeof v !== 'object' || v === null || Array.isArray(v))) {
       return { error: '“' + key + '” is the wrong shape in that file.' };
@@ -3079,7 +3333,7 @@ function writeBackup(data) {
     if (key in data) localStorage.setItem(key, JSON.stringify(data[key]));
   });
   if (LS_LOGS in data) {
-    [LS_DAYPLANS, LS_AREADAYS, LS_WEEKFITS].forEach(function (key) {
+    [LS_DAYPLANS, LS_AREADAYS, LS_WEEKFITS, LS_PROGRESS, LS_DECISIONS].forEach(function (key) {
       if (!(key in data)) localStorage.removeItem(key);
     });
   }
@@ -3130,6 +3384,8 @@ function importData(file) {
     loadDayPlans();
     loadFrozenDays();
     loadWeekFits();
+    loadProgress();
+    loadDecisions();
     renderProgress();
     paintTabBadge();
     toast('Restored ' + incoming + '.');
@@ -4722,6 +4978,7 @@ function renderProgress() {
   nodes.push(scheduleSection());
   nodes.push(installSection());
   nodes.push(chartsSection());
+  nodes.push(equipmentSection());
   nodes.push(backupSection());
   nodes.push(el('p', { class: 'buildline', text: 'Build ' + BUILD }));
 
@@ -5219,12 +5476,15 @@ function areaCard(area, days) {
   return el('a', { class: 'card', href: '#/areas/' + area.id }, [
     el('div', { class: 'card-top' }, [
       el('span', { class: 'card-title', text: area.name }),
-      el('span', { class: 'chev', text: '›' })
+      el('div', { class: 'badges' }, [
+        prog.due ? badge('Review due', 'badge-test') : prog.phase === 'deload' ? badge('Easy block') : null,
+        el('span', { class: 'chev', text: '›' })
+      ])
     ]),
     el('div', { class: 'card-sub', text: area.goal }),
     ladderRow(area, prog.stage.id),
-    el('div', { class: 'card-sub', text: 'Stage ' + prog.stage.id + ' · ' + prog.stage.name + ' · '
-      + prog.full + ' of ' + prog.askAfter + ' full days' })
+    el('div', { class: 'card-sub', text: 'Stage ' + prog.stage.id + ' · ' + prog.stage.name
+      + (prog.askAfter ? ' · ' + prog.full + ' of ' + prog.askAfter + ' full days' : ' · ' + prog.full + ' full days') })
   ]);
 }
 
@@ -5254,10 +5514,308 @@ function renderAreas() {
   ];
   areaList().forEach(function (a) { nodes.push(areaCard(a, days)); });
 
+  if (!decisions.length) nodes.push(el('p', { class: 'hint', text: 'Every area starts at the first rung of its ladder. If you are already further along in one, open it and choose Set the stage yourself.' }));
   nodes.push(el('p', { class: 'hint', text: 'History from before the areas (weighted pull-ups, sprints, hinge, kettlebell press and a few prehab exercises) is kept but not counted here. A day counts as skipped only when it was on that day’s menu, or taken off it, and nothing was logged.' }));
   nodes.push(el('p', { class: 'buildline', text: 'Build ' + BUILD }));
 
   setView('Areas', areaList().length + ' areas', nodes);
+}
+
+/* --- the review ------------------------------------------------------------ */
+/* Where you decide. The app asks when the days are done; you can open it any
+   time. It shows what you did, how the body is, the standard to attest to, and
+   what the next stage is, then you move up, say not yet, or step back. */
+
+var reviewTicks = {};     /* the standard's checklist for this visit; not stored */
+
+function phaseText(prog) {
+  if (prog.phase === 'top') return 'Top of the ladder.';
+  if (prog.phase === 'ask') return 'Ready for a review.';
+  if (prog.phase === 'deload') return 'Easy block: about 60% of the sets, the last days before the review.';
+  if (prog.nextAsk !== null) return 'Staying at the top prescription until ' + prog.nextAsk + ' full days.';
+  return 'Full prescription.';
+}
+
+/* The body areas guarding an area, as the last week of check-ins reads them. */
+function guardLights(area, date) {
+  var recent = checkInsBetween(addDays(date, -(RED_DAYS - 1)), date);
+  return area.guardedBy.map(function (b) {
+    var state = recent.length ? 'green' : null;
+    recent.forEach(function (c) {
+      var s = areaState(b, c, priorTo(c.date));
+      if (STATE_RANK[s] > STATE_RANK[state]) state = s;
+    });
+    return { body: b, label: bodyLabel(b), state: state };
+  });
+}
+
+/* "3 × 5 → 8 / leg · 3 s down · +25 % BW", the way a set reads. */
+function exerciseLine(ex, date) {
+  var bits = [ex.sets + ' × ' + ex.reps];
+  if (ex.tempo) bits.push(ex.tempo);
+  var load = resolveLoad(ex.load, date).text;
+  if (load && load !== '—' && load !== 'Bodyweight') bits.push(load);
+  return bits.join(' · ');
+}
+
+/* What changes between two stages: by exercise id. */
+function stageDiff(from, to) {
+  var had = {}, has = {};
+  (from.exercises || []).forEach(function (e) { had[e.id] = e; });
+  (to.exercises || []).forEach(function (e) { has[e.id] = e; });
+  return {
+    added: (to.exercises || []).filter(function (e) { return !had[e.id]; }),
+    dropped: (from.exercises || []).filter(function (e) { return !has[e.id]; })
+  };
+}
+
+function lightLabel(state) { return state ? STATE_LABEL[state] : 'no check-in this week'; }
+
+function decisionLine(d) {
+  var what = d.action === 'up' ? d.from + ' → ' + d.to + ', moved up'
+    : d.action === 'back' ? d.from + ' → ' + d.to + ', stepped back'
+    : d.action === 'set' ? d.from + ' → ' + d.to + ', set by you'
+    : d.from + ', not yet';
+  return fmtDateShort(d.date) + ' · ' + what + (d.full ? ' · ' + d.full + ' full days' : '');
+}
+
+function decisionsFor(area) {
+  return decisions.filter(function (d) { return d.area === area.id; }).slice().reverse();
+}
+
+function decisionList(area) {
+  var list = decisionsFor(area);
+  if (!list.length) return null;
+  return el('div', {}, [
+    el('p', { class: 'section-label', text: 'Your decisions' }),
+    el('ul', { class: 'rv-history' }, list.map(function (d) { return el('li', { text: decisionLine(d) }); }))
+  ]);
+}
+
+function renderReview(id) {
+  if (!areaData) return areasLoading();
+  var area = areaById(id);
+  if (!area) return renderNotFound('No area "' + id + '".');
+
+  var today = todayISO();
+  var days = areaDays();
+  var prog = stageProgress(area, days);
+  var stage = prog.stage;
+  var next = area.stages[prog.index + 1] || null;
+  var prev = area.stages[prog.index - 1] || null;
+  var block = next ? levelUpBlock(area, today) : null;
+
+  function kvRow(k, v, cls) {
+    return el('div', { class: 'kv-row' }, [el('span', { class: 'kv-key', text: k }), el('span', { class: 'kv-val' + (cls ? ' ' + cls : ''), text: v })]);
+  }
+  function repaint() { var y = window.scrollY; renderReview(id); window.scrollTo(0, y); }
+  function leave(message) { toast(message); location.hash = '#/areas/' + area.id; }
+
+  var nodes = [
+    el('a', { class: 'back', href: '#/areas/' + area.id, text: '‹ ' + area.name }),
+    el('div', { class: 'session-head' }, [
+      el('h2', { text: 'Review · ' + area.name }),
+      el('div', { class: 'meta', text: stage.id + ' · ' + stage.name })
+    ])
+  ];
+
+  if (prog.phase !== 'ask' && prog.phase !== 'top') {
+    nodes.push(el('p', { class: 'hint', text: 'You are early. The review usually comes after ' + (prog.nextAsk !== null ? prog.nextAsk : prog.askAfter) + ' full days; you can decide now if you already know.' }));
+  }
+
+  /* where you are */
+  var kv = el('div', { class: 'kv kv-text' }, [
+    kvRow('Full days in ' + stage.id, prog.full + (prog.askAfter ? ' of ' + prog.askAfter : '')),
+    kvRow('Where that is', phaseText(prog))
+  ]);
+  guardLights(area, today).forEach(function (g) {
+    kv.appendChild(kvRow(g.label, lightLabel(g.state), g.state === 'red' ? 'is-red' : g.state === 'amber' ? 'is-amber' : ''));
+  });
+  nodes.push(el('p', { class: 'section-label', text: 'Where you are' }), kv);
+
+  /* the standard, to attest to */
+  nodes.push(el('p', { class: 'section-label', text: 'The standard for ' + stage.id }));
+  var checks = el('div', { class: 'rv-checks' });
+  stage.ready.forEach(function (text, i) {
+    var key = area.id + ':' + stage.id + ':' + i;
+    var on = !!reviewTicks[key];
+    var b = el('button', { class: 'rv-check' + (on ? ' is-on' : ''), type: 'button', role: 'checkbox', 'aria-checked': String(on) }, [
+      el('span', { class: 'rv-box', text: on ? '✓' : '' }), el('span', { text: text })
+    ]);
+    b.addEventListener('click', function () { reviewTicks[key] = !on; repaint(); });
+    checks.appendChild(b);
+  });
+  nodes.push(checks, el('p', { class: 'hint', text: 'Tick what you can do, honestly. Nothing here is checked for you; it is for you.' }));
+
+  /* what comes next */
+  if (next) {
+    var diff = stageDiff(stage, next);
+    var preview = el('div', { class: 'card' }, [
+      el('div', { class: 'card-top' }, [
+        el('span', { class: 'card-title', text: next.id + ' · ' + next.name }),
+        el('div', { class: 'badges' }, [next.optional ? badge('Optional') : null, next.draft ? badge('Draft') : null, next.goal ? badge('Goal', 'badge-test') : null])
+      ]),
+      el('div', { class: 'card-sub', text: next.work })
+    ]);
+    if (next.exercises && next.exercises.length) {
+      var added = {};
+      diff.added.forEach(function (e) { added[e.id] = true; });
+      preview.appendChild(el('ul', { class: 'rv-ex' }, next.exercises.map(function (e) {
+        return el('li', {}, [
+          el('span', { class: 'rv-ex-name', text: e.name }),
+          added[e.id] ? el('span', { class: 'st st-rec', text: 'new' }) : null,
+          el('span', { class: 'rv-ex-line', text: exerciseLine(e, today) })
+        ]);
+      })));
+      if (diff.dropped.length) preview.appendChild(el('div', { class: 'stage-fact', text: 'Drops out: ' + diff.dropped.map(function (e) { return e.name; }).join(', ') + '.' }));
+    } else {
+      preview.appendChild(el('div', { class: 'stage-fact is-unmet', text: 'Nothing is written for ' + next.id + ' yet, so it cannot be started.' }));
+    }
+    if (next.note) preview.appendChild(el('div', { class: 'card-sub', text: next.note }));
+
+    var needs = stageNeeds(next);
+    needs.equipment.forEach(function (q) {
+      preview.appendChild(el('div', { class: 'stage-fact' + (q.owned ? '' : ' is-unmet'), text: (q.owned ? 'Have: ' : 'Missing: ') + q.label }));
+    });
+    needs.bells.forEach(function (b) {
+      preview.appendChild(el('div', { class: 'stage-fact' + (b.owned ? '' : ' is-unmet'), text: (b.owned ? 'Have: ' : 'Missing: ') + 'a ' + b.lb + ' lb (' + b.kg + ' kg) bell' }));
+    });
+    prereqStatus(next).forEach(function (r) {
+      preview.appendChild(el('div', { class: 'stage-fact' + (r.met ? '' : ' is-unmet'), text:
+        'Advisory: ' + r.name + ' ' + r.stage + ' first. You are at ' + (r.have || 'nothing') + (r.met ? ', met.' : ', not yet.') }));
+    });
+    if (next.perWeek || next.minGapDays) {
+      var per = stageWeek(area, next);
+      preview.appendChild(el('div', { class: 'stage-fact', text: 'This stage runs ' + per.min + ' · ' + per.target + ' · ' + per.max + ' days a week, ' + stageGap(area, next) + ' days apart.' }));
+    }
+    if (needs.missing.length) preview.appendChild(el('a', { class: 'rv-link', href: '#/progress', text: 'Tick what you own under Equipment on the Progress tab' }));
+    nodes.push(el('p', { class: 'section-label', text: 'Next' }), preview);
+  } else {
+    nodes.push(el('p', { class: 'hint', text: stage.goal ? 'This is the goal stage: ' + area.goal : 'This is the top of the ladder.' }));
+  }
+
+  /* the decision */
+  nodes.push(el('p', { class: 'section-label', text: 'Your call' }));
+  var actions = el('div', { class: 'rv-actions' });
+
+  if (next) {
+    var up = el('button', { class: 'btn btn-go btn-block', type: 'button', disabled: !!block,
+      text: (next.optional ? 'Take the optional stage ' : 'Move up to ') + next.id });
+    up.addEventListener('click', function () {
+      var ticked = stage.ready.every(function (x, i) { return reviewTicks[area.id + ':' + stage.id + ':' + i]; });
+      if (!ticked && !confirm('You have not ticked everything in the standard. Move up anyway?')) return;
+      var r = moveUp(area.id, days, today);
+      if (!r.ok) { toast(r.why); return; }
+      reviewTicks = {};
+      leave('Moved up to ' + r.stage.id + '.');
+    });
+    actions.appendChild(up);
+    if (block) actions.appendChild(el('p', { class: 'rv-wait', text: 'Waiting: ' + block + '. Moving up opens again when it clears. You can still say not yet or step back.' }));
+
+    var not = el('button', { class: 'btn btn-block', type: 'button', text: 'Not yet' });
+    not.addEventListener('click', function () {
+      var r = notYet(area.id, days, today);
+      leave('Okay. Staying at the top prescription, and asking again after ' + areaData.rules.defaults.repeatEvery + ' more full days.');
+    });
+    actions.appendChild(not);
+  }
+  if (prev) {
+    var back = el('button', { class: 'btn btn-quiet btn-block', type: 'button', text: 'Step back to ' + prev.id });
+    back.addEventListener('click', function () {
+      if (!confirm('Step back to ' + prev.id + '? Full area-days start again from zero in the old stage.')) return;
+      var r = stepBack(area.id, days, today);
+      if (!r.ok) { toast(r.why); return; }
+      leave('Stepped back to ' + r.stage.id + '.');
+    });
+    actions.appendChild(back);
+  }
+  nodes.push(actions);
+
+  var history = decisionList(area);
+  if (history) nodes.push(history);
+  nodes.push(el('p', { class: 'buildline', text: 'Build ' + BUILD }));
+
+  setView('Review', area.short || area.name, nodes);
+  window.scrollTo(0, 0);
+}
+
+/* Set the stage yourself: where you start, or somewhere that is not the next rung. */
+function openStagePicker(area, onDone) {
+  var prog = stageProgress(area, areaDays());
+  var list = el('div', { class: 'picklist' });
+  area.stages.forEach(function (s) {
+    var here = s.id === prog.stage.id;
+    var ready = !!(s.exercises && s.exercises.length);
+    var b = el('button', { class: 'card pick', type: 'button', disabled: here || !ready }, [
+      el('div', { class: 'card-top' }, [
+        el('span', { class: 'card-title', text: s.id + ' · ' + s.name }),
+        el('div', { class: 'badges' }, [here ? badge('You are here', 'badge-now') : null, !ready ? badge('Nothing written yet') : null])
+      ]),
+      el('div', { class: 'card-sub', text: (s.ready[0] || s.work) })
+    ]);
+    b.addEventListener('click', function () {
+      if (!confirm('Set ' + area.name + ' to ' + s.id + '? Full area-days start again from zero in the new stage.')) return;
+      var r = placeAt(area.id, s.id, areaDays(), todayISO());
+      closeSheet();
+      toast(r.ok ? area.name + ' is now at ' + s.id + '.' : r.why);
+      if (onDone) onDone();
+    });
+    list.appendChild(b);
+  });
+  openSheet('Set the stage yourself', 'Where are you now in ' + area.name + '? Each stage shows its first standard.', [list]);
+}
+
+/* A review that is due, on Today: one line to tap. */
+function reviewCards(today, days) {
+  var out = [];
+  areaList().forEach(function (area) {
+    var prog = stageProgress(area, days);
+    if (!prog.due) return;
+    var block = levelUpBlock(area, today);
+    out.push(el('a', { class: 'card review-card', href: '#/review/' + area.id }, [
+      el('div', { class: 'card-top' }, [
+        el('span', { class: 'card-title', text: 'Review due · ' + area.name + ' ' + prog.stage.id }),
+        el('span', { class: 'chev', text: '›' })
+      ]),
+      el('div', { class: 'card-sub', text: prog.full + ' full days in ' + prog.stage.id + '. Ready to move on?' + (block ? ' Waiting: ' + block + '.' : '') })
+    ]));
+  });
+  return out;
+}
+
+/* --- equipment you own (on the Progress tab) --- */
+
+function equipmentSection() {
+  if (!areaData) return null;
+  var wrap = el('div', {}, [el('p', { class: 'section-label', text: 'Equipment you own' })]);
+  var list = el('div', { class: 'kv kv-text' });
+
+  equipmentList().forEach(function (q) {
+    var owned = equipmentOwned(q.id);
+    var b = el('button', { class: 'eq-toggle' + (owned ? ' is-on' : ''), type: 'button', 'aria-pressed': String(owned), text: owned ? 'Have' : 'Don’t have' });
+    b.addEventListener('click', function () { setEquipment(q.id, !owned); renderProgress(); });
+    list.appendChild(el('div', { class: 'kv-row eq-row' }, [el('span', { class: 'kv-key', text: q.label }), b]));
+  });
+  wrap.appendChild(list);
+
+  var bells = el('div', { class: 'eq-bells' });
+  bellsOwned().forEach(function (lb) {
+    var chip = el('button', { class: 'sit-chip', type: 'button', 'aria-label': 'Remove the ' + lb + ' lb bell', text: lb + ' lb ×' });
+    chip.addEventListener('click', function () { setBells(bellsOwned().filter(function (x) { return x !== lb; })); renderProgress(); });
+    bells.appendChild(chip);
+  });
+  var input = el('input', { type: 'text', inputmode: 'numeric', id: 'bell-lb', placeholder: 'Add a bell, in lb' });
+  var add = el('button', { class: 'btn', type: 'button', text: 'Add' });
+  add.addEventListener('click', function () {
+    var n = Math.round(Number(String(input.value).trim()));
+    if (!(n > 0 && n <= 200)) { toast('A bell between 1 and 200 lb.'); return; }
+    setBells(bellsOwned().concat([n]));
+    renderProgress();
+  });
+  wrap.appendChild(el('p', { class: 'hint', text: 'Kettlebells you have, in lb (kg is shown beside the bell a stage needs):' }));
+  wrap.appendChild(bells);
+  wrap.appendChild(el('div', { class: 'sheet-actions', style: 'margin-top:8px' }, [input, add]));
+  return wrap;
 }
 
 /* Which stage of an area, by position — for "you are at P1, this needs P4". */
@@ -5352,6 +5910,22 @@ function renderAreaDetail(id) {
     ])
   ];
 
+  var ladderKv = el('div', { class: 'kv kv-text' });
+  [['Stage', prog.stage.id + ' · ' + prog.stage.name],
+   ['Full days here', prog.full + (prog.askAfter ? ' of ' + prog.askAfter : '')],
+   ['Where that is', phaseText(prog)]].forEach(function (r) {
+    ladderKv.appendChild(el('div', { class: 'kv-row' }, [el('span', { class: 'kv-key', text: r[0] }), el('span', { class: 'kv-val', text: r[1] })]));
+  });
+  var pick = el('button', { class: 'btn btn-quiet', type: 'button', text: 'Set the stage yourself' });
+  pick.addEventListener('click', function () { openStagePicker(area, function () { renderAreaDetail(id); }); });
+  nodes.push(el('p', { class: 'section-label', text: 'Where you are on the ladder' }), ladderKv,
+    el('div', { class: 'sheet-actions', style: 'margin-top:0' }, [
+      el('a', { class: prog.due ? 'btn btn-go' : 'btn', href: '#/review/' + area.id, text: prog.due ? 'Open the review' : 'Review now' }),
+      pick
+    ]));
+  var decided = decisionList(area);
+  if (decided) nodes.push(decided);
+
   var rows = [
     ['This week', w.touched + ' of ' + w.target + (w.status.label ? ' · ' + w.status.label : '')],
     ['Last 3 weeks', recent.map(function (n) { return n === null ? '–' : n; }).join('  ')],
@@ -5392,12 +5966,12 @@ function renderAreaDetail(id) {
   window.scrollTo(0, 0);
 }
 
-/* Today, Areas and the runner draw from the area data, and the check-in asks about
-   seven body areas instead of four once it is in. Plan and Progress work without
-   it. An empty hash is Today. */
+/* Today, Areas, the review and the runner draw from the area data. The check-in asks
+   about seven body areas instead of four once it is in, and Progress gains the
+   equipment card. Only Plan works without it. An empty hash is Today. */
 function routeNeedsAreas(hash) {
   var tab = String(hash || '').replace(/^#\/?/, '').split('/')[0] || 'today';
-  return tab === 'today' || tab === 'areas' || tab === 'run' || tab === 'checkin';
+  return tab === 'today' || tab === 'areas' || tab === 'run' || tab === 'checkin' || tab === 'review' || tab === 'progress';
 }
 
 /* ----------------------------------------------------------------- router */
@@ -5420,6 +5994,7 @@ function route() {
 
   if (tab === 'plan' && parts[1]) renderWeek(parts[1]);
   else if (tab === 'plan') renderWeekList();
+  else if (tab === 'review' && parts[1]) renderReview(parts[1]);
   else if (tab === 'areas' && parts[1]) renderAreaDetail(parts[1]);
   else if (tab === 'areas') renderAreas();
   else if (tab === 'session') renderSession(parts[1]);
@@ -5430,7 +6005,7 @@ function route() {
     renderNotFound('Nothing at "' + hash + '".');
   }
 
-  markTab(tab === 'session' ? 'plan' : tab);
+  markTab(tab === 'session' ? 'plan' : tab === 'review' ? 'areas' : tab);
   paintTabBadge();
   view().focus({ preventScroll: true });
 }
@@ -5555,6 +6130,8 @@ loadPlan().then(function (json) {
   loadDayPlans();
   loadFrozenDays();
   loadWeekFits();
+  loadProgress();
+  loadDecisions();
   restoreTimer();
   scheduleReminder();
   if (!location.hash) location.replace('#/today');

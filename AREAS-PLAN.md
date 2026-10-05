@@ -1,6 +1,6 @@
 # Areas, stages and the daily menu — draft v4 for review
 
-Status: **built through M13** (section 11). M14 to M16 are still design. Numbers
+Status: **built through M14** (section 11). M15 and M16 are still design. Numbers
 marked *(placeholder)* are mine, not sourced; change them freely.
 
 ---
@@ -706,9 +706,35 @@ export imports and is seeded as above.
    thing it shows: on a Monday with nothing urgent, the picker favours what has
    never been trained over what was trained two days ago, so muscle-up (priority
    1) can sit out a day. That is the staleness term and a weight in `rules.json`.
-4. **M14 — stages and level-up:** progress state, the full-area-day counter,
-   review screen with next-stage preview (equipment and prerequisites), move up /
-   not yet / step back, the deload block, decisions log.
+4. **M14 — stages and level-up — done (build 1.13.0-m14):** every area is on one
+   rung of its ladder; full area-days are counted in that stage; near the end of a
+   stage the work eases off for a block; then the app asks, and you decide. What
+   shipped differs from the sketch in seven ways:
+   - **Every later stage got a first-draft prescription** (about 170 exercises,
+     marked Draft on screen, written from each stage's "work" text and "ready"
+     standard), because moving up would otherwise land on an empty stage. They
+     want your read, most of all the tendon-heavy ones (muscle-up, one-arm,
+     Nordic, plyometrics) and the kettlebell time standard, which is from memory.
+     Each stage also lists the equipment it needs.
+   - **The easy block is the last week's worth of days of a stage** (the area's
+     weekly target in days, never more than half the stage), at about 60% of the
+     sets, and is fixed with the area-day when it is first planned, so a day you
+     did is never rewritten. A full easy day still counts as a full area-day.
+   - **"Not yet" stays at the top prescription, with no easy block, for four more
+     full area-days, then asks again.** The four is `repeatEvery` in `rules.json`.
+   - **Moving up waits while a guarding body area is amber or red** ("Waiting:
+     shoulder amber"), counting the last seven days of check-ins. "Not yet" and
+     stepping back never wait, and neither does setting the stage yourself.
+   - **The standard is a checklist you tick for yourself.** Nothing is checked for
+     you and it does not gate the button; moving up with boxes unticked asks first.
+   - **Equipment you own** lives on the Progress tab (a tick list plus the
+     kettlebells you have, in lb, 15 and 25 to begin with). A missing item shows
+     in the next stage's preview as "Missing", never as a block. Prerequisites
+     from other areas are advisory in the same way.
+   - **Placement is "Set the stage yourself"** on each area's page, rather than a
+     first-run screen; the Areas tab hints at it until you have decided anything.
+     Each decision (moved up, not yet, stepped back, set) is kept with the day
+     and the number of full days, in the backup.
 5. **M15 — feedback:** statuses, verdicts, nudges, the Monday card, pace
    projection.
 6. **M16 — adding areas:** track-only areas in the app, area-pack import,

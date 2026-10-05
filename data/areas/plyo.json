@@ -85,7 +85,8 @@
             "type": "text",
             "text": "20–30 cm box"
           },
-          "cue": "Step off, land quietly on the balls of the feet, knees over the toes, freeze for 2 s. About 15 contacts."
+          "cue": "Step off, land quietly on the balls of the feet, knees over the toes, freeze for 2 s. About 15 contacts.",
+          "contacts": true
         },
         {
           "id": "skipping",
@@ -96,8 +97,14 @@
           "load": {
             "type": "none"
           },
-          "cue": "Light and quiet. Together with the landings that is about 40 contacts."
+          "cue": "Light and quiet. Together with the landings that is about 40 contacts.",
+          "contacts": true
         }
+      ],
+      "equipment": [
+        "wall",
+        "step",
+        "box"
       ]
     },
     {
@@ -109,6 +116,90 @@
       "ready": [
         "3 × 20 continuous double-leg pogos",
         "3 × 5 box jumps to 40 cm, landings stuck"
+      ],
+      "draft": true,
+      "equipment": [
+        "wall",
+        "step",
+        "box"
+      ],
+      "exercises": [
+        {
+          "id": "ankle-rock",
+          "name": "Knee-to-wall ankle rocks",
+          "sets": 2,
+          "reps": "10 / side",
+          "restSec": 0,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Foot a hand-width from the wall, knee over the toes, heel down."
+        },
+        {
+          "id": "pogo",
+          "name": "Double-leg pogos",
+          "sets": 2,
+          "reps": "10 → 16",
+          "tempo": "Quick",
+          "restSec": 75,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Stay tall, knees nearly straight, bounce off the balls of your feet and keep each contact short and stiff.",
+          "note": "Stop the set when the contacts get slow or heavy. The review standard of 3 × 20 is more than one block holds, so try it as its own short test once 2 × 16 feels springy.",
+          "contacts": true
+        },
+        {
+          "id": "squat-jump",
+          "name": "Squat jumps",
+          "sets": 2,
+          "reps": "3",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Dip to a quarter squat, jump as high as you can, land quietly and reset before the next one.",
+          "contacts": true
+        },
+        {
+          "id": "broad-jump",
+          "name": "Broad jumps",
+          "sets": 2,
+          "reps": "3",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Swing your arms, jump out as far as you can, stick the landing for 2 s.",
+          "note": "Walk back between reps so every jump is a fresh one.",
+          "contacts": true
+        },
+        {
+          "id": "box-jump",
+          "name": "Box jumps",
+          "sets": 3,
+          "reps": "3 → 5",
+          "restSec": 90,
+          "load": {
+            "type": "text",
+            "text": "Start at 20–30 cm, work up to 40 cm"
+          },
+          "cue": "Jump onto the box with both feet, land softly, stand tall, then step down. Do not jump down.",
+          "note": "Raise the box only when all reps stick quietly.",
+          "contacts": true
+        },
+        {
+          "id": "sl-heel-raise",
+          "name": "Single-leg heel raise off a step",
+          "sets": 2,
+          "reps": "10 / leg",
+          "tempo": "3 s down",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Full stretch at the bottom, full height at the top. The slow lowering is the point."
+        }
       ]
     },
     {
@@ -119,6 +210,78 @@
       "maxContacts": 80,
       "ready": [
         "20 continuous single-leg pogos per leg with short contacts (film it)"
+      ],
+      "draft": true,
+      "equipment": [
+        "wall",
+        "step",
+        "hurdle"
+      ],
+      "exercises": [
+        {
+          "id": "ankle-rock",
+          "name": "Knee-to-wall ankle rocks",
+          "sets": 2,
+          "reps": "10 / side",
+          "restSec": 0,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Foot a hand-width from the wall, knee over the toes, heel down."
+        },
+        {
+          "id": "sl-pogo",
+          "name": "Single-leg pogos",
+          "sets": 2,
+          "reps": "8 → 12 / leg",
+          "tempo": "Quick",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Stay tall, bounce on the ball of one foot and keep each contact short and quiet.",
+          "note": "Add a few hops a week. Once 12 per leg is easy, film one set of 20 per leg for the review.",
+          "contacts": true
+        },
+        {
+          "id": "lateral-hop",
+          "name": "Single-leg lateral hops",
+          "sets": 2,
+          "reps": "4 / leg",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Hop sideways over a line on one foot, stick the landing for 1 s, then hop back.",
+          "note": "Hold on to something light at first if the landing wobbles.",
+          "contacts": true
+        },
+        {
+          "id": "hurdle-hop",
+          "name": "Low hurdle hops",
+          "sets": 2,
+          "reps": "4",
+          "restSec": 90,
+          "load": {
+            "type": "text",
+            "text": "Low hurdle, 15–20 cm"
+          },
+          "cue": "Both feet together over a low hurdle, small and quick, back to the ground fast.",
+          "note": "Stay under 20 cm in this stage.",
+          "contacts": true
+        },
+        {
+          "id": "sl-heel-raise",
+          "name": "Single-leg heel raise off a step",
+          "sets": 2,
+          "reps": "12 / leg",
+          "tempo": "3 s down",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Full stretch at the bottom, full height at the top. The slow lowering is the point."
+        }
       ]
     },
     {
@@ -135,6 +298,79 @@
         {
           "area": "pistol",
           "stage": "P3"
+        }
+      ],
+      "draft": true,
+      "equipment": [
+        "hurdle",
+        "box",
+        "step"
+      ],
+      "exercises": [
+        {
+          "id": "sl-pogo",
+          "name": "Single-leg pogos",
+          "sets": 2,
+          "reps": "6 / leg",
+          "tempo": "Quick",
+          "restSec": 45,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Short, quiet contacts, tall posture. This is your warm-up.",
+          "contacts": true
+        },
+        {
+          "id": "bound",
+          "name": "Alternate-leg bounds",
+          "sets": 3,
+          "reps": "6 → 8",
+          "restSec": 75,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Push off one leg, reach long, land on the other leg and keep going. Stay springy, not slow.",
+          "note": "Stop when your stride shortens or the landings get loud.",
+          "contacts": true
+        },
+        {
+          "id": "reactive-hop",
+          "name": "Reactive hurdle hops",
+          "sets": 3,
+          "reps": "3 → 5",
+          "restSec": 90,
+          "load": {
+            "type": "text",
+            "text": "Hurdles 20 cm, then 30 cm when quick and quiet"
+          },
+          "cue": "Hop over the hurdles with both feet and spend as little time on the ground as you can.",
+          "note": "Get off the ground like it is hot. If a contact is slow, stop the set.",
+          "contacts": true
+        },
+        {
+          "id": "sl-box-jump",
+          "name": "Single-leg box jumps",
+          "sets": 3,
+          "reps": "3 → 5 / leg",
+          "restSec": 90,
+          "load": {
+            "type": "text",
+            "text": "Start at 20 cm, 30 cm when all reps stick"
+          },
+          "cue": "Jump onto the box off one leg, land on the same leg, stand tall, then step down. Do not jump down.",
+          "contacts": true
+        },
+        {
+          "id": "sl-heel-raise",
+          "name": "Single-leg heel raise off a step",
+          "sets": 2,
+          "reps": "8 / leg",
+          "tempo": "3 s down",
+          "restSec": 45,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Full stretch at the bottom, full height at the top. The slow lowering is the point."
         }
       ]
     },
@@ -158,7 +394,67 @@
           "stage": "N3"
         }
       ],
-      "minGapDays": 3
+      "minGapDays": 3,
+      "draft": true,
+      "equipment": [
+        "wall",
+        "box",
+        "step"
+      ],
+      "exercises": [
+        {
+          "id": "pogo",
+          "name": "Double-leg pogos",
+          "sets": 2,
+          "reps": "10",
+          "tempo": "Quick",
+          "restSec": 45,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Short, stiff contacts to wake the ankles up. This is your warm-up.",
+          "contacts": true
+        },
+        {
+          "id": "cmj",
+          "name": "Countermovement jumps with arm swing",
+          "sets": 3,
+          "reps": "4 → 5",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Dip, swing both arms up hard and jump as high as you can. Touch the highest mark you can on the wall.",
+          "note": "Note your best height today. The depth jumps below have to beat it.",
+          "contacts": true
+        },
+        {
+          "id": "depth-jump",
+          "name": "Drop jumps",
+          "sets": 3,
+          "reps": "3 → 5",
+          "restSec": 120,
+          "load": {
+            "type": "text",
+            "text": "Box 20 cm, then 30 cm, then 40 cm"
+          },
+          "cue": "Step off the box, hit the ground, and jump straight back up as high as you can with the shortest contact.",
+          "note": "Step off, never jump off. Go up a height only when the rebound stays as high or higher. Use the height where your rebound is highest. Skip the day if your Achilles or knee feel off.",
+          "contacts": true
+        },
+        {
+          "id": "sl-heel-raise",
+          "name": "Single-leg heel raise off a step",
+          "sets": 2,
+          "reps": "8 / leg",
+          "tempo": "3 s down",
+          "restSec": 45,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Full stretch at the bottom, full height at the top. The slow lowering is the point."
+        }
+      ]
     },
     {
       "id": "Y6",
@@ -170,7 +466,78 @@
       "ready": [
         "Vertical jump ≥ baseline + X cm, retested every 4 weeks"
       ],
-      "minGapDays": 3
+      "minGapDays": 3,
+      "draft": true,
+      "equipment": [
+        "wall",
+        "step"
+      ],
+      "exercises": [
+        {
+          "id": "pogo",
+          "name": "Double-leg pogos",
+          "sets": 2,
+          "reps": "10",
+          "tempo": "Quick",
+          "restSec": 45,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Short, stiff contacts to wake the ankles up. This is your warm-up.",
+          "contacts": true
+        },
+        {
+          "id": "approach-3",
+          "name": "3-step approach jump",
+          "sets": 3,
+          "reps": "3 → 5",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Three quick steps, plant the take-off foot, drive the other knee and arms up, touch as high as you can on the wall.",
+          "note": "Use the same take-off leg every rep. Full effort, full rest. Stop when a jump gets lower.",
+          "contacts": true
+        },
+        {
+          "id": "approach-5",
+          "name": "5-step approach jump",
+          "sets": 3,
+          "reps": "3 → 5",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Five steps, building speed, plant, drive up and touch as high as you can on the wall.",
+          "note": "Keep the approach controlled, so the plant stays safe at speed.",
+          "contacts": true
+        },
+        {
+          "id": "wall-touch-test",
+          "name": "Wall-touch jump test (best of 3)",
+          "sets": 1,
+          "reps": "3",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Same warm-up each time, standing jump, mark your highest touch and keep the best of 3.",
+          "note": "Test day only, every 4 weeks. Compare with your baseline from Y1. Skip it on other days.",
+          "contacts": true
+        },
+        {
+          "id": "sl-heel-raise",
+          "name": "Single-leg heel raise off a step",
+          "sets": 2,
+          "reps": "8 / leg",
+          "tempo": "3 s down",
+          "restSec": 45,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Full stretch at the bottom, full height at the top. The slow lowering is the point."
+        }
+      ]
     }
   ]
 }

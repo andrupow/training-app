@@ -31,6 +31,9 @@
         "3 × 10 feet-elevated pike push-ups, hips over hands"
       ],
       "draft": true,
+      "equipment": [
+        "bench"
+      ],
       "exercises": [
         {
           "id": "wrist-prep",
@@ -87,6 +90,75 @@
       "work": "Chest-to-wall walk-ups and holds, line and breathing",
       "ready": [
         "3 × 45 s chest-to-wall hold"
+      ],
+      "draft": true,
+      "equipment": [
+        "wall",
+        "bench"
+      ],
+      "exercises": [
+        {
+          "id": "wrist-prep",
+          "name": "Wrist extension rocks",
+          "sets": 2,
+          "reps": "10",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Kneeling, palms down, rock forward and back. Warm the wrists before pressing."
+        },
+        {
+          "id": "wall-walk-up",
+          "name": "Chest-to-wall walk-up",
+          "sets": 3,
+          "reps": "3",
+          "tempo": "Slow",
+          "restSec": 75,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Feet up the wall first, then walk the hands in until your chest is close to the wall.",
+          "note": "Walk back down with control. If you cannot hold the top for a few seconds, stay lower on the wall."
+        },
+        {
+          "id": "wall-hold",
+          "name": "Chest-to-wall hold",
+          "sets": 3,
+          "reps": "20–45 s",
+          "tempo": "Static",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Push tall through the shoulders, ribs in, glutes tight. Breathe slowly through the nose.",
+          "note": "Add a few seconds each session. End the set when your back starts to arch. 3 × 45 s is the standard."
+        },
+        {
+          "id": "pike-elevated",
+          "name": "Feet-elevated pike push-up",
+          "sets": 2,
+          "reps": "8",
+          "tempo": "3 s down",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Feet on a bench, hips over the hands, head travels forward between the hands.",
+          "note": "Keeps your pressing strength up while the wall work takes over."
+        },
+        {
+          "id": "hollow",
+          "name": "Hollow body hold",
+          "sets": 3,
+          "reps": "30 s",
+          "tempo": "Static",
+          "restSec": 45,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Lower back flat, ribs tucked toward the pelvis. The handstand line starts here."
+        }
       ]
     },
     {
@@ -96,6 +168,75 @@
       "work": "Wall HSPU negatives, 5 s lowering to a head-touch on a folded mat",
       "ready": [
         "3 × 5 negatives at 5 s"
+      ],
+      "draft": true,
+      "equipment": [
+        "wall",
+        "mat",
+        "bench"
+      ],
+      "exercises": [
+        {
+          "id": "wrist-prep",
+          "name": "Wrist extension rocks",
+          "sets": 2,
+          "reps": "10",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Kneeling, palms down, rock forward and back. Warm the wrists before pressing."
+        },
+        {
+          "id": "wall-hold",
+          "name": "Chest-to-wall hold",
+          "sets": 2,
+          "reps": "45 s",
+          "tempo": "Static",
+          "restSec": 45,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Same tall line as before. This is your warm-up for the negatives."
+        },
+        {
+          "id": "hspu-negative",
+          "name": "Wall handstand push-up negative",
+          "sets": 3,
+          "reps": "3 → 5",
+          "tempo": "3 s down, building to 5 s",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Elbows tucked, lower in a straight line until your head touches a folded mat. Then step down and walk back up.",
+          "note": "Start at 3 s down and add a second once every rep is smooth. If you drop instead of lowering, stop the set. Do not try to press back up yet."
+        },
+        {
+          "id": "pike-elevated",
+          "name": "Feet-elevated pike push-up",
+          "sets": 2,
+          "reps": "8",
+          "tempo": "3 s down",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Feet on a bench, hips over the hands, head travels forward between the hands.",
+          "note": "Keeps your pressing strength up while the wall work takes over."
+        },
+        {
+          "id": "hollow",
+          "name": "Hollow body hold",
+          "sets": 2,
+          "reps": "30 s",
+          "tempo": "Static",
+          "restSec": 45,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Lower back flat, ribs tucked toward the pelvis."
+        }
       ]
     },
     {
@@ -105,6 +246,75 @@
       "work": "Wall HSPU to a mat stack, depth increasing as the stack shrinks (15 → 10 → 5 cm)",
       "ready": [
         "3 × 6 at about 5 cm"
+      ],
+      "draft": true,
+      "equipment": [
+        "wall",
+        "mat",
+        "bench"
+      ],
+      "exercises": [
+        {
+          "id": "wrist-prep",
+          "name": "Wrist extension rocks",
+          "sets": 2,
+          "reps": "10",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Kneeling, palms down, rock forward and back. Warm the wrists before pressing."
+        },
+        {
+          "id": "wall-hold",
+          "name": "Chest-to-wall hold",
+          "sets": 2,
+          "reps": "30 s",
+          "tempo": "Static",
+          "restSec": 45,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Tall line, ribs in. A short warm-up before pressing."
+        },
+        {
+          "id": "hspu-partial",
+          "name": "Wall handstand push-up to a mat stack",
+          "sets": 3,
+          "reps": "4 → 6",
+          "tempo": "2 s down, then press",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Elbows tucked, head touches the stack, press all the way to straight arms.",
+          "note": "Start with the stack at about 15 cm. Lower it to 10 cm, then to about 5 cm, once every set reaches 6 clean reps. End the set when the press slows a lot or your back arches."
+        },
+        {
+          "id": "pike-elevated",
+          "name": "Feet-elevated pike push-up",
+          "sets": 2,
+          "reps": "8",
+          "tempo": "3 s down",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Feet on a bench, hips over the hands, head travels forward between the hands.",
+          "note": "Keeps your pressing strength up while the wall work takes over."
+        },
+        {
+          "id": "hollow",
+          "name": "Hollow body hold",
+          "sets": 2,
+          "reps": "30 s",
+          "tempo": "Static",
+          "restSec": 45,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Lower back flat, ribs tucked toward the pelvis."
+        }
       ]
     },
     {
@@ -115,6 +325,74 @@
       "goal": true,
       "ready": [
         "5 consecutive strict reps"
+      ],
+      "draft": true,
+      "equipment": [
+        "wall"
+      ],
+      "exercises": [
+        {
+          "id": "wrist-prep",
+          "name": "Wrist extension rocks",
+          "sets": 2,
+          "reps": "10",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Kneeling, palms down, rock forward and back. Warm the wrists before pressing."
+        },
+        {
+          "id": "hspu-negative",
+          "name": "Full-range negative",
+          "sets": 2,
+          "reps": "3",
+          "tempo": "5 s down",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Elbows tucked, lower slowly until your head touches the floor, then step down.",
+          "note": "This is the warm-up. Keep it smooth and stop before it gets shaky."
+        },
+        {
+          "id": "hspu-full",
+          "name": "Full-range wall handstand push-up",
+          "sets": 2,
+          "reps": "2 → 4",
+          "tempo": "2 s down, then press",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Head to the floor, press to straight arms, no kicking.",
+          "note": "Add a rep when both sets are clean. Stop a set the moment form slips."
+        },
+        {
+          "id": "strict-attempt",
+          "name": "Strict test: 5 in a row",
+          "sets": 2,
+          "reps": "5",
+          "tempo": "2 s down, then press",
+          "restSec": 180,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Head to the floor, arms fully straight at the top, no kick.",
+          "note": "Stop the set at the first rep that breaks form, then rest in full. 5 clean reps in a row is the goal. Skip the attempts on a day your shoulders or wrists feel off."
+        },
+        {
+          "id": "hollow",
+          "name": "Hollow body hold",
+          "sets": 2,
+          "reps": "30 s",
+          "tempo": "Static",
+          "restSec": 30,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Lower back flat, ribs tucked toward the pelvis."
+        }
       ]
     },
     {
@@ -123,7 +401,64 @@
       "optional": true,
       "work": "Parallettes, deficit, freestanding holds",
       "ready": [],
-      "note": "Outside the goal; only if you want it later"
+      "note": "Outside the goal; only if you want it later",
+      "draft": true,
+      "equipment": [
+        "wall",
+        "mat",
+        "parallettes"
+      ],
+      "exercises": [
+        {
+          "id": "wrist-prep",
+          "name": "Wrist extension rocks",
+          "sets": 2,
+          "reps": "10",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Kneeling, palms down, rock forward and back. Warm the wrists before pressing."
+        },
+        {
+          "id": "hspu-deficit",
+          "name": "Deficit wall handstand push-up",
+          "sets": 3,
+          "reps": "3 → 5",
+          "tempo": "2 s down, then press",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Hands on two sturdy blocks or parallettes, head dips below hand height, press to straight arms.",
+          "note": "Start with a small deficit and add height only after 5 clean reps. Stop if your shoulders or wrists complain."
+        },
+        {
+          "id": "free-handstand",
+          "name": "Freestanding handstand kick-up",
+          "sets": 5,
+          "reps": "10–30 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Kick up away from the wall, stack the wrists, hips and ankles, and look between your hands.",
+          "note": "Learn how to bail out first: step down one foot or cartwheel out. Keep it on a mat and stop when your line gets sloppy."
+        },
+        {
+          "id": "hollow",
+          "name": "Hollow body hold",
+          "sets": 2,
+          "reps": "30 s",
+          "tempo": "Static",
+          "restSec": 30,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Lower back flat, ribs tucked toward the pelvis."
+        }
+      ]
     }
   ]
 }

@@ -33,6 +33,12 @@
         "5 strict chest-to-bar pulls"
       ],
       "draft": false,
+      "equipment": [
+        "bar",
+        "parallel-bars",
+        "bands",
+        "mat"
+      ],
       "exercises": [
         {
           "id": "par-dips",
@@ -163,6 +169,125 @@
       "ready": [
         "5 s straight-bar negative",
         "4 Russian dips"
+      ],
+      "draft": true,
+      "equipment": [
+        "bar",
+        "low-bar",
+        "parallel-bars",
+        "mat"
+      ],
+      "exercises": [
+        {
+          "id": "bar-neg",
+          "name": "Straight-bar dip negatives",
+          "sets": 4,
+          "reps": "3",
+          "tempo": "5 s down",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "type": "strength",
+          "cue": "Jump to the top with the bar at your lower ribs, then lower slowly for a full 5 seconds.",
+          "note": "Start at 3 s and add a second at a time until 5 s is smooth."
+        },
+        {
+          "id": "russian-dip",
+          "name": "Russian dips (parallel bars)",
+          "sets": 3,
+          "reps": "2 → 4",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "type": "strength",
+          "cue": "Lower, lean forward until your forearms rest on the bars, then press back up.",
+          "note": "Hard on the elbows and wrists. Warm the wrists up first and stop a set when the lean gets sloppy."
+        },
+        {
+          "id": "l-sit-chin",
+          "name": "L-sit chin-ups",
+          "sets": 3,
+          "reps": "3 → 5",
+          "tempo": "2 s down",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "type": "strength",
+          "cue": "Legs straight out in front, level with your hips, and chin clearly over the bar.",
+          "note": "Tuck your knees if your legs start to drop."
+        },
+        {
+          "id": "toes-to-bar",
+          "name": "Hanging toes-to-bar",
+          "sets": 3,
+          "reps": "5",
+          "tempo": "Controlled",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "type": "strength",
+          "cue": "Straight legs, lift from your abs, and lower under control without swinging.",
+          "note": "Do knee raises until straight legs are possible."
+        },
+        {
+          "id": "fg-top-hold",
+          "name": "False-grip top holds",
+          "sets": 3,
+          "reps": "5–10 s",
+          "tempo": "Static",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "type": "skill",
+          "cue": "False grip, chin over the bar with your wrists resting on top, shoulders pulled down.",
+          "note": "Jump or step up to the top if you cannot pull there. Build from 5 s to 10 s."
+        },
+        {
+          "id": "speed-c2b",
+          "name": "Speed chest-to-bar pull-ups",
+          "sets": 4,
+          "reps": "3",
+          "tempo": "Explosive",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "type": "skill",
+          "cue": "Pull as fast as you can and touch your chest to the bar. Stop the set when your speed drops."
+        },
+        {
+          "id": "low-turnover",
+          "name": "Low-bar turnovers",
+          "sets": 4,
+          "reps": "3",
+          "tempo": "Fast",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "type": "skill",
+          "cue": "Pull the bar to your lower ribs, then roll your chest over it fast.",
+          "note": "Use a bar at about hip height with your feet on the floor. Use your legs as much as you need, a little less each week."
+        },
+        {
+          "id": "arch-hollow",
+          "name": "Floor arch-to-hollow snaps",
+          "sets": 3,
+          "reps": "10",
+          "tempo": "Dynamic",
+          "restSec": 60,
+          "load": {
+            "type": "none"
+          },
+          "type": "skill",
+          "cue": "Rock fast between a superman arch and a tight hollow."
+        }
       ]
     },
     {
@@ -172,6 +297,125 @@
       "work": "Band-assisted muscle-ups (heavy → light band), 6 s negative muscle-ups, explosive and weighted dips, lockout and L-sit holds",
       "ready": [
         "Clean single with a light band"
+      ],
+      "draft": true,
+      "equipment": [
+        "bar",
+        "parallel-bars",
+        "bands",
+        "weights"
+      ],
+      "exercises": [
+        {
+          "id": "weighted-dip",
+          "name": "Weighted parallel bar dips",
+          "sets": 4,
+          "reps": "5",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "text",
+            "text": "Light belt or vest, about 2 reps left in the tank"
+          },
+          "type": "strength",
+          "cue": "Same clean dip as before: shoulders below your elbows, then full lockout.",
+          "note": "Add weight only when all 4 sets are clean, and keep the jumps small."
+        },
+        {
+          "id": "mu-neg",
+          "name": "6-second negative muscle-ups",
+          "sets": 3,
+          "reps": "2",
+          "tempo": "6 s down",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "type": "strength",
+          "cue": "Jump to the top above the bar, then lower slowly back through the turn for 6 seconds.",
+          "note": "Hard on the elbows. Skip the set if an elbow or wrist is sore."
+        },
+        {
+          "id": "c2b-pause",
+          "name": "Chest-to-bar pull-ups with a pause",
+          "sets": 3,
+          "reps": "5",
+          "tempo": "1 s pause at the top",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "type": "strength",
+          "cue": "Pull until your chest touches the bar, hold for a second, then lower all the way."
+        },
+        {
+          "id": "l-sit",
+          "name": "Parallel bar L-sit hold",
+          "sets": 3,
+          "reps": "10–15 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "type": "strength",
+          "cue": "Arms locked, shoulders pushed down, legs straight and level.",
+          "note": "Tuck your knees if you cannot hold straight legs."
+        },
+        {
+          "id": "lockout-hold",
+          "name": "Straight-bar lockout hold",
+          "sets": 3,
+          "reps": "20 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "type": "strength",
+          "cue": "Chest over the bar, arms locked, shoulders pushed down."
+        },
+        {
+          "id": "band-mu",
+          "name": "Band-assisted muscle-ups",
+          "sets": 4,
+          "reps": "2 → 3",
+          "tempo": "Smooth",
+          "restSec": 150,
+          "load": {
+            "type": "text",
+            "text": "Heavy band, then lighter as the reps get clean"
+          },
+          "type": "skill",
+          "cue": "Pull to your lower ribs, turn over fast, and press to lockout.",
+          "note": "Go to a lighter band only when all 4 sets are clean. The standard is one clean rep with a light band."
+        },
+        {
+          "id": "explosive-dip",
+          "name": "Explosive dips",
+          "sets": 4,
+          "reps": "4",
+          "tempo": "Fast up",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "type": "skill",
+          "cue": "Lower in control, then press up as fast as you can to a full lockout."
+        },
+        {
+          "id": "fg-c2b",
+          "name": "False-grip chest-to-bar pull-ups",
+          "sets": 3,
+          "reps": "3",
+          "tempo": "Explosive",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "type": "skill",
+          "cue": "False grip, pull fast to your chest and keep your wrists on top of the bar."
+        }
       ]
     },
     {
@@ -182,6 +426,126 @@
       "goal": true,
       "ready": [
         "1 strict unassisted bar muscle-up"
+      ],
+      "draft": true,
+      "equipment": [
+        "bar",
+        "parallel-bars",
+        "bands",
+        "weights",
+        "mat"
+      ],
+      "exercises": [
+        {
+          "id": "mu-neg",
+          "name": "6-second negative muscle-ups",
+          "sets": 3,
+          "reps": "2",
+          "tempo": "6 s down",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "type": "strength",
+          "cue": "Jump to the top above the bar, then lower slowly back through the turn for 6 seconds.",
+          "note": "Hard on the elbows. Skip the set if an elbow or wrist is sore."
+        },
+        {
+          "id": "weighted-dip",
+          "name": "Weighted parallel bar dips",
+          "sets": 3,
+          "reps": "5",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "text",
+            "text": "Light belt or vest, about 2 reps left in the tank"
+          },
+          "type": "strength",
+          "cue": "Shoulders below your elbows, then full lockout.",
+          "note": "Keep the weight where it is. This is upkeep, not a push."
+        },
+        {
+          "id": "c2b-pause",
+          "name": "Chest-to-bar pull-ups with a pause",
+          "sets": 3,
+          "reps": "5",
+          "tempo": "1 s pause at the top",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "type": "strength",
+          "cue": "Pull until your chest touches the bar, hold for a second, then lower all the way."
+        },
+        {
+          "id": "hollow",
+          "name": "Hollow body hold",
+          "sets": 3,
+          "reps": "30 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "none"
+          },
+          "type": "strength",
+          "cue": "Lower back glued flat to the floor, ribs tucked toward your pelvis."
+        },
+        {
+          "id": "false-grip",
+          "name": "False-grip bar active hangs",
+          "sets": 2,
+          "reps": "15 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "type": "skill",
+          "cue": "Deep palm-crease grip, shoulder blades pulled down."
+        },
+        {
+          "id": "primer-pull",
+          "name": "Explosive sternum pull-ups (primer)",
+          "sets": 3,
+          "reps": "2",
+          "tempo": "Explosive",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "type": "skill",
+          "cue": "Two fast reps to your lower chest, then rest. Stay fresh for the attempts."
+        },
+        {
+          "id": "microband-mu",
+          "name": "Micro-band muscle-ups",
+          "sets": 3,
+          "reps": "1",
+          "tempo": "Smooth",
+          "restSec": 150,
+          "load": {
+            "type": "text",
+            "text": "Thinnest band you have"
+          },
+          "type": "skill",
+          "cue": "Same turn as the real thing, with the band only helping a little.",
+          "note": "Go to a thinner band, or none, when all 3 singles feel easy."
+        },
+        {
+          "id": "mu-attempt",
+          "name": "Strict unassisted muscle-up attempts",
+          "sets": 4,
+          "reps": "1",
+          "tempo": "Smooth",
+          "restSec": 180,
+          "load": {
+            "type": "bodyweight"
+          },
+          "type": "skill",
+          "cue": "No band, no big kip. Pull to your lower ribs, turn over, and lock out.",
+          "note": "This is the test. Stop the session if your pulling speed drops or an elbow or wrist complains."
+        }
       ]
     }
   ]

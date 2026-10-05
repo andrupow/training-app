@@ -1240,3 +1240,39 @@ svg.g { width: 18px; height: 18px; display: block; }
 .wk-fit p { margin: 3px 0; line-height: 1.35; }
 .wk-fit .wk-fit-main { color: var(--text); font-weight: 560; }
 .wk-fit-over .wk-fit-main { color: var(--serious-text); }
+
+/* The review, and what you own. */
+.review-card { border-color: var(--test); }
+.review-card .card-title { color: var(--test); }
+.kv-val.is-red { color: var(--serious-text); font-weight: 620; }
+.kv-val.is-amber { color: var(--warn-text); font-weight: 620; }
+.rv-checks { display: flex; flex-direction: column; gap: 6px; }
+.rv-check {
+  display: flex; align-items: flex-start; gap: 10px; text-align: left;
+  width: 100%; padding: 10px 12px; font: inherit; font-size: 15px; line-height: 1.35;
+  color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; cursor: pointer;
+}
+.rv-box {
+  flex: none; width: 22px; height: 22px; margin-top: 1px; display: grid; place-items: center;
+  border: 2px solid var(--line); border-radius: 6px; font-size: 15px; font-weight: 700; color: var(--surface);
+}
+.rv-check.is-on .rv-box { background: var(--good); border-color: var(--good); }
+.rv-ex { list-style: none; margin: 10px 0 0; padding: 0; }
+.rv-ex li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 14.5px; }
+.rv-ex-name { font-weight: 600; }
+.rv-ex-line { flex-basis: 100%; font-size: 12.5px; color: var(--muted); }
+.rv-actions { display: flex; flex-direction: column; gap: 8px; }
+.rv-wait { margin: 0; font-size: 13.5px; color: var(--warn-text); line-height: 1.35; }
+.rv-link { display: inline-block; margin-top: 8px; font-size: 13.5px; color: var(--accent); }
+.rv-history { margin: 6px 0 0; padding: 0; list-style: none; font-size: 14px; color: var(--muted); }
+.rv-history li { padding: 3px 0; }
+.eq-toggle {
+  flex: none; min-height: 32px; padding: 0 12px; font: inherit; font-size: 13.5px; font-weight: 600;
+  color: var(--muted); background: var(--surface-2); border: 1px solid var(--line); border-radius: 16px; cursor: pointer;
+}
+.eq-toggle.is-on { color: var(--good-text); border-color: var(--good); }
+.eq-bells { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+.pick:disabled { opacity: .55; cursor: default; }
+.btn:disabled { opacity: .45; cursor: default; }
+a.btn { display: inline-flex; align-items: center; justify-content: center; text-align: center; text-decoration: none; }
+.eq-row .kv-key { flex: 1 1 auto; min-width: 0; }

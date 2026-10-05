@@ -31,6 +31,9 @@
         "2 min accumulated deep hold"
       ],
       "draft": true,
+      "equipment": [
+        "wall"
+      ],
       "exercises": [
         {
           "id": "ankle-rock",
@@ -88,6 +91,63 @@
       "work": "Bulgarian split squat, step-ups, 3 s down",
       "ready": [
         "3 × 10 per leg Bulgarian, bodyweight"
+      ],
+      "draft": true,
+      "equipment": [
+        "wall",
+        "bench",
+        "step"
+      ],
+      "exercises": [
+        {
+          "id": "ankle-rock",
+          "name": "Knee-to-wall ankle rocks",
+          "sets": 2,
+          "reps": "10 / side",
+          "restSec": 0,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Foot a hand-width from the wall, knee over the toes, heel down."
+        },
+        {
+          "id": "bulgarian-split-squat",
+          "name": "Bulgarian split squat",
+          "sets": 3,
+          "reps": "6 → 10 / leg",
+          "tempo": "3 s down",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Back foot up on the bench, front heel down, drop straight down.",
+          "note": "Add a rep when every set feels clean. Three sets of 10 per leg is the standard for this stage."
+        },
+        {
+          "id": "step-up",
+          "name": "Step-up",
+          "sets": 3,
+          "reps": "8 / leg",
+          "tempo": "Up, then 3 s down",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Whole foot on the step, push through the heel, lower slowly.",
+          "note": "Use a step that puts your thigh about level with the floor. Go higher once 8 are easy."
+        },
+        {
+          "id": "squat-hold",
+          "name": "Deep squat hold",
+          "sets": 2,
+          "reps": "30 s",
+          "tempo": "Static",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Heels down, chest up, sit in the bottom of the squat."
+        }
       ]
     },
     {
@@ -97,6 +157,62 @@
       "work": "Full-depth pistol holding a pole, doorframe or rings",
       "ready": [
         "3 × 8 per leg with fingertip-light assist"
+      ],
+      "draft": true,
+      "equipment": [
+        "wall",
+        "pole",
+        "bench"
+      ],
+      "exercises": [
+        {
+          "id": "ankle-rock",
+          "name": "Knee-to-wall ankle rocks",
+          "sets": 2,
+          "reps": "10 / side",
+          "restSec": 0,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Foot a hand-width from the wall, knee over the toes, heel down."
+        },
+        {
+          "id": "assisted-pistol",
+          "name": "Assisted pistol",
+          "sets": 3,
+          "reps": "5 → 8 / leg",
+          "tempo": "3 s down",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Hold the pole or doorframe, sit all the way down on one leg, use your hands as little as you can.",
+          "note": "Pull a bit less each week. Stop a set if your knee pinches or your heel lifts."
+        },
+        {
+          "id": "bulgarian-split-squat",
+          "name": "Bulgarian split squat",
+          "sets": 2,
+          "reps": "8 / leg",
+          "tempo": "2 s down",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Back foot up on the bench, front heel down, drop straight down."
+        },
+        {
+          "id": "assisted-bottom-hold",
+          "name": "Assisted pistol bottom hold",
+          "sets": 2,
+          "reps": "10 s / leg",
+          "tempo": "Static",
+          "restSec": 45,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Hold the pole, sit at the bottom on one leg, free leg out in front, heel down."
+        }
       ]
     },
     {
@@ -106,6 +222,63 @@
       "work": "Single-leg sit-to-stand, box lowered 60 → 45 → 35 cm",
       "ready": [
         "3 × 6 per leg from 35 cm"
+      ],
+      "draft": true,
+      "equipment": [
+        "wall",
+        "box",
+        "bench",
+        "pole"
+      ],
+      "exercises": [
+        {
+          "id": "ankle-rock",
+          "name": "Knee-to-wall ankle rocks",
+          "sets": 2,
+          "reps": "10 / side",
+          "restSec": 0,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Foot a hand-width from the wall, knee over the toes, heel down."
+        },
+        {
+          "id": "box-pistol",
+          "name": "Box pistol (single-leg sit-to-stand)",
+          "sets": 3,
+          "reps": "4 → 6 / leg",
+          "tempo": "2 s down",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Sit back to the box on one leg, free leg out in front, stand up without a hand.",
+          "note": "Start at 60 cm. Drop to 45 cm, then 35 cm, once all three sets reach 6 clean reps. Any firm seat or stack at the right height works."
+        },
+        {
+          "id": "bulgarian-split-squat",
+          "name": "Bulgarian split squat",
+          "sets": 2,
+          "reps": "8 / leg",
+          "tempo": "2 s down",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Back foot up on the bench, front heel down, drop straight down."
+        },
+        {
+          "id": "assisted-pistol",
+          "name": "Assisted pistol, fingertips only",
+          "sets": 2,
+          "reps": "5 / leg",
+          "tempo": "3 s down",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Fingertips on the pole, full depth, heel down."
+        }
       ]
     },
     {
@@ -115,6 +288,61 @@
       "work": "Pistol negatives, 5 s to full depth, two legs to stand",
       "ready": [
         "3 × 5 per leg at 5 s to full depth"
+      ],
+      "draft": true,
+      "equipment": [
+        "wall",
+        "box"
+      ],
+      "exercises": [
+        {
+          "id": "ankle-rock",
+          "name": "Knee-to-wall ankle rocks",
+          "sets": 2,
+          "reps": "10 / side",
+          "restSec": 0,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Foot a hand-width from the wall, knee over the toes, heel down."
+        },
+        {
+          "id": "pistol-negative",
+          "name": "Pistol negative",
+          "sets": 3,
+          "reps": "3 → 5 / leg",
+          "tempo": "5 s down",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Lower on one leg over five seconds, touch the bottom, then stand up using both legs.",
+          "note": "Only the lowering is on one leg, so keep it slow and controlled. If you drop in the last seconds, do fewer reps. Stop if your knee pinches."
+        },
+        {
+          "id": "box-pistol",
+          "name": "Box pistol from your lowest box",
+          "sets": 2,
+          "reps": "5 / leg",
+          "tempo": "2 s down",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Sit back to the box on one leg, stand up without a hand."
+        },
+        {
+          "id": "squat-hold",
+          "name": "Deep squat hold",
+          "sets": 2,
+          "reps": "30 s",
+          "tempo": "Static",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Heels down, arms out in front, sit in the bottom of the squat."
+        }
       ]
     },
     {
@@ -125,6 +353,63 @@
       "goal": true,
       "ready": [
         "5 strict reps per leg, no counterweight"
+      ],
+      "draft": true,
+      "equipment": [
+        "wall",
+        "weights"
+      ],
+      "exercises": [
+        {
+          "id": "ankle-rock",
+          "name": "Knee-to-wall ankle rocks",
+          "sets": 2,
+          "reps": "10 / side",
+          "restSec": 0,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Foot a hand-width from the wall, knee over the toes, heel down."
+        },
+        {
+          "id": "pistol-test",
+          "name": "Strict pistol test set",
+          "sets": 1,
+          "reps": "5 / leg",
+          "tempo": "Controlled",
+          "restSec": 180,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Heel down, no hands, no weight. End a leg when your heel lifts or you fall out of the bottom.",
+          "note": "Do this one while fresh. Five clean reps on each leg is the goal of this whole area."
+        },
+        {
+          "id": "counterweight-pistol",
+          "name": "Counterweight pistol",
+          "sets": 3,
+          "reps": "3 → 5 / leg",
+          "tempo": "3 s down",
+          "restSec": 120,
+          "load": {
+            "type": "text",
+            "text": "2 to 5 kg held out in front, a little lighter each week"
+          },
+          "cue": "Hold the weight out in front to balance, heel flat, stand up smoothly.",
+          "note": "A light plate works. Drop to the lighter end as you get stronger, then drop the weight for the next exercise."
+        },
+        {
+          "id": "strict-pistol",
+          "name": "Strict pistol, no weight",
+          "sets": 2,
+          "reps": "2 → 4 / leg",
+          "tempo": "3 s down",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Arms out in front, heel flat, no bounce at the bottom."
+        }
       ]
     }
   ]
