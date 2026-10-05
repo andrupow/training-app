@@ -1926,6 +1926,8 @@ function cleanWeekFit(raw) {
 
   var out = { budget: n(raw.budget), cost: n(raw.cost), minCost: n(raw.minCost), startCost: n(raw.startCost), targets: {}, trimmed: [], ramp: uniqueStrings(raw.ramp) };
   if (out.budget === null || out.cost === null || out.minCost === null) return null;
+  out.noTime = n(raw.noTime) || 0;
+  out.stated = n(raw.stated) !== null ? n(raw.stated) : out.budget + out.noTime;
   if (out.startCost === null) out.startCost = out.cost;
   out.verdict = ['fits', 'tight', 'over'].indexOf(raw.verdict) >= 0 ? raw.verdict : 'fits';
 
@@ -2012,6 +2014,24 @@ function fitTargets(items, budget, tightRatio) {
   };
 }
 
+/* Things taken off the menu for "no time" say the minutes you gave were more than
+   you had. Over the last few weeks, the minutes of what was taken off for that
+   reason, on average a week, are cut from the week's time. A single time is not a
+   pattern. */
+function noTimeCut(start) {
+  var N = areaData.rules.noTime;
+  var from = addDays(start, -7 * N.weeks), skips = 0, minutes = 0;
+  Object.keys(dayPlans).forEach(function (date) {
+    if (date < from || date >= start) return;
+    var removed = dayPlans[date].removed;
+    Object.keys(removed).forEach(function (id) {
+      var a = areaById(id);
+      if (removed[id] === 'no time' && a) { skips++; minutes += a.minutes; }
+    });
+  });
+  return skips >= N.minSkips ? Math.round(minutes / N.weeks) : 0;
+}
+
 function computeWeekFit(start, days) {
   var items = areaList().map(function (a) {
     var per = stageWeek(a, currentStage(a));
@@ -2021,7 +2041,11 @@ function computeWeekFit(start, days) {
       ramp: inRamp(a.id, start, days)
     };
   });
-  return fitTargets(items, weekMinutes(start), areaData.rules.defaults.tightRatio || 0.85);
+  var stated = weekMinutes(start), cut = noTimeCut(start);
+  var fit = fitTargets(items, Math.max(0, stated - cut), areaData.rules.defaults.tightRatio || 0.85);
+  fit.stated = stated;
+  fit.noTime = cut;
+  return fit;
 }
 
 /* The fit for a week. A week already underway or finished uses what was saved;
@@ -2054,6 +2078,12 @@ function trimmedLine(fit) {
     var a = areaById(t.id);
     return (a ? a.name : t.id) + ' ' + t.from + '→' + t.to;
   }).join(', ') + '.';
+}
+
+/* When "no time" has been the reason lately, say how the week's minutes were worked out. */
+function noTimeLine(fit) {
+  if (!fit.noTime) return '';
+  return 'You said ' + fit.stated + ' min, but things were taken off for no time lately, so this week plans for ' + fit.budget + '.';
 }
 
 function rampLine(fit) {
@@ -5611,7 +5641,7 @@ function skippedList(sum) {
 function fitBlock(start, today, days) {
   var fit = weekFitFor(start, days, today);
   if (!fit) return null;
-  var lines = [feasibilityLine(fit), trimmedLine(fit), rampLine(fit)].filter(Boolean);
+  var lines = [feasibilityLine(fit), noTimeLine(fit), trimmedLine(fit), rampLine(fit)].filter(Boolean);
   return el('div', { class: 'wk-fit wk-fit-' + fit.verdict }, lines.map(function (text, i) {
     return el('p', { class: i === 0 ? 'wk-fit-main' : '', text: text });
   }));

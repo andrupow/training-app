@@ -216,5 +216,9 @@
     "maxShown": 2,
     "skippedTimes": 2,
     "noTimeSkips": 3
+  },
+  "noTime": {
+    "weeks": 2,
+    "minSkips": 2
   }
 }
