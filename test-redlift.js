@@ -229,6 +229,15 @@ reset(MON); put(ci(FRI,{hamstring:8})); fc=ctx.weekForecast(MON,[]);
 clear(); ctx.dayDetail('2026-10-06',MON,[],{'2026-10-06':Object.assign({},fc['2026-10-06'],{left:[{id:'mu',kind:'soon',why:'Too soon: trained yesterday, wants 2+ days between.'}]})});
 ok('a reason that is not a hold has no lift button', texts().includes('Too soon: trained yesterday, wants 2+ days between.')&&!btn('Lift hold'));
 
+reset(MON); put(ci(FRI,{hamstring:8}));
+const bare={'2026-10-06':{real:false,minutes:45,picks:[],why:{},left:[{id:nordic,kind:'held',why:'Held: hamstring red.'},{id:'mu',kind:'met',why:'Target met this week (2/2). You can still add it.'}]}};
+clear(); ctx.dayDetail('2026-10-06',MON,[],bare);
+ok('a day with nothing suggested still says so', texts().includes('Nothing suggested for this day.'));
+ok('and still explains every area that was left out, which is where it matters most', texts().includes('Left out')&&texts().includes('Nordic curl')&&texts().includes('Muscle-up')&&texts().some(x=>/^Target met this week/.test(x)));
+ok('with the tap to lift a held one, and the note that it can change', !!btn('Lift hold')&&texts().some(x=>/real menu is made when you open the day/.test(x)));
+clear(); ctx.dayDetail('2026-10-06',MON,[],{'2026-10-06':{real:false,minutes:45,picks:[],why:{}}});
+ok('with nothing suggested and nothing left out (an older forecast) it is just the one line', texts().includes('Nothing suggested for this day.')&&!texts().includes('Left out'));
+
 console.log('the check-in says when it lifted something:');
 reset(MON); put(ci(FRI,{hamstring:8}));
 clear(); ctx.renderCheckIn();

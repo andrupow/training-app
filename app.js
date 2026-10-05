@@ -6397,20 +6397,23 @@ function dayDetail(date, today, days, forecast) {
   /* a day with no menu yet: what would be suggested, if the forecast has it */
   var f = forecast && forecast[date];
   if (d.noPlan && date >= today && f && !f.real && !d.extras.length) {
-    if (!f.picks.length) {
+    if (f.picks.length) {
+      card.appendChild(el('div', { class: 'wk-sit', text: 'Suggested · ' + f.minutes + ' min' }));
+      f.picks.forEach(function (id) {
+        card.appendChild(detailRow({ area: areaById(id), state: 'suggested', record: null }));
+        if (f.why[id]) card.appendChild(el('div', { class: 'wk-why', text: f.why[id] }));
+      });
+    } else {
       card.appendChild(el('div', { class: 'card-sub', text: 'Nothing suggested for this day.' }));
-      return card;
     }
-    card.appendChild(el('div', { class: 'wk-sit', text: 'Suggested · ' + f.minutes + ' min' }));
-    f.picks.forEach(function (id) {
-      card.appendChild(detailRow({ area: areaById(id), state: 'suggested', record: null }));
-      if (f.why[id]) card.appendChild(el('div', { class: 'wk-why', text: f.why[id] }));
-    });
+    /* what was left out is explained even when nothing was picked: that is when it matters most */
     if (f.left && f.left.length) {
       card.appendChild(el('div', { class: 'wk-sit', text: 'Left out' }));
       f.left.forEach(function (l) { card.appendChild(leftOutRow(l, date)); });
     }
-    card.appendChild(el('p', { class: 'hint wk-detail-note', text: 'Worked out from what you have done so far, as if the days before it get done. The real menu is made when you open the day.' }));
+    if (f.picks.length || (f.left && f.left.length)) {
+      card.appendChild(el('p', { class: 'hint wk-detail-note', text: 'Worked out from what you have done so far, as if the days before it get done. The real menu is made when you open the day.' }));
+    }
     return card;
   }
 
