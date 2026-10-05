@@ -1,0 +1,202 @@
+const fs=require('fs'), vm=require('vm');
+const store={}; const noop=()=>{};
+const fakeNode=new Proxy({},{get(t,k){if(['appendChild','addEventListener','remove','focus','setAttribute','removeAttribute','scrollIntoView','click'].includes(k))return noop;if(k==='querySelector'||k==='querySelectorAll')return()=>fakeNode;if(k==='childNodes'||k==='classList')return[];if(k==='style')return{};return'';},set(){return true;}});
+const sandbox={console,setTimeout,clearTimeout,Blob:class{},URL:{createObjectURL:()=>'blob:x',revokeObjectURL:noop},
+ localStorage:{getItem:k=>(k in store?store[k]:null),setItem:(k,v)=>{store[k]=String(v);},removeItem:k=>{delete store[k];}},
+ fetch:()=>Promise.reject(new Error('x')),navigator:{},location:{hash:'',protocol:'http:',replace:noop},
+ document:{createElement:()=>fakeNode,createTextNode:()=>fakeNode,getElementById:()=>fakeNode,querySelector:()=>null,querySelectorAll:()=>[],addEventListener:noop,removeEventListener:noop,body:fakeNode},
+ window:{addEventListener:noop,scrollTo:noop,scrollY:0}};
+sandbox.globalThis=sandbox; vm.createContext(sandbox);
+/* The runner needs a body with a classList and an interval; the shared fake DOM has neither. */
+sandbox.setInterval=()=>0; sandbox.clearInterval=noop;
+sandbox.document.body=new Proxy({},{get(t,k){return k==='classList'?{add:noop,remove:noop}:fakeNode[k];},set(){return true;}});
+vm.runInContext(fs.readFileSync('app.js','utf8'),sandbox);
+const ctx=sandbox;
+ctx.plan=JSON.parse(fs.readFileSync('data/plan.json','utf8'));
+ctx.baselines=[{date:'2026-09-01',bodyweightKg:78,pullup5RMAddedKg:20}];
+
+let pass=0,fail=0;
+function eq(l,g,w){const ok=JSON.stringify(g)===JSON.stringify(w);if(ok)pass++;else{fail++;console.log(`  FAIL ${l}\n    got  ${JSON.stringify(g)}\n    want ${JSON.stringify(w)}`);}}
+
+function ok(l,c){if(c)pass++;else{fail++;console.log(`  FAIL ${l}`);}}
+
+const ci=(date,pain,stiff)=>({date,pain:Object.assign({elbow:0,shoulder:0,achilles:0,hamstring:0},pain),stiffness:stiff||'none'});
+
+const read=f=>JSON.parse(fs.readFileSync(f,'utf8'));
+const idx=read('data/areas/index.json');
+ctx.areaData={rules:read('data/rules.json'),legacy:read('data/legacy.json'),list:idx.areas.map(id=>read('data/areas/'+id+'.json'))};
+const reset=()=>{ctx.setLogs=[];ctx.logIndex={};ctx.dayPlans={};ctx.frozenDays={};ctx.checkIns=[];ctx.schedule={};ctx.settings={};store.dayPlans=undefined;delete store.dayPlans;delete store.areaDays;};
+const logAllSets=(sid)=>{ctx.sessionById(sid).exercises.forEach(e=>{for(let i=0;i<e.sets;i++)ctx.writeLog(sid,e.id,i,{done:true});});};
+
+
+/* helpers: train an area on a date, fully or partly, the way the app logs it */
+const train=(date,area,full=true)=>{ ctx.freezeAreaDay(date,area); const s=ctx.sessionById(date+':'+area);
+  s.exercises.forEach((e,xi)=>{ for(let i=0;i<e.sets;i++){ if(full||(xi===0&&i===0)) ctx.writeLog(s.id,e.id,i,{done:true}); } }); };
+const D='2026-10-08';           // a Thursday; its week starts Mon 5 Oct
+const days=()=>ctx.areaDays();
+const names=a=>a.map(r=>r.area.id);
+
+console.log('what the day starts with (due areas that fit, in priority order):');
+reset();
+eq('on a Thursday with nothing done these five are due', ['mu','hspu','pistol','oap','plyo'].filter(id=>ctx.areaWeek(ctx.areaById(id),'2026-10-05',D,[]).status.key==='due').length, 5);
+eq('45 min: muscle-up fills it, the rest clash or do not fit', ctx.suggestAreas(D,45,[]), ['mu']);
+eq('60 min: muscle-up and pistol (HSPU and one-arm clash with muscle-up)', ctx.suggestAreas(D,60,[]), ['mu','pistol']);
+eq('90 min: plus plyometrics', ctx.suggestAreas(D,90,[]), ['mu','pistol','plyo']);
+eq('30 min: just muscle-up', ctx.suggestAreas(D,30,[]), ['mu']);
+eq('20 min: nothing fits muscle-up, so HSPU leads', ctx.suggestAreas(D,20,[]), ['hspu']);
+ctx.checkIns=[ci('2026-10-06',{achilles:8})];
+eq('a red Achilles keeps plyometrics off it', ctx.suggestAreas(D,90,[]), ['mu','pistol']);
+ctx.checkIns=[];
+
+console.log('the menu is made once, the first time the day is shown:');
+reset();
+const plan=ctx.ensureDayPlan(D,[]);
+eq('one sitting with the default minutes', plan.sittings.map(s=>s.minutes), [45]);
+eq('the suggestion is on it and remembered', [plan.sittings[0].areas, plan.suggested], [['mu'],['mu']]);
+eq('muscle-up is frozen as the first type', ctx.frozenDays[D+':mu'], {stage:'M1',type:'strength'});
+eq('menus begin today', ctx.settings.menuSince, D);
+ok('and it is saved', !!JSON.parse(store.dayPlans)[D]);
+const again=ctx.ensureDayPlan(D,[]);
+ok('asking again returns the same plan', again===plan);
+ctx.ensureDayPlan('2026-10-09',[]);
+eq('menuSince does not move', ctx.settings.menuSince, D);
+
+console.log('the list:');
+let rows=ctx.menuRows(D,0,[]);
+eq('selected first, then most urgent, then priority', names(rows), ['mu','hspu','pistol','oap','plyo','nordic','bridge','kb']);
+eq('the reason says why', rows[0].reason, 'DUE · 0/2 this week, not trained yet');
+eq('and for one not due', rows.find(r=>r.area.id==='bridge').reason, '0/3 this week, not trained yet');
+ctx.checkIns=[ci('2026-10-03',{hamstring:8})];
+rows=ctx.menuRows(D,0,[]);
+eq('Nordic and kettlebell are held', rows.filter(r=>r.held).map(r=>r.area.id).sort(), ['kb','nordic']);
+eq('and say why', rows.find(r=>r.area.id==='nordic').held, 'hamstring red');
+eq('the others are not', rows.find(r=>r.area.id==='mu').held, null);
+ctx.checkIns=[];
+
+console.log('warnings (they never block):');
+reset(); ctx.ensureDayPlan(D,[]);
+const w=(id,dys=[])=>ctx.menuWarnings(ctx.areaById(id),D,ctx.dayPlans[D],dys);
+eq('HSPU alongside muscle-up', w('hspu'), ['Not usually with Muscle-up: both load shoulders and triceps.']);
+eq('one-arm pull-up alongside muscle-up', w('oap'), ['Not usually with Muscle-up: both load the elbow tendons.']);
+eq('pistol has nothing to say', w('pistol'), []);
+reset(); ctx.ensureDayPlan(D,[]); train('2026-10-07','mu');
+eq('muscle-up trained yesterday', w('mu',days()), ['Trained yesterday. It usually wants 2+ days between.']);
+reset(); train('2026-10-05','mu'); train('2026-10-06','mu'); train('2026-10-07','mu'); ctx.ensureDayPlan(D,[]);
+ok('three this week is its max', w('mu',days()).some(x=>x==='Already at its weekly max of 3.'));
+reset(); train('2026-10-05','mu'); train('2026-10-07','mu'); train('2026-10-06','oap'); train('2026-10-02','oap'); ctx.ensureDayPlan('2026-10-10',[]);
+eq('muscle-up 2 and one-arm 1 this week is 3 of 4: not yet capped', ctx.menuWarnings(ctx.areaById('oap'),'2026-10-10',ctx.dayPlans['2026-10-10'],days()).filter(x=>/cap/.test(x)), []);
+train('2026-10-09','oap');
+ok('one more makes 4 of 4: the shared cap is used', ctx.menuWarnings(ctx.areaById('mu'),'2026-10-10',ctx.dayPlans['2026-10-10'],days()).some(x=>x==="This week's elbow tendon cap is used: 4 of 4 days."));
+reset(); train(D,'bridge'); ctx.ensureDayPlan(D,[]);
+eq('already done today', w('bridge',days()), ['Already trained today. This adds to the same day.']);
+reset(); ctx.ensureDayPlan(D,[]); ctx.addAreaToDay(D,0,'nordic');
+eq('Nordic and kettlebell: a soft one', w('kb'), ['Best not the same day as Nordic curl: both load the hamstrings.']);
+
+console.log('adding and removing:');
+reset(); ctx.ensureDayPlan(D,[]);
+eq('plyometrics goes first (power), then muscle-up (skill)', (ctx.addAreaToDay(D,0,'plyo'), ctx.dayPlans[D].sittings[0].areas), ['plyo','mu']);
+ctx.addAreaToDay(D,0,'bridge'); ctx.addAreaToDay(D,0,'kb');
+eq('then mobility, then kettlebell', ctx.dayPlans[D].sittings[0].areas, ['plyo','mu','bridge','kb']);
+eq('adding twice does not duplicate', (ctx.addAreaToDay(D,0,'bridge'), ctx.dayPlans[D].sittings[0].areas.length), 4);
+ok('what you add is frozen', !!ctx.frozenDays[D+':bridge']);
+eq('an unknown sitting is refused', ctx.addAreaToDay(D,5,'pistol').ok, false);
+ctx.checkIns=[ci('2026-10-03',{hamstring:8})];
+let r=ctx.addAreaToDay(D,0,'nordic');
+eq('a held area cannot be added', [r.ok, r.why], [false,'Nordic curl is held: hamstring red.']);
+ok('and is not on the day', ctx.dayPlans[D].sittings[0].areas.indexOf('nordic')<0);
+ctx.checkIns=[];
+
+reset(); ctx.ensureDayPlan(D,[]); ctx.addAreaToDay(D,0,'pistol');
+ctx.removeAreaFromDay(D,0,'mu','no time');
+eq('taking off what the app suggested is a skip, with the reason', ctx.dayPlans[D].removed, {mu:'no time'});
+ok('and it forgets what it would have held', !ctx.frozenDays[D+':mu']);
+ctx.removeAreaFromDay(D,0,'pistol');
+eq('taking off what you added yourself is not', ctx.dayPlans[D].removed, {mu:'no time'});
+ctx.addAreaToDay(D,0,'mu');
+eq('putting it back clears the skip', ctx.dayPlans[D].removed, {});
+train(D,'mu',false);
+r=ctx.removeAreaFromDay(D,0,'mu');
+eq('once started it cannot come off', [r.ok, r.why], [false,'Already started, so it stays on the day.']);
+ok('and it is still there', ctx.dayPlans[D].sittings[0].areas.indexOf('mu')>=0);
+
+console.log('sittings:');
+reset(); ctx.ensureDayPlan(D,[]);
+eq('a second', ctx.addSitting(D,30), 1);
+eq('a third', ctx.addSitting(D,30), 2);
+eq('no fourth', ctx.addSitting(D,30), -1);
+eq('three in all', ctx.dayPlans[D].sittings.map(s=>s.minutes), [45,30,30]);
+ctx.setSittingMinutes(D,1,60);
+eq('minutes change', ctx.dayPlans[D].sittings[1].minutes, 60);
+eq('the second sitting does not set the weekday default', ctx.defaultMinutes('2026-10-15'), 45);
+ctx.setSittingMinutes(D,0,30);
+eq('the first one does', ctx.defaultMinutes('2026-10-15'), 30);
+ctx.setSittingMinutes(D,0,-5);
+eq('nonsense minutes are ignored', ctx.dayPlans[D].sittings[0].minutes, 30);
+eq('an empty sitting can go', ctx.removeSitting(D,2), true);
+ctx.addAreaToDay(D,1,'bridge');
+eq('one with something in it cannot', ctx.removeSitting(D,1), false);
+eq('nor the only one', (ctx.removeSitting(D,1), ctx.removeAreaFromDay(D,1,'bridge'), ctx.removeSitting(D,1), ctx.removeSitting(D,0)), false);
+console.log('the same area in two sittings:');
+reset(); ctx.ensureDayPlan(D,[]);
+ctx.addSitting(D,30); ctx.addAreaToDay(D,1,'mu');
+eq('it is on both', ctx.dayPlans[D].sittings.map(s=>s.areas), [['mu'],['mu']]);
+ctx.removeAreaFromDay(D,1,'mu');
+eq('taking it off the second does not skip it', [ctx.dayPlans[D].removed, ctx.dayPlans[D].sittings[0].areas], [{}, ['mu']]);
+ctx.addAreaToDay(D,1,'mu'); ctx.removeAreaFromDay(D,0,'mu','tired');
+eq('nor off the first while the second has it', [ctx.dayPlans[D].removed, !!ctx.frozenDays[D+':mu']], [{}, true]);
+
+console.log('minutes against the sitting:');
+eq('muscle-up and pistol in a 45', ctx.sittingLoad({minutes:45,areas:['mu','pistol']}), {planned:48,over:3});
+eq('and in a 60', ctx.sittingLoad({minutes:60,areas:['mu','pistol']}), {planned:48,over:0});
+eq('empty', ctx.sittingLoad({minutes:30,areas:[]}), {planned:0,over:0});
+
+console.log('what each cell of the week says:');
+reset();
+const today='2026-10-08';
+const cs=(date,area,rec)=>ctx.dayCellState(date,area,today,rec||null);
+eq('done', cs('2026-10-06','mu',{full:true}), 'full');
+eq('partial', cs('2026-10-06','mu',{full:false}), 'partial');
+eq('the future', cs('2026-10-09','mu'), 'future');
+eq('no menus yet at all: nothing', cs('2026-10-06','mu'), 'none');
+ctx.settings.menuSince='2026-10-06';
+eq('a day since menus began that was never opened', cs('2026-10-07','mu'), 'noplan');
+eq('but a day before they began is just nothing', cs('2026-10-05','mu'), 'none');
+eq('and today is not "no plan", it simply has none yet', cs(today,'mu'), 'none');
+ctx.dayPlans['2026-10-07']={sittings:[{minutes:45,areas:['mu','bridge']}],suggested:['mu'],removed:{pistol:'no time'}};
+eq('planned in the past and not done: skipped', cs('2026-10-07','mu'), 'skipped');
+eq('taken off by you: skipped', cs('2026-10-07','pistol'), 'skipped');
+eq('on a planned day, an area that was never on it: nothing', cs('2026-10-07','kb'), 'none');
+eq('done beats everything', cs('2026-10-07','mu',{full:true}), 'full');
+ctx.dayPlans[today]={sittings:[{minutes:45,areas:['hspu']}],suggested:['hspu'],removed:{plyo:'tired'}};
+eq('planned today and not yet done', cs(today,'hspu'), 'planned');
+eq('taken off today is skipped now, it is a decision', cs(today,'plyo'), 'skipped');
+
+console.log('the week in numbers:');
+reset(); ctx.settings.menuSince='2026-10-05';
+train('2026-10-05','mu'); train('2026-10-05','bridge',false); train('2026-10-06','hspu');   // Tuesday has no plan: logged afterwards
+ctx.dayPlans['2026-10-05']={sittings:[{minutes:45,areas:['mu','bridge']}],suggested:['mu'],removed:{}};
+ctx.dayPlans['2026-10-07']={sittings:[{minutes:45,areas:['pistol']}],suggested:['pistol','oap'],removed:{oap:'no time'}};   // oap taken off by hand
+ctx.dayPlans['2026-10-08']={sittings:[{minutes:45,areas:['plyo']}],suggested:['plyo'],removed:{}};
+const sm=ctx.weekSummary('2026-10-05','2026-10-08',days());
+eq('done: muscle-up and HSPU', sm.done, 2);
+eq('partial: the bridge', sm.partial, 1);
+eq('skipped: pistol and one-arm on Wednesday', sm.skipped, 2);
+eq('planned: plyometrics today', sm.planned, 1);
+eq('who was skipped, and why', sm.skippedItems.map(i=>[i.area.id,i.date,i.reason]).sort(), [['oap','2026-10-07','no time'],['pistol','2026-10-07','']]);
+const cells=ctx.areaWeek(ctx.areaById('bridge'),'2026-10-05','2026-10-08',days()).cells.map(c=>c.state);
+eq('and a row of the grid', cells, ['partial','noplan','none','none','future','future','future']);
+eq('Tuesday (no plan) shows a hatch for areas not trained', ctx.areaWeek(ctx.areaById('pistol'),'2026-10-05','2026-10-08',days()).cells[1].state, 'noplan');
+
+console.log('one day in detail:');
+let dd=ctx.dayDetailItems('2026-10-05','2026-10-08',days());
+eq('planned: two items in one sitting', dd.sittings.map(s=>s.items.map(i=>[i.area.id,i.state])), [[['mu','full'],['bridge','partial']]]);
+eq('with its minutes', dd.sittings[0].minutes, 45);
+eq('no extras and a plan', [dd.extras.length, dd.noPlan], [0,false]);
+dd=ctx.dayDetailItems('2026-10-06','2026-10-08',days());
+eq('a day with no plan says so and lists what was logged', [dd.noPlan, dd.extras.map(e=>[e.area.id,e.state])], [true,[['hspu','full']]]);
+dd=ctx.dayDetailItems('2026-10-07','2026-10-08',days());
+eq('a skipped day lists what was planned', dd.sittings[0].items.map(i=>[i.area.id,i.state]), [['pistol','skipped']]);
+eq('and what you took off, with your reason', dd.extras.map(e=>[e.area.id,e.state,e.reason]), [['oap','skipped','no time']]);
+
+console.log(`\n${pass} passed, ${fail} failed`);
+process.exit(fail?1:0);

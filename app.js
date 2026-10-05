@@ -999,6 +999,293 @@ function areaDays() {
   return Object.keys(byKey).map(function (k) { return byKey[k]; });
 }
 
+/* --- the daily menu ----------------------------------------------------- */
+/* A day has one to three sittings, each with its own minutes and its own list
+   of areas. The menu is saved the first time the day is shown, so the week can
+   later say what was planned and what never happened. Everything that decides
+   something is a plain function of the plan, the logs and the rules. */
+
+function plannedAreaIds(plan) {
+  var out = [];
+  plan.sittings.forEach(function (st) {
+    st.areas.forEach(function (id) { if (out.indexOf(id) < 0) out.push(id); });
+  });
+  return out;
+}
+
+/* The order to do things in, from the rules: power, skill, strength, mobility,
+   kettlebell, then your priority. */
+function doOrder(areaIds) {
+  var order = areaData.rules.dayOrder;
+  return areaIds.slice().sort(function (a, b) {
+    var A = areaById(a), B = areaById(b);
+    return (order.indexOf(A.order) - order.indexOf(B.order)) || (A.priority - B.priority);
+  });
+}
+
+/* Most recent day before `date` this area was trained, or null. */
+function lastTrainedBefore(areaId, date, days) {
+  var last = null;
+  days.forEach(function (r) { if (r.area === areaId && r.date < date && (!last || r.date > last)) last = r.date; });
+  return last;
+}
+
+function agoText(n) {
+  return n === 0 ? 'today' : n === 1 ? 'yesterday' : n + ' days ago';
+}
+
+/* Why this area is where it is on the list. */
+function areaReason(area, date, days, week) {
+  var last = lastTrainedBefore(area.id, date, days);
+  var text = week.touched + '/' + week.target + ' this week, '
+    + (last ? daysBetween(last, date) + ' d since last' : 'not trained yet');
+  return (week.status.key === 'due' ? 'DUE · ' : '') + text;
+}
+
+/* Held means a guarding body area is red. It is the one thing the menu will not
+   let you override: the red protocol is not advice. */
+function heldReason(area, date) {
+  var red = redGuards(area, date);
+  return red.length ? bodyLabel(red[0]).toLowerCase() + ' red' : null;
+}
+
+/* Things worth knowing before you add an area. They warn; they never block. */
+function menuWarnings(area, date, plan, days) {
+  var out = [];
+  var wk = areaWeek(area, weekStartOf(date), date, days);
+  var rules = areaData.rules;
+  var last = lastTrainedBefore(area.id, date, days);
+  var today = days.some(function (r) { return r.area === area.id && r.date === date; });
+
+  if (today) out.push('Already trained today. This adds to the same day.');
+  else if (wk.touched >= wk.max) out.push('Already at its weekly max of ' + wk.max + '.');
+  if (last && daysBetween(last, date) < wk.gap) {
+    out.push('Trained ' + agoText(daysBetween(last, date)) + '. It usually wants ' + wk.gap + '+ days between.');
+  }
+
+  /* Everything on today's menu, plus anything already done today. */
+  var onToday = plannedAreaIds(plan).concat(days.filter(function (r) { return r.date === date; }).map(function (r) { return r.area; }));
+  rules.conflicts.forEach(function (c) {
+    if (c.areas.indexOf(area.id) < 0) return;
+    var other = c.areas[0] === area.id ? c.areas[1] : c.areas[0];
+    if (onToday.indexOf(other) < 0) return;
+    out.push((c.soft ? 'Best not the same day as ' : 'Not usually with ') + areaById(other).name + ': ' + c.why + '.');
+  });
+
+  rules.budgets.forEach(function (b) {
+    if (b.areas.indexOf(area.id) < 0) return;
+    var used = 0, start = weekStartOf(date);
+    b.areas.forEach(function (id) { used += areaWeek(areaById(id), start, date, days).touched; });
+    if (used >= b.maxPerWeek) out.push('This week\'s ' + b.why + ' cap is used: ' + used + ' of ' + b.maxPerWeek + ' days.');
+  });
+  return out;
+}
+
+/* Which due areas to start the day with: in priority order, as many as fit the
+   sitting's minutes without breaking a hard rule, never one that is held. The
+   proper best-combination recommender comes later; this is deliberately small. */
+function suggestAreas(date, minutes, days) {
+  var start = weekStartOf(date);
+  var picked = [], used = 0;
+  var due = areaList().filter(function (a) {
+    return areaWeek(a, start, date, days).status.key === 'due' && !heldReason(a, date);
+  }).sort(function (a, b) { return a.priority - b.priority; });
+
+  due.forEach(function (a) {
+    if (picked.length >= areaData.rules.defaults.maxAreas) return;
+    if (used + a.minutes > minutes) return;
+    var clash = areaData.rules.conflicts.some(function (c) {
+      return !c.soft && c.areas.indexOf(a.id) >= 0 && c.areas.some(function (o) { return o !== a.id && picked.indexOf(o) >= 0; });
+    });
+    if (clash) return;
+    picked.push(a.id);
+    used += a.minutes;
+  });
+  return picked;
+}
+
+/* The menu is made the first time the day is shown. */
+function ensureDayPlan(date, days) {
+  if (dayPlans[date]) return dayPlans[date];
+
+  var minutes = defaultMinutes(date);
+  var picks = suggestAreas(date, minutes, days);
+  dayPlans[date] = { sittings: [{ minutes: minutes, areas: doOrder(picks) }], suggested: picks.slice(), removed: {} };
+  picks.forEach(function (id) { freezeAreaDay(date, id); });
+
+  if (!settings.menuSince) { settings.menuSince = date; saveSettings(); }
+  saveDayPlans();
+  return dayPlans[date];
+}
+
+function addAreaToDay(date, sittingIdx, areaId) {
+  var plan = dayPlans[date], area = areaById(areaId);
+  if (!plan || !plan.sittings[sittingIdx] || !area) return { ok: false, why: 'No such sitting.' };
+
+  var held = heldReason(area, date);
+  if (held) return { ok: false, why: area.name + ' is held: ' + held + '.' };
+
+  var sitting = plan.sittings[sittingIdx];
+  if (sitting.areas.indexOf(areaId) >= 0) return { ok: true };
+
+  sitting.areas = doOrder(sitting.areas.concat([areaId]));
+  delete plan.removed[areaId];
+  freezeAreaDay(date, areaId);
+  saveDayPlans();
+  return { ok: true };
+}
+
+/* Taking an area off. If the app had suggested it, that is a skip and is
+   remembered (with your reason, if you gave one); if you had added it yourself
+   it just goes. Once sets are logged it cannot be taken off. */
+function removeAreaFromDay(date, sittingIdx, areaId, reason) {
+  var plan = dayPlans[date];
+  if (!plan || !plan.sittings[sittingIdx]) return { ok: false, why: 'No such sitting.' };
+
+  var sitting = plan.sittings[sittingIdx];
+  var at = sitting.areas.indexOf(areaId);
+  if (at < 0) return { ok: true };
+
+  var elsewhere = plan.sittings.some(function (st, i) { return i !== sittingIdx && st.areas.indexOf(areaId) >= 0; });
+  if (!elsewhere && doneByAreaDay()[areaDayId(date, areaId)]) {
+    return { ok: false, why: 'Already started, so it stays on the day.' };
+  }
+
+  sitting.areas.splice(at, 1);
+  if (!elsewhere) {
+    if (plan.suggested.indexOf(areaId) >= 0) plan.removed[areaId] = reason || '';
+    unfreezeAreaDay(date, areaId);
+  }
+  saveDayPlans();
+  return { ok: true };
+}
+
+function addSitting(date, minutes) {
+  var plan = dayPlans[date];
+  if (!plan || plan.sittings.length >= MAX_SITTINGS) return -1;
+  plan.sittings.push({ minutes: minutes || 30, areas: [] });
+  saveDayPlans();
+  return plan.sittings.length - 1;
+}
+
+function removeSitting(date, sittingIdx) {
+  var plan = dayPlans[date];
+  if (!plan || plan.sittings.length < 2 || !plan.sittings[sittingIdx] || plan.sittings[sittingIdx].areas.length) return false;
+  plan.sittings.splice(sittingIdx, 1);
+  saveDayPlans();
+  return true;
+}
+
+function setSittingMinutes(date, sittingIdx, minutes) {
+  var plan = dayPlans[date];
+  if (!plan || !plan.sittings[sittingIdx] || !(minutes > 0)) return;
+  plan.sittings[sittingIdx].minutes = minutes;
+  if (sittingIdx === 0) rememberMinutes(date, minutes);
+  saveDayPlans();
+}
+
+/* Minutes planned in a sitting against the minutes it has. */
+function sittingLoad(sitting) {
+  var planned = 0;
+  sitting.areas.forEach(function (id) { var a = areaById(id); if (a) planned += a.minutes; });
+  return { planned: planned, over: Math.max(0, planned - sitting.minutes) };
+}
+
+/* What the menu shows for one sitting: every area, most urgent first. */
+var URGENCY = { due: 0, behind: 1, risk: 2, track: 3, done: 4, held: 5, ahead: 6 };
+
+function menuRows(date, sittingIdx, days) {
+  var plan = dayPlans[date];
+  var start = weekStartOf(date);
+
+  return areaList().map(function (area) {
+    var week = areaWeek(area, start, date, days);
+    var trained = days.filter(function (r) { return r.area === area.id && r.date === date; })[0] || null;
+    var inThis = plan.sittings[sittingIdx].areas.indexOf(area.id) >= 0;
+    var elsewhere = plan.sittings.some(function (st, i) { return i !== sittingIdx && st.areas.indexOf(area.id) >= 0; });
+    return {
+      area: area, week: week, record: trained,
+      selected: inThis, elsewhere: elsewhere,
+      held: heldReason(area, date),
+      reason: areaReason(area, date, days, week),
+      warnings: inThis ? [] : menuWarnings(area, date, plan, days)
+    };
+  }).sort(function (a, b) {
+    return (b.selected - a.selected) || (URGENCY[a.week.status.key] - URGENCY[b.week.status.key]) || (a.area.priority - b.area.priority);
+  });
+}
+
+/* How a cell of the week reads, in one word. Shapes in the grid are drawn from this.
+     full / partial   something logged
+     skipped          planned (or taken off the menu by you) and nothing logged
+     planned          on today's menu, not done yet
+     noplan           a day since menus began that was never opened, so unknown
+     none / future    nothing to say */
+function dayCellState(date, areaId, today, rec) {
+  if (rec) return rec.full ? 'full' : 'partial';
+  if (date > today) return 'future';
+
+  var plan = dayPlans[date];
+  if (plan) {
+    var removed = areaId in plan.removed;
+    if (plannedAreaIds(plan).indexOf(areaId) >= 0 && !removed) return date === today ? 'planned' : 'skipped';
+    if (removed) return 'skipped';
+    return 'none';
+  }
+  return settings.menuSince && date >= settings.menuSince && date < today ? 'noplan' : 'none';
+}
+
+/* The week in numbers, and what was skipped. */
+function weekSummary(start, today, days) {
+  var out = { done: 0, partial: 0, skipped: 0, planned: 0, skippedItems: [] };
+  areaList().forEach(function (a) {
+    areaWeek(a, start, today, days).cells.forEach(function (c) {
+      if (c.state === 'full') out.done++;
+      else if (c.state === 'partial') out.partial++;
+      else if (c.state === 'planned') out.planned++;
+      else if (c.state === 'skipped') {
+        out.skipped++;
+        var plan = dayPlans[c.date];
+        out.skippedItems.push({ area: a, date: c.date, reason: plan && plan.removed[a.id] || '' });
+      }
+    });
+  });
+  return out;
+}
+
+/* A day, sitting by sitting, for the detail panel. Anything logged that was not
+   on the menu comes last, as "added". */
+function dayDetailItems(date, today, days) {
+  var plan = dayPlans[date];
+  var recs = days.filter(function (r) { return r.date === date; });
+  var out = { noPlan: !plan, sittings: [], extras: [] };
+  var listed = {};
+
+  if (plan) {
+    plan.sittings.forEach(function (st, i) {
+      out.sittings.push({
+        index: i, minutes: st.minutes,
+        items: st.areas.map(function (id) {
+          listed[id] = true;
+          var rec = recs.filter(function (r) { return r.area === id; })[0] || null;
+          return { area: areaById(id), state: dayCellState(date, id, today, rec), record: rec, reason: '' };
+        })
+      });
+    });
+    Object.keys(plan.removed).forEach(function (id) {
+      if (listed[id]) return;
+      listed[id] = true;
+      var rec = recs.filter(function (r) { return r.area === id; })[0] || null;
+      out.extras.push({ area: areaById(id), state: dayCellState(date, id, today, rec), record: rec, reason: plan.removed[id], removed: true });
+    });
+  }
+  recs.forEach(function (r) {
+    if (listed[r.area]) return;
+    out.extras.push({ area: areaById(r.area), state: r.full ? 'full' : 'partial', record: r, reason: '' });
+  });
+  return out;
+}
+
 /* How many full days an area has in its current stage. Everything so far counts,
    because nobody has left the first stage yet. */
 function stageProgress(area, days) {
@@ -1062,7 +1349,7 @@ function areaWeek(area, start, today, days) {
   for (var i = 0; i < 7; i++) {
     var date = addDays(start, i);
     var rec = byDate[date] || null;
-    var state = rec ? (rec.full ? 'full' : 'partial') : (date > today ? 'future' : 'none');
+    var state = dayCellState(date, area.id, today, rec);
     if (rec) { touched++; if (rec.full) full++; }
     cells.push({ date: date, state: state, isToday: date === today, record: rec });
   }
