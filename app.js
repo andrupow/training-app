@@ -1,4 +1,5 @@
-/* The Integrated Plan — Milestones 1-8, complete
+/* The Integrated Plan — Milestones 1-8, complete; M9-M10 runner and rescheduling;
+   M11 workout areas (read-only)
    Shell + PWA + plan browser + today's session with set logging
    + dated baselines and the load calculator + rest timer + JSON backup
    + morning check-in, the traffic light, HOLD gating and progression charts.
@@ -6,7 +7,7 @@
 
 'use strict';
 
-var BUILD = '1.9.1';
+var BUILD = '1.10.0-m11';
 var PLAN_URL = 'data/plan.json';
 var LS_PLAN = 'plan.cache.v1';
 var LS_LOGS = 'setLogs';
@@ -626,6 +627,224 @@ function currentWeekId() {
 function nextSession() {
   var today = todayISO();
   return sessionsByDate().filter(function (s) { return !isSkipped(s) && sessionDate(s) >= today; })[0] || null;
+}
+
+/* ------------------------------------------------------------ workout areas */
+/* What you are getting better at (muscle-up, pistol squat…) and how often you
+   trained each in a Mon–Sun week. The areas live in data/areas/*.json and the
+   rules between them in data/rules.json; nothing below knows an area by name.
+   Not to be confused with areas() further up, which is the body areas the
+   traffic light watches.
+
+   Until the stage engine exists, everyone sits at the start of every ladder
+   and the history comes from the old plan's logs, split by exercise. */
+
+var AREAS_BASE = 'data/areas/';
+var LS_AREAS = 'areas.cache.v1';
+
+var areaData = null;       /* { rules, legacy, list: [area, ...] } */
+
+function areaList() { return areaData ? areaData.list : []; }
+
+function areaById(id) {
+  return areaList().filter(function (a) { return a.id === id; })[0] || null;
+}
+
+function bodyLabel(id) {
+  var b = areaData && areaData.rules.bodyAreas.filter(function (x) { return x.id === id; })[0];
+  return b ? b.label : (AREA_LABEL[id] || id);
+}
+
+function loadAreaData() {
+  function get(url) {
+    return fetch(url, { cache: 'no-cache' }).then(function (res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status + ' ' + url);
+      return res.json();
+    });
+  }
+
+  return get(AREAS_BASE + 'index.json')
+    .then(function (index) {
+      return Promise.all([
+        get('data/rules.json'),
+        get('data/legacy.json'),
+        Promise.all(index.areas.map(function (id) { return get(AREAS_BASE + id + '.json'); }))
+      ]);
+    })
+    .then(function (parts) {
+      var data = { rules: parts[0], legacy: parts[1], list: parts[2] };
+      cacheAreaData(data);
+      return data;
+    })
+    .catch(function (err) {
+      console.warn('area data fetch failed, trying cache', err);
+      var cached = lsGet(LS_AREAS);
+      if (cached) return cached;
+      throw err;
+    });
+}
+
+/* Same belt-and-braces as the plan: the service worker caches these too. */
+function cacheAreaData(data) {
+  try {
+    var next = JSON.stringify(data);
+    if (localStorage.getItem(LS_AREAS) !== next) localStorage.setItem(LS_AREAS, next);
+  } catch (err) {
+    console.warn('area cache write failed', err);
+  }
+}
+
+/* Monday = 0. Read from the calendar fields, never from a local Date. */
+function isoDow(iso) {
+  var d = new Date(Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10))));
+  return (d.getUTCDay() + 6) % 7;
+}
+
+function weekStartOf(iso) { return addDays(iso, -isoDow(iso)); }
+
+/* A stage may override its area's weekly targets and spacing (Nordic does,
+   in the banded stages, where lower load allows more often). */
+function currentStage(area) { return area.stages[0]; }
+function stageWeek(area, stage) { return stage.perWeek || area.perWeek; }
+function stageGap(area, stage) { return stage.minGapDays || area.minGapDays; }
+
+/* The old plan's sessions mix several areas. Split each by exercise, on the day
+   the session was actually trained, into one record per area per date. A day
+   counts as trained once any set is logged; it is full when every set of that
+   area's block is done. */
+function legacyAreaDays() {
+  if (!areaData || !plan) return [];
+  var toArea = areaData.legacy.toArea;
+  var fullPct = areaData.rules.defaults.fullAreaPct;
+  var byKey = {};
+
+  plan.sessions.forEach(function (s) {
+    var date = sessionDate(s);
+    var blocks = {};
+
+    s.exercises.forEach(function (ex) {
+      var a = toArea[ex.id];
+      if (!a) return;                              /* retired, or a placeholder row */
+      var b = blocks[a] = blocks[a] || { done: 0, total: 0 };
+      var sets = Number(ex.sets) || 0;
+      b.total += sets;
+      for (var i = 0; i < sets; i++) {
+        var e = getLog(s.id, ex.id, i);
+        if (e && e.done) b.done++;
+      }
+    });
+
+    Object.keys(blocks).forEach(function (a) {
+      if (!blocks[a].done) return;                 /* nothing logged: not trained */
+      var key = date + '|' + a;
+      var r = byKey[key] = byKey[key] || { date: date, area: a, done: 0, total: 0 };
+      r.done += blocks[a].done;
+      r.total += blocks[a].total;
+    });
+  });
+
+  return Object.keys(byKey).map(function (k) {
+    var r = byKey[k];
+    r.full = r.done * 100 >= r.total * fullPct;
+    return r;
+  });
+}
+
+/* Everything trained, as { date, area, done, total, full } records. */
+function areaDays() { return legacyAreaDays(); }
+
+/* How many full days an area has in its current stage. Everything so far counts,
+   because nobody has left the first stage yet. */
+function stageProgress(area, days) {
+  var stage = currentStage(area);
+  var full = days.filter(function (r) { return r.area === area.id && r.full; }).length;
+  return { stage: stage, full: full, askAfter: stage.askAfter };
+}
+
+/* Body areas guarding this area that are under the red protocol on `date`. */
+function redGuards(area, date) {
+  var red = redAreasOn(date);
+  return area.guardedBy.filter(function (b) { return red[b]; });
+}
+
+/* Where an area stands in one Mon–Sun week.
+   A finished week is judged by what happened. A running one asks whether the
+   target can still be reached: sessions must be `gap` days apart, counting from
+   the last one even when that was last week, so the room left is a number of
+   sessions, not just a number of days. */
+function weekStatus(area, per, gap, start, end, today, touched, mine) {
+  if (end < today) {
+    if (touched > per.max) return { key: 'over', label: 'Over the max' };
+    if (touched >= per.target) return { key: 'hit', label: 'Hit' };
+    if (touched >= per.min) return { key: 'met', label: 'Met minimum' };
+    return { key: 'missed', label: 'Missed' };
+  }
+  if (start > today) return { key: 'ahead', label: '' };
+  if (touched >= per.target) return { key: 'done', label: 'Done' };
+
+  var red = redGuards(area, today);
+  if (red.length) return { key: 'held', label: 'Held · ' + bodyLabel(red[0]).toLowerCase() + ' red' };
+
+  var last = null;
+  mine.forEach(function (r) { if (r.date <= today && (!last || r.date > last)) last = r.date; });
+  var first = last ? addDays(last, gap) : today;
+  if (first < today) first = today;
+
+  var avail = first > end ? 0 : daysBetween(first, end) + 1;
+  var room = avail > 0 ? Math.floor((avail - 1) / gap) + 1 : 0;   /* sessions that still fit */
+
+  var need = per.target - touched;
+  var needMin = Math.max(0, per.min - touched);
+
+  if (need <= room) {
+    return (need === room && first === today) ? { key: 'due', label: 'Due today' } : { key: 'track', label: 'On track' };
+  }
+  return needMin <= room ? { key: 'behind', label: 'Behind' } : { key: 'risk', label: 'At risk' };
+}
+
+function areaWeek(area, start, today, days) {
+  var end = addDays(start, 6);
+  var stage = currentStage(area);
+  var per = stageWeek(area, stage);
+  var gap = stageGap(area, stage);
+
+  var mine = days.filter(function (r) { return r.area === area.id; });
+  var byDate = {};
+  mine.forEach(function (r) { byDate[r.date] = r; });
+
+  var cells = [], touched = 0, full = 0;
+  for (var i = 0; i < 7; i++) {
+    var date = addDays(start, i);
+    var rec = byDate[date] || null;
+    var state = rec ? (rec.full ? 'full' : 'partial') : (date > today ? 'future' : 'none');
+    if (rec) { touched++; if (rec.full) full++; }
+    cells.push({ date: date, state: state, isToday: date === today, record: rec });
+  }
+
+  return {
+    area: area, start: start, end: end, cells: cells, touched: touched, full: full,
+    min: per.min, target: per.target, max: per.max, gap: gap,
+    status: weekStatus(area, per, gap, start, end, today, touched, mine)
+  };
+}
+
+/* Days trained in each of the `n` weeks before `start`, oldest first; null for
+   weeks before there was any history. */
+function recentWeekCounts(area, start, n, days, firstWeek) {
+  var out = [];
+  for (var k = n; k >= 1; k--) {
+    var s = addDays(start, -7 * k);
+    out.push(s < firstWeek ? null : areaWeek(area, s, addDays(s, 7), days).touched);   /* a finished week */
+  }
+  return out;
+}
+
+/* The earliest week worth showing: the plan's first, or earlier if you logged
+   something before it began. */
+function firstWeekStart(days) {
+  var first = plan && plan.meta ? plan.meta.startDate : todayISO();
+  days.forEach(function (r) { if (r.date < first) first = r.date; });
+  return weekStartOf(first);
 }
 
 /* ------------------------------------------------------------------ views */
@@ -3319,6 +3538,340 @@ function renderError(msg) {
   ]);
 }
 
+/* --------------------------------------------------------- areas, on screen */
+/* Read-only for now: the week grid and each area's ladder. Nothing here
+   changes how you train — sessions still come from the plan. */
+
+var areaLoad = 'loading';                    /* loading | ready | failed */
+var areasView = { week: null, day: null };   /* the week and day the tab is showing */
+
+var STATE_TEXT = { full: 'done', partial: 'partial', none: 'not trained', future: 'not yet' };
+
+/* One glyph per state. Shape carries the meaning, colour only reinforces it. */
+function stateGlyph(state) {
+  var svg = svgEl('svg', { class: 'g', viewBox: '0 0 20 20', 'aria-hidden': 'true' });
+  if (state === 'full') {
+    svg.appendChild(svgEl('circle', { class: 'g-done', cx: 10, cy: 10, r: 7.5 }));
+  } else if (state === 'partial') {
+    svg.appendChild(svgEl('circle', { class: 'g-ring', cx: 10, cy: 10, r: 7.5 }));
+    svg.appendChild(svgEl('path', { class: 'g-part', d: 'M10 2.5 A7.5 7.5 0 0 0 10 17.5 Z' }));
+  } else if (state === 'none') {
+    svg.appendChild(svgEl('circle', { class: 'g-dot', cx: 10, cy: 10, r: 1.9 }));
+  }
+  return svg;
+}
+
+function statusTag(status) {
+  return status.label ? el('span', { class: 'st st-' + status.key, text: status.label }) : null;
+}
+
+function areasLoading() {
+  setView('Areas', '', [el('p', { class: 'empty', text: areaLoad === 'failed'
+    ? 'Could not load the areas. Connect once so they can be cached, then they work offline.'
+    : 'Loading areas…' })]);
+}
+
+/* Re-draw in place, keeping the scroll — a tap on a day should not jump the page. */
+function repaintAreas() {
+  var y = window.scrollY;
+  renderAreas();
+  window.scrollTo(0, y);
+}
+
+/* Areas down the side, Monday to Sunday across. Tap a day to see it. */
+function weekGrid(start, today, days) {
+  var grid = el('div', { class: 'wk-grid', role: 'grid', 'aria-label': 'Areas by day' });
+  var LETTER = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+  function pickDay(date) { areasView.day = date; repaintAreas(); }
+
+  grid.appendChild(el('div'));
+  LETTER.forEach(function (letter, i) {
+    var date = addDays(start, i);
+    var b = el('button', {
+      class: 'wk-day' + (date === today ? ' is-today' : '') + (date === areasView.day ? ' is-sel' : ''),
+      type: 'button',
+      'aria-label': fmtDateShort(date) + (date === today ? ', today' : '')
+    }, [letter, el('b', { text: String(Number(date.slice(8, 10))) })]);
+    b.addEventListener('click', function () { pickDay(date); });
+    grid.appendChild(b);
+  });
+
+  areaList().forEach(function (area) {
+    var w = areaWeek(area, start, today, days);
+    grid.appendChild(el('div', { class: 'wk-lab' }, [
+      el('div', { class: 'n', text: area.short }),
+      el('div', { class: 's', text: currentStage(area).id + ' · ' + w.touched + '/' + w.target }),
+      statusTag(w.status)
+    ]));
+
+    w.cells.forEach(function (c) {
+      var cell = el('button', {
+        class: 'wk-cell' + (c.isToday ? ' is-today' : '') + (c.state === 'future' ? ' is-future' : '')
+          + (c.date === areasView.day ? ' is-sel' : ''),
+        type: 'button',
+        'aria-label': area.name + ', ' + fmtDateShort(c.date) + ': ' + STATE_TEXT[c.state]
+      }, [c.state === 'future' ? null : stateGlyph(c.state)]);
+      cell.addEventListener('click', function () { pickDay(c.date); });
+      grid.appendChild(cell);
+    });
+  });
+
+  return grid;
+}
+
+function weekLegend() {
+  var wrap = el('div', { class: 'wk-legend' });
+  [['full', 'Done'], ['partial', 'Partial'], ['none', 'Not trained']].forEach(function (p) {
+    wrap.appendChild(el('span', {}, [stateGlyph(p[0]), p[1]]));
+  });
+  return wrap;
+}
+
+function dayDetail(date, today, days) {
+  var recs = days.filter(function (r) { return r.date === date; });
+  var card = el('div', { class: 'card' }, [
+    el('div', { class: 'card-top' }, [
+      el('span', { class: 'card-title', text: fmtDate(date) }),
+      el('div', { class: 'badges' }, [date === today ? badge('Today', 'badge-now') : null])
+    ])
+  ]);
+
+  if (!recs.length) {
+    card.appendChild(el('div', { class: 'card-sub', text: date > today ? 'Nothing yet.' : 'Nothing logged for any area.' }));
+    return card;
+  }
+
+  recs.forEach(function (r) {
+    var area = areaById(r.area);
+    card.appendChild(el('div', { class: 'wk-item' }, [
+      stateGlyph(r.full ? 'full' : 'partial'),
+      el('span', { text: area ? area.name : r.area }),
+      el('span', { class: 'wk-note', text: r.done + ' of ' + r.total + ' sets' + (r.full ? '' : ' · partial') })
+    ]));
+  });
+  return card;
+}
+
+function weekCard(start, today, days) {
+  var current = weekStartOf(today);
+  var first = firstWeekStart(days);
+  var end = addDays(start, 6);
+
+  var prev = el('button', { class: 'wk-nav', type: 'button', 'aria-label': 'Previous week', text: '‹', disabled: start <= first });
+  var next = el('button', { class: 'wk-nav', type: 'button', 'aria-label': 'Next week', text: '›', disabled: start >= current });
+  prev.addEventListener('click', function () { areasView.week = addDays(start, -7); areasView.day = null; repaintAreas(); });
+  next.addEventListener('click', function () { areasView.week = addDays(start, 7); areasView.day = null; repaintAreas(); });
+
+  var full = 0, partial = 0;
+  areaList().forEach(function (a) {
+    areaWeek(a, start, today, days).cells.forEach(function (c) {
+      if (c.state === 'full') full++;
+      else if (c.state === 'partial') partial++;
+    });
+  });
+
+  return el('div', { class: 'card wk-card' }, [
+    el('div', { class: 'wk-head' }, [
+      prev,
+      el('div', { class: 'wk-title' }, [
+        el('span', { class: 'card-title', text: fmtDateShort(start) + ' – ' + fmtDateShort(end) }),
+        el('span', { class: 'card-sub', text: start === current ? 'This week' : 'Week of ' + fmtDateShort(start) })
+      ]),
+      next
+    ]),
+    weekGrid(start, today, days),
+    weekLegend(),
+    el('p', { class: 'wk-sum', text: 'Done ' + full + ' · Partial ' + partial })
+  ]);
+}
+
+/* The ladder as a row of stage chips, with where you are marked. */
+function ladderRow(area, here) {
+  return el('div', { class: 'ladder', 'aria-label': area.name + ' stages' }, area.stages.map(function (s) {
+    return el('span', {
+      class: 'rung' + (s.id === here ? ' is-here' : '') + (s.goal ? ' is-goal' : '') + (s.optional ? ' is-optional' : ''),
+      title: s.id + ' ' + s.name,
+      text: s.id
+    });
+  }));
+}
+
+function areaCard(area, days) {
+  var prog = stageProgress(area, days);
+  return el('a', { class: 'card', href: '#/areas/' + area.id }, [
+    el('div', { class: 'card-top' }, [
+      el('span', { class: 'card-title', text: area.name }),
+      el('span', { class: 'chev', text: '›' })
+    ]),
+    el('div', { class: 'card-sub', text: area.goal }),
+    ladderRow(area, prog.stage.id),
+    el('div', { class: 'card-sub', text: 'Stage ' + prog.stage.id + ' · ' + prog.stage.name + ' · '
+      + prog.full + ' of ' + prog.askAfter + ' full days' })
+  ]);
+}
+
+function renderAreas() {
+  if (!areaData) return areasLoading();
+
+  var today = todayISO();
+  var days = areaDays();
+  var current = weekStartOf(today);
+  var first = firstWeekStart(days);
+
+  var start = areasView.week || current;
+  if (start > current) start = current;
+  if (start < first) start = first;
+  areasView.week = start;
+
+  var end = addDays(start, 6);
+  if (!areasView.day || areasView.day < start || areasView.day > end) {
+    areasView.day = (today >= start && today <= end) ? today : start;
+  }
+
+  var nodes = [
+    weekCard(start, today, days),
+    dayDetail(areasView.day, today, days),
+    el('p', { class: 'section-label', text: 'Areas' })
+  ];
+  areaList().forEach(function (a) { nodes.push(areaCard(a, days)); });
+
+  nodes.push(el('p', { class: 'hint', text: 'History from before the areas (weighted pull-ups, sprints, hinge, kettlebell press and a few prehab exercises) is kept but not counted here. Skipped days arrive with the daily menu.' }));
+  nodes.push(el('p', { class: 'buildline', text: 'Build ' + BUILD }));
+
+  setView('Areas', areaList().length + ' areas', nodes);
+}
+
+/* Which stage of an area, by position — for "you are at P1, this needs P4". */
+function stageIndex(area, stageId) {
+  for (var i = 0; i < area.stages.length; i++) {
+    if (area.stages[i].id === stageId) return i;
+  }
+  return -1;
+}
+
+function stageCard(area, stage, prog) {
+  var here = stage.id === prog.stage.id;
+  var per = stageWeek(area, stage);
+  var card = el('div', { class: 'card' + (here ? ' is-now' : '') }, [
+    el('div', { class: 'card-top' }, [
+      el('span', { class: 'card-title', text: stage.id + ' · ' + stage.name }),
+      el('div', { class: 'badges' }, [
+        here ? badge('You are here', 'badge-now') : null,
+        stage.goal ? badge('Goal', 'badge-test') : null,
+        stage.milestone ? badge('Milestone') : null,
+        stage.optional ? badge('Optional') : null
+      ])
+    ]),
+    el('div', { class: 'card-sub', text: stage.work })
+  ]);
+
+  if (stage.ready.length) {
+    card.appendChild(el('div', { class: 'stage-ready' }, [
+      el('strong', { text: 'Ready when' }),
+      el('ul', {}, stage.ready.map(function (r) { return el('li', { text: r }); }))
+    ]));
+  }
+  if (stage.note) card.appendChild(el('div', { class: 'card-sub', text: stage.note }));
+
+  var facts = [];
+  if (stage.askAfter) facts.push('Review after ' + stage.askAfter + ' full days' + (here ? ' · ' + prog.full + ' so far' : ''));
+  if (stage.bells) facts.push('Bell: ' + stage.bells.map(function (b) { return b.lb + ' lb · ' + b.kg + ' kg'; }).join(' and '));
+  if (stage.maxContacts) facts.push('Up to ' + stage.maxContacts + ' foot contacts');
+  if (stage.perWeek || stage.minGapDays) {
+    facts.push('This stage runs ' + per.min + ' · ' + per.target + ' · ' + per.max + ' days a week, '
+      + stageGap(area, stage) + ' days apart');
+  }
+  facts.forEach(function (f) { card.appendChild(el('div', { class: 'stage-fact', text: f })); });
+
+  (stage.requires || []).forEach(function (r) {
+    var other = areaById(r.area);
+    if (!other) return;
+    var at = currentStage(other);
+    var met = stageIndex(other, at.id) >= stageIndex(other, r.stage);
+    card.appendChild(el('div', { class: 'stage-fact' + (met ? '' : ' is-unmet'), text:
+      'Advisory: ' + other.name + ' ' + r.stage + ' first — you are at ' + at.id + (met ? ', met' : ', not yet') }));
+  });
+
+  return card;
+}
+
+function ruleLines(area) {
+  var out = [];
+  var rules = areaData.rules;
+  function name(id) { var a = areaById(id); return a ? a.name : id; }
+
+  rules.conflicts.forEach(function (c) {
+    if (c.areas.indexOf(area.id) < 0) return;
+    var other = name(c.areas[0] === area.id ? c.areas[1] : c.areas[0]);
+    out.push((c.soft ? 'Avoid the same day as ' : 'Never the same day as ') + other + ' — ' + c.why + '.');
+  });
+  rules.budgets.forEach(function (b) {
+    if (b.areas.indexOf(area.id) < 0) return;
+    out.push('Shares a weekly cap of ' + b.maxPerWeek + ' days with ' + b.areas.filter(function (x) { return x !== area.id; }).map(name).join(', ') + ' — ' + b.why + '.');
+  });
+  return out;
+}
+
+function renderAreaDetail(id) {
+  if (!areaData) return areasLoading();
+  var area = areaById(id);
+  if (!area) return renderNotFound('No area "' + id + '".');
+
+  var today = todayISO();
+  var days = areaDays();
+  var start = weekStartOf(today);
+  var w = areaWeek(area, start, today, days);
+  var prog = stageProgress(area, days);
+  var recent = recentWeekCounts(area, start, 3, days, firstWeekStart(days));
+
+  var nodes = [
+    el('a', { class: 'back', href: '#/areas', text: '‹ Areas' }),
+    el('div', { class: 'session-head' }, [
+      el('h2', { text: area.name }),
+      el('div', { class: 'meta', text: area.goal })
+    ])
+  ];
+
+  var rows = [
+    ['This week', w.touched + ' of ' + w.target + (w.status.label ? ' · ' + w.status.label : '')],
+    ['Last 3 weeks', recent.map(function (n) { return n === null ? '–' : n; }).join('  ')],
+    ['Days a week', w.min + ' · ' + w.target + ' · ' + w.max + '  (min · target · max)'],
+    ['Days apart', 'at least ' + w.gap],
+    ['A session takes', 'about ' + area.minutes + ' min'],
+    ['Load', area.load],
+    ['Guarded by', area.guardedBy.map(bodyLabel).join(', ')]
+  ];
+  if (area.perWeek.nominalTarget) rows.splice(3, 0, ['Nominal target', area.perWeek.nominalTarget + ' days, trimmed to fit your time']);
+
+  var kv = el('div', { class: 'kv kv-text' });
+  rows.forEach(function (r) {
+    kv.appendChild(el('div', { class: 'kv-row' }, [
+      el('span', { class: 'kv-key', text: r[0] }),
+      el('span', { class: 'kv-val', text: r[1] })
+    ]));
+  });
+  nodes.push(el('p', { class: 'section-label', text: 'How it runs' }), kv);
+
+  (area.tests || []).forEach(function (t) {
+    nodes.push(el('p', { class: 'hint', text: t.name + ' — baseline in ' + t.baselineStage + ', retested every ' + t.retestEveryWeeks + ' weeks. ' + t.note }));
+  });
+
+  var rules = ruleLines(area);
+  if (rules.length) {
+    nodes.push(el('p', { class: 'section-label', text: 'Rules' }));
+    rules.forEach(function (line) { nodes.push(el('p', { class: 'hint', text: line })); });
+  }
+
+  nodes.push(el('p', { class: 'section-label', text: 'Ladder' }));
+  nodes.push(ladderRow(area, prog.stage.id));
+  area.stages.forEach(function (s) { nodes.push(stageCard(area, s, prog)); });
+
+  nodes.push(el('p', { class: 'buildline', text: 'Build ' + BUILD }));
+  setView(area.short, 'Stage ' + prog.stage.id, nodes);
+  window.scrollTo(0, 0);
+}
+
 /* ----------------------------------------------------------------- router */
 
 function route() {
@@ -3339,6 +3892,8 @@ function route() {
 
   if (tab === 'plan' && parts[1]) renderWeek(parts[1]);
   else if (tab === 'plan') renderWeekList();
+  else if (tab === 'areas' && parts[1]) renderAreaDetail(parts[1]);
+  else if (tab === 'areas') renderAreas();
   else if (tab === 'session') renderSession(parts[1]);
   else if (tab === 'today') renderToday();
   else if (tab === 'checkin') renderCheckIn();
@@ -3448,6 +4003,17 @@ function isInstalled() {
 /* Registered up front, not inside the plan fetch: if plan.json ever fails
    the app must still install and still work offline next time. */
 registerSW();
+
+/* The areas load alongside the plan and never hold it up: if they fail, Today
+   and Plan still work and the Areas tab says so. */
+loadAreaData().then(function (data) {
+  areaData = data;
+  areaLoad = 'ready';
+}).catch(function () {
+  areaLoad = 'failed';
+}).then(function () {
+  if (plan && /^#\/areas/.test(location.hash)) route();
+});
 
 loadPlan().then(function (json) {
   plan = json;

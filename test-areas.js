@@ -58,6 +58,7 @@ areas.forEach(a => {
     const bad = Object.keys(s).filter(k => !STAGE_KEYS.includes(k));
     if (bad.length) eq(`${s.id}: no unknown stage fields`, bad, []);
     ok(`${s.id}: has a name and what to do`, s.name && s.work);
+    ok(`${s.id}: no standard is vague shorthand like "same"`, s.ready.every(r => r.length > 8));
     ok(`${s.id}: ready is a list of strings`, Array.isArray(s.ready) && s.ready.every(r => typeof r === 'string' && r.length > 0));
     if (!s.optional) {
       ok(`${s.id}: has a standard to attest to`, s.ready.length > 0);

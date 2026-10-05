@@ -615,12 +615,27 @@ export imports and is seeded as above.
 
 ## 11. Build order
 
-0. **Fix first:** the session runner ignores red-light suppression. Hamstring is
-   red until 9 Oct and today's session has Nordic.
-1. **M11 — data and rules:** area files for all eight, `rules.json`, a validator
-   test, and a read-only *Areas* tab (ladders, week grid from your legacy
-   history). No change to how you train. The grid shows done and partial only;
-   **skipped appears once menus are saved, from M12.**
+0. **Fix first — done (build 1.9.1):** the session runner ignored red-light
+   suppression. It now skips what the red light has pulled, and the set totals
+   leave those exercises out. `test-runner.js` covers it and was checked to fail
+   against the old code.
+1. **M11 — data and rules — done (build 1.10.0-m11):** area files for all eight,
+   `rules.json`, `legacy.json`, a validator test, and a read-only **Areas** tab
+   with the week grid, a day detail, an area card with its ladder, and an area
+   page with every stage. No change to how you train. What shipped differs from
+   the sketch in four ways:
+   - Areas is a **fifth tab next to Plan**, not a replacement. Plan goes away when
+     sessions are generated (M13), so nothing you use today moved.
+   - The grid shows **done and partial only**. Skipped appears once menus are
+     saved (M12).
+   - "Held" uses the four body areas the check-in already collects (elbow,
+     shoulder, hamstring, Achilles). Wrist, lower back and knee are in the data
+     but not asked yet (M13).
+   - History comes from the old plan's logs, split by exercise, and reproduces
+     the seeding table in section 10 exactly: muscle-up 3 full days, plyometrics
+     3, Nordic 1.
+   The service worker precaches the area data from its own index, so a ninth area
+   needs no edit to `sw.js`.
 2. **M12 — area-days and sittings:** log per area instead of per fixed session,
    with legacy mapping and the 500 kg flag. A manual *Today* menu (pick areas,
    time chooser, up to 3 sittings, partial finish, log off-app), saved day
