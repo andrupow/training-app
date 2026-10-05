@@ -156,5 +156,25 @@ fresh();
 ctx.writeBackup({ setLogs: [], dayPlans: plans });
 eq('plans without frozen days: frozen are cleared', [store.dayPlans, store.areaDays], [JSON.stringify(plans), undefined]);
 
+console.log('week fits in a backup:');
+const fits = { '2026-10-05': { budget: 330, cost: 302, minCost: 280, startCost: 432, verdict: 'tight', targets: { kb: 2, mu: 2 }, trimmed: [{ id: 'kb', from: 5, to: 2 }], ramp: [] } };
+const withFits = ctx.inspectBackup(JSON.stringify({ setLogs: [], weekFits: fits }));
+ok('an object is accepted', !withFits.error);
+eq('weekFits through', withFits.data.weekFits, fits);
+ok('weekFits as an array is rejected', !!ctx.inspectBackup('{"weekFits":[]}').error);
+ctx.weekFits = fits; ctx.saveWeekFits();
+eq('weekFits exported', ctx.exportPayload().weekFits, fits);
+fresh();
+store.weekFits = JSON.stringify(fits);
+ctx.writeBackup({ setLogs: [{ sessionId: 'W2-Mon' }] });
+eq('logs without them (an old file) clears them: a fit belongs to the history it was made for', store.weekFits, undefined);
+fresh();
+store.weekFits = JSON.stringify(fits);
+ctx.writeBackup({ baselines: [{ date: '2026-09-19' }] });
+eq('a file with no logs leaves them alone', store.weekFits, JSON.stringify(fits));
+fresh();
+ctx.writeBackup({ setLogs: [], weekFits: fits });
+eq('a file that has them restores them', store.weekFits, JSON.stringify(fits));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -17,10 +17,11 @@ var LS_SETTINGS = 'settings';
 var LS_SCHEDULE = 'schedule';
 var LS_DAYPLANS = 'dayPlans';      /* the menu of each day, so the week can say what was skipped */
 var LS_AREADAYS = 'areaDays';      /* what each area-day contained, fixed when it was first planned */
+var LS_WEEKFITS = 'weekFits';      /* each week's targets, fitted to your time and saved when the week is first looked at */
 
 /* Everything the app owns, in one list. Export walks it, import restores it,
    and Milestone 5 gets checkIns backed up without touching this file. */
-var COLLECTIONS = [LS_BASELINES, LS_LOGS, LS_CHECKINS, LS_SCHEDULE, LS_SETTINGS, LS_DAYPLANS, LS_AREADAYS];
+var COLLECTIONS = [LS_BASELINES, LS_LOGS, LS_CHECKINS, LS_SCHEDULE, LS_SETTINGS, LS_DAYPLANS, LS_AREADAYS, LS_WEEKFITS];
 
 var EXPORT_NAG_DAYS = 7;
 var LS_TIMER = 'restTimer';
@@ -1344,6 +1345,159 @@ function stageProgress(area, days) {
   return { stage: stage, full: full, askAfter: stage.askAfter };
 }
 
+/* --- the week's time budget ----------------------------------------------- */
+/* Each area asks for a number of days a week. Whether they all fit depends on the
+   minutes you actually have, so each week the targets are fitted to that time:
+   from the lowest priority up, a target gives up one day at a time, never below
+   its minimum, until the week's cost fits the minutes. A new area runs at its
+   minimum for its first weeks. The fit is saved the first time the week is looked
+   at, so a week is judged against what it was planned as, not against what you
+   later said about your time. */
+
+var weekFits = {};    /* week start -> { budget, cost, minCost, startCost, verdict, targets, trimmed, ramp } */
+
+function cleanWeekFit(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  var n = function (v) { v = Number(v); return isFinite(v) && v >= 0 ? v : null; };
+
+  var out = { budget: n(raw.budget), cost: n(raw.cost), minCost: n(raw.minCost), startCost: n(raw.startCost), targets: {}, trimmed: [], ramp: uniqueStrings(raw.ramp) };
+  if (out.budget === null || out.cost === null || out.minCost === null) return null;
+  if (out.startCost === null) out.startCost = out.cost;
+  out.verdict = ['fits', 'tight', 'over'].indexOf(raw.verdict) >= 0 ? raw.verdict : 'fits';
+
+  if (!raw.targets || typeof raw.targets !== 'object' || Array.isArray(raw.targets)) return null;
+  Object.keys(raw.targets).forEach(function (id) {
+    var t = n(raw.targets[id]);
+    if (t !== null) out.targets[id] = Math.round(t);
+  });
+  (Array.isArray(raw.trimmed) ? raw.trimmed : []).forEach(function (t) {
+    if (t && typeof t.id === 'string' && n(t.from) !== null && n(t.to) !== null) out.trimmed.push({ id: t.id, from: Math.round(t.from), to: Math.round(t.to) });
+  });
+  return out;
+}
+
+function loadWeekFits() {
+  var stored = lsGet(LS_WEEKFITS);
+  weekFits = {};
+  if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return;
+  Object.keys(stored).forEach(function (start) {
+    var fit = /^\d{4}-\d{2}-\d{2}$/.test(start) ? cleanWeekFit(stored[start]) : null;
+    if (fit) weekFits[start] = fit;
+  });
+}
+
+function saveWeekFits() { return saveCollection(LS_WEEKFITS, weekFits); }
+
+/* The minutes you have in the week starting `start`: your usual time on each day. */
+function weekMinutes(start) {
+  var total = 0;
+  for (var i = 0; i < 7; i++) total += defaultMinutes(addDays(start, i));
+  return total;
+}
+
+/* Which week an area was first trained in, or null if it never has been. */
+function firstTouchWeek(areaId, days) {
+  var first = null;
+  days.forEach(function (r) { if (r.area === areaId && (!first || r.date < first)) first = r.date; });
+  return first ? weekStartOf(first) : null;
+}
+
+/* The first weeks of an area run at its minimum. An area that has not been
+   trained yet is in its first week. */
+function inRamp(areaId, start, days) {
+  var weeks = areaData.rules.defaults.rampWeeks;
+  if (!(weeks > 0)) return false;
+  var first = firstTouchWeek(areaId, days);
+  if (!first || first >= start) return true;
+  return daysBetween(first, start) / 7 < weeks;
+}
+
+/* The fit itself, from plain numbers.
+     items   [{ id, priority, minutes, min, target, ramp }]  target is the nominal one
+     budget  minutes in the week
+   Everything is lowered from the lowest priority (the biggest number) up, one day
+   at a time, and never below the minimum. */
+function fitTargets(items, budget, tightRatio) {
+  var targets = {}, start = {}, startCost = 0, cost = 0, minCost = 0;
+  items.forEach(function (it) {
+    start[it.id] = it.ramp ? it.min : it.target;
+    targets[it.id] = start[it.id];
+    cost += it.minutes * targets[it.id];
+    minCost += it.minutes * it.min;
+  });
+  startCost = cost;
+
+  var byPriority = items.slice().sort(function (a, b) { return b.priority - a.priority; });
+  var guard = 0;
+  while (cost > budget && guard++ < 1000) {
+    var next = byPriority.filter(function (it) { return targets[it.id] > it.min; })[0];
+    if (!next) break;
+    targets[next.id]--;
+    cost -= next.minutes;
+  }
+
+  var trimmed = items.filter(function (it) { return targets[it.id] < start[it.id]; })
+    .sort(function (a, b) { return a.priority - b.priority; })
+    .map(function (it) { return { id: it.id, from: start[it.id], to: targets[it.id] }; });
+
+  var verdict = minCost > budget ? 'over' : (budget > 0 && minCost / budget >= tightRatio) ? 'tight' : 'fits';
+  return {
+    budget: budget, cost: cost, minCost: minCost, startCost: startCost, verdict: verdict,
+    targets: targets, trimmed: trimmed,
+    ramp: items.filter(function (it) { return it.ramp; }).map(function (it) { return it.id; })
+  };
+}
+
+function computeWeekFit(start, days) {
+  var items = areaList().map(function (a) {
+    var per = stageWeek(a, currentStage(a));
+    return {
+      id: a.id, priority: a.priority, minutes: a.minutes, min: per.min,
+      target: Math.max(per.min, per.nominalTarget || per.target),
+      ramp: inRamp(a.id, start, days)
+    };
+  });
+  return fitTargets(items, weekMinutes(start), areaData.rules.defaults.tightRatio || 0.85);
+}
+
+/* The fit for a week. A week already underway or finished uses what was saved;
+   one that was never looked at while it was running has none, and is judged by
+   the targets as authored. The coming week is worked out fresh. */
+function weekFitFor(start, days, today) {
+  if (weekFits[start]) return weekFits[start];
+  return start >= weekStartOf(today) ? computeWeekFit(start, days) : null;
+}
+
+/* Save this week's fit the first time it is looked at while the week is running. */
+function ensureWeekFit(start, days) {
+  if (weekFits[start] || !areaData) return weekFits[start] || null;
+  if (start !== weekStartOf(todayISO())) return null;
+  weekFits[start] = computeWeekFit(start, days);
+  saveWeekFits();
+  return weekFits[start];
+}
+
+/* "Your minimums need 280 min a week; you have 330. Tight." */
+function feasibilityLine(fit) {
+  var tail = fit.verdict === 'over' ? 'That does not fit.' : fit.verdict === 'tight' ? 'Tight.' : 'Room to spare.';
+  return 'Your minimums need ' + fit.minCost + ' min a week; you have ' + fit.budget + '. ' + tail;
+}
+
+/* What the fit changed, in words. Empty when nothing was trimmed. */
+function trimmedLine(fit) {
+  if (!fit.trimmed.length) return '';
+  return 'Fitted to your time: ' + fit.trimmed.map(function (t) {
+    var a = areaById(t.id);
+    return (a ? a.name : t.id) + ' ' + t.from + '→' + t.to;
+  }).join(', ') + '.';
+}
+
+function rampLine(fit) {
+  if (!fit.ramp.length) return '';
+  var names = fit.ramp.map(function (id) { var a = areaById(id); return a ? a.name : id; });
+  return 'Starting out, minimum only for ' + areaData.rules.defaults.rampWeeks + ' weeks: ' + names.join(', ') + '.';
+}
+
 /* Body areas guarding this area that are under the red protocol on `date`. */
 function redGuards(area, date) {
   var red = redAreasOn(date);
@@ -1388,8 +1542,13 @@ function weekStatus(area, per, gap, start, end, today, touched, mine) {
 function areaWeek(area, start, today, days) {
   var end = addDays(start, 6);
   var stage = currentStage(area);
-  var per = stageWeek(area, stage);
+  var authored = stageWeek(area, stage);
   var gap = stageGap(area, stage);
+
+  /* The target this week is the fitted one; min and max are the stage's own. */
+  var fit = weekFitFor(start, days, today);
+  var fitted = fit && area.id in fit.targets;
+  var per = { min: authored.min, target: fitted ? Math.max(authored.min, fit.targets[area.id]) : authored.target, max: authored.max };
 
   var mine = days.filter(function (r) { return r.area === area.id; });
   var byDate = {};
@@ -1407,6 +1566,8 @@ function areaWeek(area, start, today, days) {
   return {
     area: area, start: start, end: end, cells: cells, touched: touched, full: full,
     min: per.min, target: per.target, max: per.max, gap: gap,
+    nominal: authored.nominalTarget || authored.target, fitted: !!fitted,
+    ramp: !!(fit && fit.ramp.indexOf(area.id) >= 0),
     status: weekStatus(area, per, gap, start, end, today, touched, mine)
   };
 }
@@ -2538,7 +2699,7 @@ function inspectBackup(raw) {
     var key = COLLECTIONS[i];
     if (!(key in data)) continue;
     var v = data[key];
-    var wantArray = [LS_SETTINGS, LS_SCHEDULE, LS_DAYPLANS, LS_AREADAYS].indexOf(key) < 0;
+    var wantArray = [LS_SETTINGS, LS_SCHEDULE, LS_DAYPLANS, LS_AREADAYS, LS_WEEKFITS].indexOf(key) < 0;
 
     if (wantArray ? !Array.isArray(v) : (typeof v !== 'object' || v === null || Array.isArray(v))) {
       return { error: '“' + key + '” is the wrong shape in that file.' };
@@ -2573,7 +2734,7 @@ function writeBackup(data) {
     if (key in data) localStorage.setItem(key, JSON.stringify(data[key]));
   });
   if (LS_LOGS in data) {
-    [LS_DAYPLANS, LS_AREADAYS].forEach(function (key) {
+    [LS_DAYPLANS, LS_AREADAYS, LS_WEEKFITS].forEach(function (key) {
       if (!(key in data)) localStorage.removeItem(key);
     });
   }
@@ -2623,6 +2784,7 @@ function importData(file) {
     loadSettings();
     loadDayPlans();
     loadFrozenDays();
+    loadWeekFits();
     renderProgress();
     paintTabBadge();
     toast('Restored ' + incoming + '.');
@@ -5013,6 +5175,7 @@ loadPlan().then(function (json) {
   loadSchedule();
   loadDayPlans();
   loadFrozenDays();
+  loadWeekFits();
   restoreTimer();
   scheduleReminder();
   if (!location.hash) location.replace('#/today');

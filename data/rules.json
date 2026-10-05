@@ -12,6 +12,7 @@
     "maxAreas": 4,
     "maxHigh": 2,
     "rampWeeks": 2,
+    "tightRatio": 0.8,
     "fullAreaPct": 100,
     "repeatEvery": 4
   },

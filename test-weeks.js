@@ -21,6 +21,11 @@ const read=f=>JSON.parse(fs.readFileSync(f,'utf8'));
 const idx=read('data/areas/index.json');
 ctx.areaData={rules:read('data/rules.json'),legacy:read('data/legacy.json'),list:idx.areas.map(id=>read('data/areas/'+id+'.json'))};
 const A=id=>ctx.areaById(id);
+/* These tests are about status and menu logic, so every week is pinned to the targets
+   as authored: no time fit, no ramp-in. test-fit.js covers those. */
+const pinWeeks=()=>{const t={};ctx.areaList().forEach(a=>{t[a.id]=ctx.stageWeek(a,ctx.currentStage(a)).target;});ctx.weekFits={};
+  for(let d='2026-08-31',i=0;i<30;i++,d=ctx.addDays(d,7))ctx.weekFits[d]={budget:999,cost:0,minCost:0,startCost:0,verdict:'fits',targets:Object.assign({},t),trimmed:[],ramp:[]};};
+pinWeeks();
 const S=id=>ctx.plan.sessions.find(s=>s.id===id);
 const ci=(date,pain)=>({date,pain:Object.assign({elbow:0,shoulder:0,achilles:0,hamstring:0},pain),stiffness:'none'});
 ctx.checkIns=[]; ctx.schedule={}; ctx.setLogs=[]; ctx.logIndex={};
