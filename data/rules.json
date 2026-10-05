@@ -37,17 +37,17 @@
     {
       "id": "wrist",
       "label": "Wrist",
-      "collected": false
+      "collected": true
     },
     {
       "id": "lowerBack",
       "label": "Lower back",
-      "collected": false
+      "collected": true
     },
     {
       "id": "knee",
       "label": "Knee",
-      "collected": false
+      "collected": true
     },
     {
       "id": "hamstring",

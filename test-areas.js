@@ -139,7 +139,8 @@ eq('only Nordic and kettlebell is a soft conflict', rules.conflicts.filter(c => 
 ok('time options ascend and include the default', rules.defaults.timeOptions.every((t, i, l) => !i || t > l[i - 1]) && rules.defaults.timeOptions.includes(rules.defaults.dayMinutes));
 ok('up to three sittings', rules.defaults.maxSittings === 3);
 eq('body area ids are unique', new Set(bodyIds).size, bodyIds.length);
-eq('the four existing check-in areas are collected', rules.bodyAreas.filter(b => b.collected).map(b => b.id).sort(), ['achilles', 'elbow', 'hamstring', 'shoulder']);
+eq('all seven body areas are collected at the check-in', rules.bodyAreas.filter(b => b.collected).map(b => b.id).sort(), ['achilles', 'elbow', 'hamstring', 'knee', 'lowerBack', 'shoulder', 'wrist']);
+ok('and every area is guarded by body areas that are collected', areas.every(a => a.guardedBy.every(g => rules.bodyAreas.some(b => b.id === g && b.collected))));
 ok('Achilles is kept for plyometrics', byId.plyo.guardedBy.includes('achilles'));
 ok('verdict thresholds are numbers', Object.values(rules.verdicts).every(Number.isFinite));
 

@@ -272,7 +272,13 @@ function painOf(checkIn, area) {
   return isFinite(p) ? p : 0;
 }
 
+/* The body areas the check-in asks about. Once the area data is in, the rules say
+   which (seven: elbow, shoulder, wrist, lower back, knee, hamstring, Achilles);
+   until then, and if it never loads, the old plan's four. */
 function areas() {
+  if (areaData) {
+    return areaData.rules.bodyAreas.filter(function (b) { return b.collected; }).map(function (b) { return b.id; });
+  }
   return plan.trafficLight.areas;
 }
 
@@ -3514,7 +3520,7 @@ function runSummary(s) {
    plan autoregulates off next-morning stiffness rather than off how a set
    felt at the time. */
 
-var AREA_LABEL = { elbow: 'Medial elbow', shoulder: 'Shoulder', achilles: 'Achilles', hamstring: 'Hamstring' };
+var AREA_LABEL = { elbow: 'Medial elbow', shoulder: 'Shoulder', wrist: 'Wrist', lowerBack: 'Lower back', knee: 'Knee', achilles: 'Achilles', hamstring: 'Hamstring' };
 var STATE_LABEL = { green: 'Green', amber: 'Amber', red: 'Red' };
 
 /* The track keys are join keys, not English. */
@@ -3527,6 +3533,19 @@ function trackNames(area) {
   return tracksForArea(area).map(function (t) { return TRACK_LABEL[t] || t; }).join(', ');
 }
 
+/* What a body area's light does to the work. The old plan's tracks until the areas
+   are in, then the areas it guards: amber holds them where they are, red pauses them. */
+function guardedAreas(bodyId) {
+  return areaList().filter(function (a) { return a.guardedBy.indexOf(bodyId) >= 0; });
+}
+
+function consequenceText(bodyId, state) {
+  var guarded = guardedAreas(bodyId);
+  if (!guarded.length) return trackNames(bodyId);
+  var names = guarded.map(function (a) { return a.short || a.name; }).join(', ');
+  return (state === 'red' ? 'Pauses ' : 'Holds ') + names;
+}
+
 function renderCheckIn() {
   var today = todayISO();
   var existing = checkInOn(today);
@@ -3534,15 +3553,11 @@ function renderCheckIn() {
   /* Editing today's entry rather than stacking a second one. */
   var draft = {
     date: today,
-    pain: {
-      elbow: existing ? painOf(existing, 'elbow') : 0,
-      shoulder: existing ? painOf(existing, 'shoulder') : 0,
-      achilles: existing ? painOf(existing, 'achilles') : 0,
-      hamstring: existing ? painOf(existing, 'hamstring') : 0
-    },
+    pain: {},
     stiffness: existing ? existing.stiffness : 'none',
     note: existing ? (existing.note || '') : ''
   };
+  areas().forEach(function (a) { draft.pain[a] = existing ? painOf(existing, a) : 0; });
 
   var verdictBox = el('div', { class: 'verdict', id: 'verdict' });
 
@@ -3561,8 +3576,8 @@ function renderCheckIn() {
       var s = states[a];
       rows.appendChild(el('div', { class: 'verdict-row' }, [
         el('span', { class: 'dot dot-' + s }),
-        el('span', { class: 'verdict-area', text: AREA_LABEL[a] }),
-        el('span', { class: 'verdict-tracks', text: s === 'green' ? '' : trackNames(a) })
+        el('span', { class: 'verdict-area', text: bodyLabel(a) }),
+        el('span', { class: 'verdict-tracks', text: s === 'green' ? '' : consequenceText(a, s) })
       ]));
     });
     verdictBox.appendChild(rows);
@@ -3575,7 +3590,7 @@ function renderCheckIn() {
     var rising = areas().filter(function (a) { return risingThree(a, draft, prior); });
     if (rising.length) {
       verdictBox.appendChild(el('div', { class: 'verdict-flag', text: 'Rising three check-ins running: '
-        + rising.map(function (a) { return AREA_LABEL[a]; }).join(', ') + '.' }));
+        + rising.map(bodyLabel).join(', ') + '.' }));
     }
   }
 
@@ -3588,7 +3603,7 @@ function renderCheckIn() {
   areas().forEach(function (a) {
     var out = el('span', { class: 'slider-val', text: String(draft.pain[a]) });
     var input = el('input', { type: 'range', min: '0', max: '10', step: '1', class: 'slider',
-      id: 'pain-' + a, 'aria-label': AREA_LABEL[a] + ' pain, 0 to 10' });
+      id: 'pain-' + a, 'aria-label': bodyLabel(a) + ' pain, 0 to 10' });
     input.value = draft.pain[a];
 
     input.addEventListener('input', function () {
@@ -3599,7 +3614,7 @@ function renderCheckIn() {
 
     nodes.push(el('div', { class: 'slider-block' }, [
       el('div', { class: 'slider-head' }, [
-        el('label', { class: 'slider-label', for: 'pain-' + a, text: AREA_LABEL[a] }),
+        el('label', { class: 'slider-label', for: 'pain-' + a, text: bodyLabel(a) }),
         out
       ]),
       input
@@ -3675,9 +3690,17 @@ function renderCheckIn() {
   window.scrollTo(0, 0);
 }
 
+/* "Elbow 4 · Knee 2", or "no pain". Body areas an older check-in never asked about
+   read as nothing, so they never show. */
+function painSummary(c) {
+  var hurt = areas().filter(function (a) { return painOf(c, a) > 0; })
+    .map(function (a) { return bodyLabel(a) + ' ' + painOf(c, a); });
+  return hurt.length ? hurt.join(' \u00b7 ') : 'no pain';
+}
+
 function checkInRow(c) {
   var overall = worstState(areaStates(c, priorTo(c.date)));
-  var pains = areas().map(function (a) { return AREA_LABEL[a].split(' ').pop() + ' ' + painOf(c, a); }).join(' · ');
+  var pains = painSummary(c);
   var stiff = (STIFFNESS.filter(function (s) { return s.value === c.stiffness; })[0] || {}).label || '—';
 
   return el('div', { class: 'card hist' }, [
@@ -3948,7 +3971,7 @@ function redBanner(session, gate) {
     if (ex.track && gate.suppressed[ex.track]) names.push(ex.name);
   });
 
-  var areaNames = gate.redAreas.map(function (a) { return AREA_LABEL[a] || a; }).join(', ');
+  var areaNames = gate.redAreas.map(bodyLabel).join(', ');
   var until = gate.redAreas.map(function (a) { return gate.redUntil[a]; }).sort().pop();
 
   var box = el('div', { class: 'callout callout-red' }, [
@@ -3975,7 +3998,7 @@ function holdBanner(session, gate) {
   if (!Object.keys(tracks).length) return null;
 
   var names = Object.keys(tracks).map(function (t) { return TRACK_LABEL[t] || t; }).join(', ');
-  var from = gate.heldAreas.map(function (a) { return AREA_LABEL[a] || a; }).join(', ');
+  var from = gate.heldAreas.map(bodyLabel).join(', ');
 
   var box = el('div', { class: 'callout' }, [
     el('strong', { text: 'Holding · ' + names }),
@@ -5247,11 +5270,12 @@ function renderAreaDetail(id) {
   window.scrollTo(0, 0);
 }
 
-/* Today, Areas and the runner all draw from the area data. Everything else
-   (Plan, Check-in, Progress) works without it. An empty hash is Today. */
+/* Today, Areas and the runner draw from the area data, and the check-in asks about
+   seven body areas instead of four once it is in. Plan and Progress work without
+   it. An empty hash is Today. */
 function routeNeedsAreas(hash) {
   var tab = String(hash || '').replace(/^#\/?/, '').split('/')[0] || 'today';
-  return tab === 'today' || tab === 'areas' || tab === 'run';
+  return tab === 'today' || tab === 'areas' || tab === 'run' || tab === 'checkin';
 }
 
 /* ----------------------------------------------------------------- router */
