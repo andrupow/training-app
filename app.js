@@ -1,5 +1,5 @@
 /* The Integrated Plan — Milestones 1-8, complete; M9-M10 runner and rescheduling;
-   M11 workout areas, M12 the daily menu, M13 the recommender
+   M11 workout areas, M12 the daily menu, M13 the recommender, M14 stages and level-up
    Shell + PWA + plan browser + today's session with set logging
    + dated baselines and the load calculator + rest timer + JSON backup
    + morning check-in, the traffic light, HOLD gating and progression charts.
@@ -7,7 +7,7 @@
 
 'use strict';
 
-var BUILD = '1.12.0-m13';
+var BUILD = '1.13.0-m14';
 var PLAN_URL = 'data/plan.json';
 var LS_PLAN = 'plan.cache.v1';
 var LS_LOGS = 'setLogs';
@@ -2991,6 +2991,7 @@ function areaDayCard(date, sittingIdx, areaId, plan, onlyOne) {
   var badges = el('div', { class: 'badges' }, [
     paused ? badge('Held', 'badge-test') : null,
     hold ? badge('Hold', 'badge-test') : null,
+    s.deload ? badge('Easy block') : null,
     finished ? badge('Done', 'badge-green') : null,
     s.draft ? badge('Draft') : null
   ]);
@@ -3016,6 +3017,9 @@ function areaDayCard(date, sittingIdx, areaId, plan, onlyOne) {
     card.appendChild(el('div', { class: 'ad-note', text: 'Held: ' + heldReason(area, date) + '. Nothing to do here until it clears.' }));
   } else if (hold) {
     card.appendChild(el('div', { class: 'ad-note', text: 'Hold: ' + hold + '. Train it, but keep the load where it is.' }));
+  }
+  if (!paused && s.deload) {
+    card.appendChild(el('div', { class: 'ad-note', text: 'Easy block: about 60% of the usual sets, clean and unhurried. It still counts as a full day, and the review comes after it.' }));
   }
   if (!paused && s.draft && open) {
     card.appendChild(el('div', { class: 'ad-note', text: 'First-draft prescription: sets and reps for this stage have not been reviewed yet.' }));
@@ -3108,6 +3112,7 @@ function renderToday() {
   todaySessions = [];
 
   var nodes = heldCallouts(today);
+  reviewCards(today, days).forEach(function (c) { nodes.push(c); });
   var over = overBooked(today, days);
   if (over) nodes.push(over);
   nodes.push(sittingBar(today, plan));
@@ -4965,6 +4970,7 @@ function renderProgress() {
   nodes.push(scheduleSection());
   nodes.push(installSection());
   nodes.push(chartsSection());
+  nodes.push(equipmentSection());
   nodes.push(backupSection());
   nodes.push(el('p', { class: 'buildline', text: 'Build ' + BUILD }));
 
@@ -5462,12 +5468,15 @@ function areaCard(area, days) {
   return el('a', { class: 'card', href: '#/areas/' + area.id }, [
     el('div', { class: 'card-top' }, [
       el('span', { class: 'card-title', text: area.name }),
-      el('span', { class: 'chev', text: '›' })
+      el('div', { class: 'badges' }, [
+        prog.due ? badge('Review due', 'badge-test') : prog.phase === 'deload' ? badge('Easy block') : null,
+        el('span', { class: 'chev', text: '›' })
+      ])
     ]),
     el('div', { class: 'card-sub', text: area.goal }),
     ladderRow(area, prog.stage.id),
-    el('div', { class: 'card-sub', text: 'Stage ' + prog.stage.id + ' · ' + prog.stage.name + ' · '
-      + prog.full + ' of ' + prog.askAfter + ' full days' })
+    el('div', { class: 'card-sub', text: 'Stage ' + prog.stage.id + ' · ' + prog.stage.name
+      + (prog.askAfter ? ' · ' + prog.full + ' of ' + prog.askAfter + ' full days' : ' · ' + prog.full + ' full days') })
   ]);
 }
 
@@ -5497,10 +5506,308 @@ function renderAreas() {
   ];
   areaList().forEach(function (a) { nodes.push(areaCard(a, days)); });
 
+  if (!decisions.length) nodes.push(el('p', { class: 'hint', text: 'Every area starts at the first rung of its ladder. If you are already further along in one, open it and choose Set the stage yourself.' }));
   nodes.push(el('p', { class: 'hint', text: 'History from before the areas (weighted pull-ups, sprints, hinge, kettlebell press and a few prehab exercises) is kept but not counted here. A day counts as skipped only when it was on that day’s menu, or taken off it, and nothing was logged.' }));
   nodes.push(el('p', { class: 'buildline', text: 'Build ' + BUILD }));
 
   setView('Areas', areaList().length + ' areas', nodes);
+}
+
+/* --- the review ------------------------------------------------------------ */
+/* Where you decide. The app asks when the days are done; you can open it any
+   time. It shows what you did, how the body is, the standard to attest to, and
+   what the next stage is, then you move up, say not yet, or step back. */
+
+var reviewTicks = {};     /* the standard's checklist for this visit; not stored */
+
+function phaseText(prog) {
+  if (prog.phase === 'top') return 'Top of the ladder.';
+  if (prog.phase === 'ask') return 'Ready for a review.';
+  if (prog.phase === 'deload') return 'Easy block: about 60% of the sets, the last days before the review.';
+  if (prog.nextAsk !== null) return 'Staying at the top prescription until ' + prog.nextAsk + ' full days.';
+  return 'Full prescription.';
+}
+
+/* The body areas guarding an area, as the last week of check-ins reads them. */
+function guardLights(area, date) {
+  var recent = checkInsBetween(addDays(date, -(RED_DAYS - 1)), date);
+  return area.guardedBy.map(function (b) {
+    var state = recent.length ? 'green' : null;
+    recent.forEach(function (c) {
+      var s = areaState(b, c, priorTo(c.date));
+      if (STATE_RANK[s] > STATE_RANK[state]) state = s;
+    });
+    return { body: b, label: bodyLabel(b), state: state };
+  });
+}
+
+/* "3 × 5 → 8 / leg · 3 s down · +25 % BW", the way a set reads. */
+function exerciseLine(ex, date) {
+  var bits = [ex.sets + ' × ' + ex.reps];
+  if (ex.tempo) bits.push(ex.tempo);
+  var load = resolveLoad(ex.load, date).text;
+  if (load && load !== '—' && load !== 'Bodyweight') bits.push(load);
+  return bits.join(' · ');
+}
+
+/* What changes between two stages: by exercise id. */
+function stageDiff(from, to) {
+  var had = {}, has = {};
+  (from.exercises || []).forEach(function (e) { had[e.id] = e; });
+  (to.exercises || []).forEach(function (e) { has[e.id] = e; });
+  return {
+    added: (to.exercises || []).filter(function (e) { return !had[e.id]; }),
+    dropped: (from.exercises || []).filter(function (e) { return !has[e.id]; })
+  };
+}
+
+function lightLabel(state) { return state ? STATE_LABEL[state] : 'no check-in this week'; }
+
+function decisionLine(d) {
+  var what = d.action === 'up' ? d.from + ' → ' + d.to + ', moved up'
+    : d.action === 'back' ? d.from + ' → ' + d.to + ', stepped back'
+    : d.action === 'set' ? d.from + ' → ' + d.to + ', set by you'
+    : d.from + ', not yet';
+  return fmtDateShort(d.date) + ' · ' + what + (d.full ? ' · ' + d.full + ' full days' : '');
+}
+
+function decisionsFor(area) {
+  return decisions.filter(function (d) { return d.area === area.id; }).slice().reverse();
+}
+
+function decisionList(area) {
+  var list = decisionsFor(area);
+  if (!list.length) return null;
+  return el('div', {}, [
+    el('p', { class: 'section-label', text: 'Your decisions' }),
+    el('ul', { class: 'rv-history' }, list.map(function (d) { return el('li', { text: decisionLine(d) }); }))
+  ]);
+}
+
+function renderReview(id) {
+  if (!areaData) return areasLoading();
+  var area = areaById(id);
+  if (!area) return renderNotFound('No area "' + id + '".');
+
+  var today = todayISO();
+  var days = areaDays();
+  var prog = stageProgress(area, days);
+  var stage = prog.stage;
+  var next = area.stages[prog.index + 1] || null;
+  var prev = area.stages[prog.index - 1] || null;
+  var block = next ? levelUpBlock(area, today) : null;
+
+  function kvRow(k, v, cls) {
+    return el('div', { class: 'kv-row' }, [el('span', { class: 'kv-key', text: k }), el('span', { class: 'kv-val' + (cls ? ' ' + cls : ''), text: v })]);
+  }
+  function repaint() { var y = window.scrollY; renderReview(id); window.scrollTo(0, y); }
+  function leave(message) { toast(message); location.hash = '#/areas/' + area.id; }
+
+  var nodes = [
+    el('a', { class: 'back', href: '#/areas/' + area.id, text: '‹ ' + area.name }),
+    el('div', { class: 'session-head' }, [
+      el('h2', { text: 'Review · ' + area.name }),
+      el('div', { class: 'meta', text: stage.id + ' · ' + stage.name })
+    ])
+  ];
+
+  if (prog.phase !== 'ask' && prog.phase !== 'top') {
+    nodes.push(el('p', { class: 'hint', text: 'You are early. The review usually comes after ' + (prog.nextAsk !== null ? prog.nextAsk : prog.askAfter) + ' full days; you can decide now if you already know.' }));
+  }
+
+  /* where you are */
+  var kv = el('div', { class: 'kv kv-text' }, [
+    kvRow('Full days in ' + stage.id, prog.full + (prog.askAfter ? ' of ' + prog.askAfter : '')),
+    kvRow('Where that is', phaseText(prog))
+  ]);
+  guardLights(area, today).forEach(function (g) {
+    kv.appendChild(kvRow(g.label, lightLabel(g.state), g.state === 'red' ? 'is-red' : g.state === 'amber' ? 'is-amber' : ''));
+  });
+  nodes.push(el('p', { class: 'section-label', text: 'Where you are' }), kv);
+
+  /* the standard, to attest to */
+  nodes.push(el('p', { class: 'section-label', text: 'The standard for ' + stage.id }));
+  var checks = el('div', { class: 'rv-checks' });
+  stage.ready.forEach(function (text, i) {
+    var key = area.id + ':' + stage.id + ':' + i;
+    var on = !!reviewTicks[key];
+    var b = el('button', { class: 'rv-check' + (on ? ' is-on' : ''), type: 'button', role: 'checkbox', 'aria-checked': String(on) }, [
+      el('span', { class: 'rv-box', text: on ? '✓' : '' }), el('span', { text: text })
+    ]);
+    b.addEventListener('click', function () { reviewTicks[key] = !on; repaint(); });
+    checks.appendChild(b);
+  });
+  nodes.push(checks, el('p', { class: 'hint', text: 'Tick what you can do, honestly. Nothing here is checked for you; it is for you.' }));
+
+  /* what comes next */
+  if (next) {
+    var diff = stageDiff(stage, next);
+    var preview = el('div', { class: 'card' }, [
+      el('div', { class: 'card-top' }, [
+        el('span', { class: 'card-title', text: next.id + ' · ' + next.name }),
+        el('div', { class: 'badges' }, [next.optional ? badge('Optional') : null, next.draft ? badge('Draft') : null, next.goal ? badge('Goal', 'badge-test') : null])
+      ]),
+      el('div', { class: 'card-sub', text: next.work })
+    ]);
+    if (next.exercises && next.exercises.length) {
+      var added = {};
+      diff.added.forEach(function (e) { added[e.id] = true; });
+      preview.appendChild(el('ul', { class: 'rv-ex' }, next.exercises.map(function (e) {
+        return el('li', {}, [
+          el('span', { class: 'rv-ex-name', text: e.name }),
+          added[e.id] ? el('span', { class: 'st st-rec', text: 'new' }) : null,
+          el('span', { class: 'rv-ex-line', text: exerciseLine(e, today) })
+        ]);
+      })));
+      if (diff.dropped.length) preview.appendChild(el('div', { class: 'stage-fact', text: 'Drops out: ' + diff.dropped.map(function (e) { return e.name; }).join(', ') + '.' }));
+    } else {
+      preview.appendChild(el('div', { class: 'stage-fact is-unmet', text: 'Nothing is written for ' + next.id + ' yet, so it cannot be started.' }));
+    }
+    if (next.note) preview.appendChild(el('div', { class: 'card-sub', text: next.note }));
+
+    var needs = stageNeeds(next);
+    needs.equipment.forEach(function (q) {
+      preview.appendChild(el('div', { class: 'stage-fact' + (q.owned ? '' : ' is-unmet'), text: (q.owned ? 'Have: ' : 'Missing: ') + q.label }));
+    });
+    needs.bells.forEach(function (b) {
+      preview.appendChild(el('div', { class: 'stage-fact' + (b.owned ? '' : ' is-unmet'), text: (b.owned ? 'Have: ' : 'Missing: ') + 'a ' + b.lb + ' lb (' + b.kg + ' kg) bell' }));
+    });
+    prereqStatus(next).forEach(function (r) {
+      preview.appendChild(el('div', { class: 'stage-fact' + (r.met ? '' : ' is-unmet'), text:
+        'Advisory: ' + r.name + ' ' + r.stage + ' first. You are at ' + (r.have || 'nothing') + (r.met ? ', met.' : ', not yet.') }));
+    });
+    if (next.perWeek || next.minGapDays) {
+      var per = stageWeek(area, next);
+      preview.appendChild(el('div', { class: 'stage-fact', text: 'This stage runs ' + per.min + ' · ' + per.target + ' · ' + per.max + ' days a week, ' + stageGap(area, next) + ' days apart.' }));
+    }
+    if (needs.missing.length) preview.appendChild(el('a', { class: 'rv-link', href: '#/progress', text: 'Tick what you own under Equipment on the Progress tab' }));
+    nodes.push(el('p', { class: 'section-label', text: 'Next' }), preview);
+  } else {
+    nodes.push(el('p', { class: 'hint', text: stage.goal ? 'This is the goal stage: ' + area.goal : 'This is the top of the ladder.' }));
+  }
+
+  /* the decision */
+  nodes.push(el('p', { class: 'section-label', text: 'Your call' }));
+  var actions = el('div', { class: 'rv-actions' });
+
+  if (next) {
+    var up = el('button', { class: 'btn btn-go btn-block', type: 'button', disabled: !!block,
+      text: (next.optional ? 'Take the optional stage ' : 'Move up to ') + next.id });
+    up.addEventListener('click', function () {
+      var ticked = stage.ready.every(function (x, i) { return reviewTicks[area.id + ':' + stage.id + ':' + i]; });
+      if (!ticked && !confirm('You have not ticked everything in the standard. Move up anyway?')) return;
+      var r = moveUp(area.id, days, today);
+      if (!r.ok) { toast(r.why); return; }
+      reviewTicks = {};
+      leave('Moved up to ' + r.stage.id + '.');
+    });
+    actions.appendChild(up);
+    if (block) actions.appendChild(el('p', { class: 'rv-wait', text: 'Waiting: ' + block + '. Moving up opens again when it clears. You can still say not yet or step back.' }));
+
+    var not = el('button', { class: 'btn btn-block', type: 'button', text: 'Not yet' });
+    not.addEventListener('click', function () {
+      var r = notYet(area.id, days, today);
+      leave('Okay. Staying at the top prescription, and asking again after ' + areaData.rules.defaults.repeatEvery + ' more full days.');
+    });
+    actions.appendChild(not);
+  }
+  if (prev) {
+    var back = el('button', { class: 'btn btn-quiet btn-block', type: 'button', text: 'Step back to ' + prev.id });
+    back.addEventListener('click', function () {
+      if (!confirm('Step back to ' + prev.id + '? Full area-days start again from zero in the old stage.')) return;
+      var r = stepBack(area.id, days, today);
+      if (!r.ok) { toast(r.why); return; }
+      leave('Stepped back to ' + r.stage.id + '.');
+    });
+    actions.appendChild(back);
+  }
+  nodes.push(actions);
+
+  var history = decisionList(area);
+  if (history) nodes.push(history);
+  nodes.push(el('p', { class: 'buildline', text: 'Build ' + BUILD }));
+
+  setView('Review', area.short || area.name, nodes);
+  window.scrollTo(0, 0);
+}
+
+/* Set the stage yourself: where you start, or somewhere that is not the next rung. */
+function openStagePicker(area, onDone) {
+  var prog = stageProgress(area, areaDays());
+  var list = el('div', { class: 'picklist' });
+  area.stages.forEach(function (s) {
+    var here = s.id === prog.stage.id;
+    var ready = !!(s.exercises && s.exercises.length);
+    var b = el('button', { class: 'card pick', type: 'button', disabled: here || !ready }, [
+      el('div', { class: 'card-top' }, [
+        el('span', { class: 'card-title', text: s.id + ' · ' + s.name }),
+        el('div', { class: 'badges' }, [here ? badge('You are here', 'badge-now') : null, !ready ? badge('Nothing written yet') : null])
+      ]),
+      el('div', { class: 'card-sub', text: (s.ready[0] || s.work) })
+    ]);
+    b.addEventListener('click', function () {
+      if (!confirm('Set ' + area.name + ' to ' + s.id + '? Full area-days start again from zero in the new stage.')) return;
+      var r = placeAt(area.id, s.id, areaDays(), todayISO());
+      closeSheet();
+      toast(r.ok ? area.name + ' is now at ' + s.id + '.' : r.why);
+      if (onDone) onDone();
+    });
+    list.appendChild(b);
+  });
+  openSheet('Set the stage yourself', 'Where are you now in ' + area.name + '? Each stage shows its first standard.', [list]);
+}
+
+/* A review that is due, on Today: one line to tap. */
+function reviewCards(today, days) {
+  var out = [];
+  areaList().forEach(function (area) {
+    var prog = stageProgress(area, days);
+    if (!prog.due) return;
+    var block = levelUpBlock(area, today);
+    out.push(el('a', { class: 'card review-card', href: '#/review/' + area.id }, [
+      el('div', { class: 'card-top' }, [
+        el('span', { class: 'card-title', text: 'Review due · ' + area.name + ' ' + prog.stage.id }),
+        el('span', { class: 'chev', text: '›' })
+      ]),
+      el('div', { class: 'card-sub', text: prog.full + ' full days in ' + prog.stage.id + '. Ready to move on?' + (block ? ' Waiting: ' + block + '.' : '') })
+    ]));
+  });
+  return out;
+}
+
+/* --- equipment you own (on the Progress tab) --- */
+
+function equipmentSection() {
+  if (!areaData) return null;
+  var wrap = el('div', {}, [el('p', { class: 'section-label', text: 'Equipment you own' })]);
+  var list = el('div', { class: 'kv kv-text' });
+
+  equipmentList().forEach(function (q) {
+    var owned = equipmentOwned(q.id);
+    var b = el('button', { class: 'eq-toggle' + (owned ? ' is-on' : ''), type: 'button', 'aria-pressed': String(owned), text: owned ? 'Have' : 'Don’t have' });
+    b.addEventListener('click', function () { setEquipment(q.id, !owned); renderProgress(); });
+    list.appendChild(el('div', { class: 'kv-row eq-row' }, [el('span', { class: 'kv-key', text: q.label }), b]));
+  });
+  wrap.appendChild(list);
+
+  var bells = el('div', { class: 'eq-bells' });
+  bellsOwned().forEach(function (lb) {
+    var chip = el('button', { class: 'sit-chip', type: 'button', 'aria-label': 'Remove the ' + lb + ' lb bell', text: lb + ' lb ×' });
+    chip.addEventListener('click', function () { setBells(bellsOwned().filter(function (x) { return x !== lb; })); renderProgress(); });
+    bells.appendChild(chip);
+  });
+  var input = el('input', { type: 'text', inputmode: 'numeric', id: 'bell-lb', placeholder: 'Add a bell, in lb' });
+  var add = el('button', { class: 'btn', type: 'button', text: 'Add' });
+  add.addEventListener('click', function () {
+    var n = Math.round(Number(String(input.value).trim()));
+    if (!(n > 0 && n <= 200)) { toast('A bell between 1 and 200 lb.'); return; }
+    setBells(bellsOwned().concat([n]));
+    renderProgress();
+  });
+  wrap.appendChild(el('p', { class: 'hint', text: 'Kettlebells you have, in lb (kg is shown beside the bell a stage needs):' }));
+  wrap.appendChild(bells);
+  wrap.appendChild(el('div', { class: 'sheet-actions', style: 'margin-top:8px' }, [input, add]));
+  return wrap;
 }
 
 /* Which stage of an area, by position — for "you are at P1, this needs P4". */
@@ -5595,6 +5902,22 @@ function renderAreaDetail(id) {
     ])
   ];
 
+  var ladderKv = el('div', { class: 'kv kv-text' });
+  [['Stage', prog.stage.id + ' · ' + prog.stage.name],
+   ['Full days here', prog.full + (prog.askAfter ? ' of ' + prog.askAfter : '')],
+   ['Where that is', phaseText(prog)]].forEach(function (r) {
+    ladderKv.appendChild(el('div', { class: 'kv-row' }, [el('span', { class: 'kv-key', text: r[0] }), el('span', { class: 'kv-val', text: r[1] })]));
+  });
+  var pick = el('button', { class: 'btn btn-quiet', type: 'button', text: 'Set the stage yourself' });
+  pick.addEventListener('click', function () { openStagePicker(area, function () { renderAreaDetail(id); }); });
+  nodes.push(el('p', { class: 'section-label', text: 'Where you are on the ladder' }), ladderKv,
+    el('div', { class: 'sheet-actions', style: 'margin-top:0' }, [
+      el('a', { class: prog.due ? 'btn btn-go' : 'btn', href: '#/review/' + area.id, text: prog.due ? 'Open the review' : 'Review now' }),
+      pick
+    ]));
+  var decided = decisionList(area);
+  if (decided) nodes.push(decided);
+
   var rows = [
     ['This week', w.touched + ' of ' + w.target + (w.status.label ? ' · ' + w.status.label : '')],
     ['Last 3 weeks', recent.map(function (n) { return n === null ? '–' : n; }).join('  ')],
@@ -5635,12 +5958,12 @@ function renderAreaDetail(id) {
   window.scrollTo(0, 0);
 }
 
-/* Today, Areas and the runner draw from the area data, and the check-in asks about
-   seven body areas instead of four once it is in. Plan and Progress work without
-   it. An empty hash is Today. */
+/* Today, Areas, the review and the runner draw from the area data. The check-in asks
+   about seven body areas instead of four once it is in, and Progress gains the
+   equipment card. Only Plan works without it. An empty hash is Today. */
 function routeNeedsAreas(hash) {
   var tab = String(hash || '').replace(/^#\/?/, '').split('/')[0] || 'today';
-  return tab === 'today' || tab === 'areas' || tab === 'run' || tab === 'checkin';
+  return tab === 'today' || tab === 'areas' || tab === 'run' || tab === 'checkin' || tab === 'review' || tab === 'progress';
 }
 
 /* ----------------------------------------------------------------- router */
@@ -5663,6 +5986,7 @@ function route() {
 
   if (tab === 'plan' && parts[1]) renderWeek(parts[1]);
   else if (tab === 'plan') renderWeekList();
+  else if (tab === 'review' && parts[1]) renderReview(parts[1]);
   else if (tab === 'areas' && parts[1]) renderAreaDetail(parts[1]);
   else if (tab === 'areas') renderAreas();
   else if (tab === 'session') renderSession(parts[1]);
@@ -5673,7 +5997,7 @@ function route() {
     renderNotFound('Nothing at "' + hash + '".');
   }
 
-  markTab(tab === 'session' ? 'plan' : tab);
+  markTab(tab === 'session' ? 'plan' : tab === 'review' ? 'areas' : tab);
   paintTabBadge();
   view().focus({ preventScroll: true });
 }

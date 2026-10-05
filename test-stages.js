@@ -200,6 +200,61 @@ ctx.placeAt('mu','M2',ctx.areaDays(),'2026-10-05');
 eq('but not once you are at M2: they were M1 days', ctx.stageProgress(mu,ctx.areaDays()).full, 0);
 ok('the old days are still there as history', ctx.areaDays().filter(r=>r.area==='mu'&&r.full).length===legacy);
 
+console.log('the words on the review:');
+reset();
+eq('each phase in words', [{phase:'build',nextAsk:null},{phase:'deload',nextAsk:null},{phase:'ask',nextAsk:null},{phase:'top',nextAsk:null},{phase:'build',nextAsk:10}].map(ctx.phaseText),
+  ['Full prescription.','Easy block: about 60% of the sets, the last days before the review.','Ready for a review.','Top of the ladder.','Staying at the top prescription until 10 full days.']);
+eq('a set, as it reads', ctx.exerciseLine({sets:3,reps:'5 → 8 / leg',tempo:'3 s down',load:{type:'fixedKg',value:5}},D(0)), '3 × 5 → 8 / leg · 3 s down · +5 kg');
+eq('bodyweight says nothing extra', ctx.exerciseLine({sets:2,reps:'10',load:{type:'bodyweight'}},D(0)), '2 × 10');
+eq('what the next stage adds and drops', (d=>[d.added.map(e=>e.id),d.dropped.map(e=>e.id)])(ctx.stageDiff(X.stages[0],X.stages[1])), [['e'],['b','c','d']]);
+eq('a stage with no exercises adds and drops nothing wrong', (d=>[d.added.length,d.dropped.length])(ctx.stageDiff(X.stages[1],X.stages[2])), [0,2]);
+eq('the lights on the body areas that guard it: no check-in yet', ctx.guardLights(X0(),D(5)), [{body:'elbow',label:'Medial elbow',state:null}]);
+ctx.checkIns=[ci(D(4),{})];
+eq('green', ctx.guardLights(X0(),D(5))[0].state, 'green');
+ctx.checkIns=[ci(D(3),{elbow:4}),ci(D(4),{})];
+eq('the worst of the week counts: amber', ctx.guardLights(X0(),D(5))[0].state, 'amber');
+ctx.checkIns=[ci(D(3),{elbow:4}),ci(D(4),{elbow:8})];
+eq('red', ctx.guardLights(X0(),D(5))[0].state, 'red');
+ctx.checkIns=[ci(D(0),{elbow:8})];
+eq('and a week later it has lifted: back to no check-in this week', ctx.guardLights(X0(),D(9))[0].state, null);
+ctx.checkIns=[];
+eq('no check-in, in words', ctx.lightLabel(null), 'no check-in this week');
+eq('a decision, each way it can go', [
+  {date:D(4),area:'x',from:'X1',to:'X2',action:'up',full:6},
+  {date:D(4),area:'x',from:'X2',to:'X1',action:'back',full:2},
+  {date:D(4),area:'x',from:'X1',to:'X2',action:'set',full:0},
+  {date:D(4),area:'x',from:'X1',to:'X1',action:'stay',full:6}].map(ctx.decisionLine),
+  ['9 Oct · X1 → X2, moved up · 6 full days','9 Oct · X2 → X1, stepped back · 2 full days','9 Oct · X1 → X2, set by you','9 Oct · X1, not yet · 6 full days']);
+ctx.decisions=[{date:D(1),area:'x',from:'X1',to:'X1',action:'stay',full:6},{date:D(2),area:'y',from:'Y1',to:'Y2',action:'up',full:4},{date:D(3),area:'x',from:'X1',to:'X2',action:'up',full:10}];
+eq('your decisions for an area, newest first', ctx.decisionsFor(X0()).map(d=>d.date), [D(3),D(1)]);
+ctx.decisions=[];
+
+console.log('the review on screen (the fake DOM cannot be read, so these draw without throwing):');
+const draws=(f)=>{try{f();return true;}catch(e){console.log('   ',String(e.stack).split('\n').slice(0,3).join(' | '));return false;}};
+reset(); [0,1,2,3,4,5].forEach(n=>fullDay(D(n))); ctx.todayISO=()=>D(6);
+ok('a review that is due', draws(()=>ctx.renderReview('x')));
+eq('and Today has a card for it', ctx.reviewCards(D(6),ctx.areaDays()).length, 1);
+ctx.checkIns=[ci(D(5),{elbow:4})];
+ok('waiting on an amber elbow', draws(()=>ctx.renderReview('x')));
+eq('Today still has the card, and says it is waiting', ctx.reviewCards(D(6),ctx.areaDays()).length, 1);
+ctx.checkIns=[];
+reset(); [0,1].forEach(n=>fullDay(D(n))); ctx.todayISO=()=>D(6);
+ok('an early one', draws(()=>ctx.renderReview('x')));
+eq('with no card on Today', ctx.reviewCards(D(6),ctx.areaDays()), []);
+ctx.progress.x={stage:'X2',since:null,nextAsk:null};
+ok('a stage whose next stage has nothing written', draws(()=>ctx.renderReview('x')));
+ctx.progress.y={stage:'Y2',since:null,nextAsk:null};
+ok('the top of the ladder', draws(()=>ctx.renderReview('y')));
+ok('an area that is not there, and the picker', draws(()=>{ctx.renderReview('nope');ctx.openStagePicker(X0(),null);}));
+ctx.reviewTicks={};
+ok('every stage of every real area draws a review, a card and a day', (()=>{
+  ctx.areaData=real; reset(); ctx.areaData=real; let good=true, n=0;
+  real.list.forEach(a=>a.stages.forEach(s=>{ ctx.progress[a.id]={stage:s.id,since:null,nextAsk:null};
+    good=good&&draws(()=>{ctx.renderReview(a.id);ctx.renderAreaDetail(a.id);ctx.areaCard(a,[]);ctx.freezeAreaDay(D(6),a.id);ctx.areaDayCard(D(6),0,a.id,{sittings:[{minutes:45,areas:[a.id]}],suggested:[a.id],removed:{},why:{}},true);}); n++; }));
+  console.log('    ('+n+' stages)'); return good; })());
+ok('the equipment card, with and without area data', draws(()=>{ctx.equipmentSection();ctx.areaData=null;ctx.equipmentSection();ctx.areaData=real;}));
+eq('the review route is one that waits for the area data', ctx.routeNeedsAreas('#/review/mu'), true);
+
 console.log('storage and backup:');
 reset(); ctx.areaData=synth;
 ctx.progress={x:{stage:'X2',since:D(3),nextAsk:null}}; ctx.decisions=[{date:D(3),area:'x',from:'X1',to:'X2',action:'up',full:6}];
