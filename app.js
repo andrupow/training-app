@@ -7,7 +7,7 @@
 
 'use strict';
 
-var BUILD = '1.19.0-lookahead';
+var BUILD = '1.19.1-lookahead';
 var PLAN_URL = 'data/plan.json';
 var LS_PLAN = 'plan.cache.v1';
 var LS_LOGS = 'setLogs';
@@ -2082,13 +2082,15 @@ function weekForecast(today, days) {
 }
 
 /* How many more days the forecast puts an area on in one week, not counting days already
-   trained (those are in `touched`). */
+   trained (those are in `touched`). A real menu can still list an area that a red light
+   has since held; it stays on the menu, but it cannot be trained, so it is not a day. */
 function forecastReach(forecast, area, start, days) {
   var n = 0;
   for (var i = 0; i < 7; i++) {
     var d = addDays(start, i), f = forecast && forecast[d];
     if (!f || f.picks.indexOf(area.id) < 0) continue;
     if (days.some(function (r) { return r.area === area.id && r.date === d; })) continue;
+    if (heldReason(area, d)) continue;
     n++;
   }
   return n;
