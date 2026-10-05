@@ -31,6 +31,128 @@
       "ready": [
         "8 clean parallel dips",
         "5 strict chest-to-bar pulls"
+      ],
+      "draft": false,
+      "exercises": [
+        {
+          "id": "par-dips",
+          "name": "Parallel bar dips (band or BW)",
+          "sets": 4,
+          "reps": "6–8",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "type": "strength",
+          "cue": "Lower until shoulders break 90°, then lock out. Lean forward 15°, elbows tucked.",
+          "note": "Use a band until you can do 6 clean reps."
+        },
+        {
+          "id": "bar-support",
+          "name": "Straight-bar support hold",
+          "sets": 3,
+          "reps": "20 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "type": "strength",
+          "cue": "Jump on, lock elbows, push shoulders down into depression."
+        },
+        {
+          "id": "hollow",
+          "name": "Hollow body hold",
+          "sets": 3,
+          "reps": "30 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "none"
+          },
+          "type": "strength",
+          "cue": "Lower back glued flat to the floor, ribs tucked toward pelvis."
+        },
+        {
+          "id": "dip-neg",
+          "name": "Parallel bar 3-second dip negatives",
+          "sets": 4,
+          "reps": "4",
+          "tempo": "3 s down",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "type": "strength",
+          "cue": "Jump to top, lower agonisingly slow over 3 full seconds. Fight hardest at the bottom."
+        },
+        {
+          "id": "strict-pull",
+          "name": "Strict dead-hang pull-ups",
+          "sets": 3,
+          "reps": "4",
+          "tempo": "2 s down",
+          "restSec": 120,
+          "load": {
+            "type": "bodyweight"
+          },
+          "type": "strength",
+          "cue": "Overhand. Chin clearly over bar, full elbow lockout at the bottom."
+        },
+        {
+          "id": "sternum-pull",
+          "name": "High sternum pull-ups",
+          "sets": 4,
+          "reps": "3",
+          "tempo": "Explosive",
+          "restSec": 150,
+          "load": {
+            "type": "bodyweight"
+          },
+          "type": "skill",
+          "cue": "100% intent, C-curve arc to the lower sternum. Stop the set immediately if rep height drops."
+        },
+        {
+          "id": "band-bar-dip",
+          "name": "Band-assisted straight-bar dips",
+          "sets": 4,
+          "reps": "5",
+          "tempo": "Controlled",
+          "restSec": 120,
+          "load": {
+            "type": "text",
+            "text": "Light band"
+          },
+          "type": "skill",
+          "cue": "Lean chest over the bar, touch lower ribs."
+        },
+        {
+          "id": "false-grip",
+          "name": "False-grip bar active hangs",
+          "sets": 3,
+          "reps": "15–20 s",
+          "tempo": "Static",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "type": "skill",
+          "cue": "Deep palm-crease grip, shoulder blades pulled down."
+        },
+        {
+          "id": "arch-hollow",
+          "name": "Floor arch-to-hollow snaps",
+          "sets": 3,
+          "reps": "10",
+          "tempo": "Dynamic",
+          "restSec": 60,
+          "load": {
+            "type": "none"
+          },
+          "type": "skill",
+          "cue": "Rocking between superman and hollow. Sharpens the core whip for the transition arc."
+        }
       ]
     },
     {

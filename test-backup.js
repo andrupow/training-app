@@ -114,5 +114,47 @@ eq('6 days: quiet', ctx.exportOverdue(), false);
 ctx.settings = { lastExport: '2026-09-12T08:00:00.000Z' };
 eq('7 days: nag', ctx.exportOverdue(), true);
 
+/* ---- menus and what each day held ---- */
+console.log('day plans and frozen days in a backup:');
+const plans = { '2026-10-06': { sittings: [{ minutes: 45, areas: ['mu'] }], suggested: ['mu'], removed: {} } };
+const frozen = { '2026-10-06:mu': { stage: 'M1', type: 'strength' } };
+const withPlans = ctx.inspectBackup(JSON.stringify({ setLogs: [], dayPlans: plans, areaDays: frozen }));
+ok('objects are accepted', !withPlans.error);
+eq('dayPlans through', withPlans.data.dayPlans, plans);
+eq('areaDays through', withPlans.data.areaDays, frozen);
+ok('dayPlans as an array is rejected', !!ctx.inspectBackup('{"dayPlans":[]}').error);
+ok('dayPlans as a string is rejected', !!ctx.inspectBackup('{"dayPlans":"x"}').error);
+ok('areaDays as an array is rejected', !!ctx.inspectBackup('{"areaDays":[1]}').error);
+eq('a file of only plans is still a backup', ctx.describeBackup(ctx.inspectBackup(JSON.stringify({ dayPlans: plans })).data), '1 planned day');
+eq('the summary counts them', ctx.describeBackup({ setLogs: [{}], dayPlans: Object.assign({}, plans, { '2026-10-07': plans['2026-10-06'] }) }), '1 logged set, 2 planned days');
+eq('an old file summarises as before', ctx.describeBackup({ baselines: [], setLogs: [{}] }), '0 baseline entries, 1 logged set');
+
+console.log('exporting them:');
+ctx.dayPlans = plans; ctx.saveDayPlans();
+ctx.frozenDays = frozen; ctx.saveFrozenDays();
+const out = ctx.exportPayload();
+eq('dayPlans exported', out.dayPlans, plans);
+eq('areaDays exported', out.areaDays, frozen);
+ok('and they re-import', !ctx.inspectBackup(JSON.stringify(out)).error);
+
+console.log('restoring them:');
+const fresh = () => { Object.keys(store).forEach(k => delete store[k]); };
+fresh();
+store.setLogs = '[{"sessionId":"2026-10-06:mu"}]'; store.dayPlans = JSON.stringify(plans); store.areaDays = JSON.stringify(frozen);
+ctx.writeBackup({ setLogs: [{ sessionId: 'W2-Mon' }], dayPlans: {}, areaDays: {} });
+eq('a file that has them replaces them', [store.dayPlans, store.areaDays], ['{}', '{}']);
+fresh();
+store.dayPlans = JSON.stringify(plans); store.areaDays = JSON.stringify(frozen);
+ctx.writeBackup({ setLogs: [{ sessionId: 'W2-Mon' }] });
+eq('logs without them (an old file) clears them, so no menu points at lost sets', [store.dayPlans, store.areaDays], [undefined, undefined]);
+ok('and the logs are written', store.setLogs === '[{"sessionId":"W2-Mon"}]');
+fresh();
+store.dayPlans = JSON.stringify(plans); store.areaDays = JSON.stringify(frozen);
+ctx.writeBackup({ baselines: [{ date: '2026-09-19' }] });
+eq('a file with no logs leaves them alone', [store.dayPlans, store.areaDays], [JSON.stringify(plans), JSON.stringify(frozen)]);
+fresh();
+ctx.writeBackup({ setLogs: [], dayPlans: plans });
+eq('plans without frozen days: frozen are cleared', [store.dayPlans, store.areaDays], [JSON.stringify(plans), undefined]);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

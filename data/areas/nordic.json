@@ -31,7 +31,24 @@
         "target": 3,
         "max": 3
       },
-      "minGapDays": 2
+      "minGapDays": 2,
+      "draft": true,
+      "exercises": [
+        {
+          "id": "nordic",
+          "name": "Band-assisted Nordic curl",
+          "sets": 3,
+          "reps": "5",
+          "tempo": "4 s down",
+          "restSec": 120,
+          "load": {
+            "type": "text",
+            "text": "Heavy band"
+          },
+          "cue": "Band anchored overhead. Hips stay extended: no hinging at the waist.",
+          "note": "Not while the hamstring is red."
+        }
+      ]
     },
     {
       "id": "N2",

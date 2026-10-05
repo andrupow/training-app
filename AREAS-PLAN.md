@@ -636,10 +636,36 @@ export imports and is seeded as above.
      3, Nordic 1.
    The service worker precaches the area data from its own index, so a ninth area
    needs no edit to `sw.js`.
-2. **M12 — area-days and sittings:** log per area instead of per fixed session,
-   with legacy mapping and the 500 kg flag. A manual *Today* menu (pick areas,
-   time chooser, up to 3 sittings, partial finish, log off-app), saved day
-   plans, and a live week grid with done / partial / skipped.
+2. **M12 — area-days and sittings — done (build 1.11.0-m12):** you log per area
+   instead of per fixed session, legacy history is mapped, and the 500 kg entry
+   is flagged. *Today* is now a menu: time chooser (30 / 45 / 60, remembered per
+   weekday), up to three sittings, areas added and taken off with a reason,
+   partial finish, "log something done elsewhere", and a "Next: <area>" button at
+   the end of the runner. Day menus are saved the first time a day is shown, and
+   the week grid shows done, partial, skipped, planned and "no plan recorded".
+   What shipped differs from the sketch in six ways:
+   - **Suggestions are only the areas that are Due and fit the time**, picked
+     greedily in priority order with no hard conflicts. On a Monday, when
+     everything is "on track", the suggestion can be empty and you pick. The full
+     best-combination recommender (the prototype) is M13.
+   - **Red on a body area is a hard block for the areas it guards**: they cannot
+     be added, started or logged. Every other warning (time over budget, soft
+     conflicts such as Nordic with kettlebell) advises and never blocks.
+   - **Today replaced the old session screen.** The 14-week plan is still
+     reachable under the Plan tab and its history still counts, through the
+     legacy map.
+   - **Exercises now come from the area files**, not the old plan. Muscle-up M1
+     is the old plan's own work, rotated by which session type was done least
+     recently (strength or skill). The first stage of the other seven is a **first
+     draft**, marked as such on screen, to be read and corrected before you rely
+     on it.
+   - **The set sheet refuses out-of-range values** (load 0–250 kg, reps 0–300,
+     RPE 1–10) instead of trimming them, which is how 500 kg × 999 reps got in.
+     Progress lists sets already logged outside those limits, with a one-tap clear
+     that keeps the set done.
+   - **"Skipped" means planned, or taken off the menu by you, and nothing
+     logged.** A day since menus began that was never opened shows hatching and
+     "no plan recorded"; days before menus began show nothing.
 3. **M13 — recommender:** port the prototype as a tested pure function, with
    reasons on every line, time-fitted targets, the feasibility line, ramp-in, and
    the seven-area check-in with guard mapping.

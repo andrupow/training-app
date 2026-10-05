@@ -19,8 +19,10 @@ const byId = {}; areas.forEach(a => { byId[a.id] = a; });
 const AREA_KEYS = ['id', 'name', 'short', 'priority', 'goal', 'perWeek', 'minGapDays', 'minutes', 'load', 'order',
   'guardedBy', 'sessionTypes', 'tests', 'stages'];
 const STAGE_KEYS = ['id', 'name', 'askAfter', 'optional', 'work', 'maxContacts', 'maxDepthContacts', 'goal',
-  'milestone', 'ready', 'note', 'requires', 'bells', 'perWeek', 'minGapDays',
-  'exercises', 'equipment', 'types'];                      /* the last three arrive with the stage engine */
+  'milestone', 'ready', 'note', 'requires', 'bells', 'perWeek', 'minGapDays', 'draft',
+  'exercises', 'equipment', 'types'];                      /* equipment and types arrive with the stage engine */
+const EXERCISE_KEYS = ['id', 'name', 'sets', 'reps', 'tempo', 'restSec', 'load', 'type', 'cue', 'note'];
+const LOAD_TYPES = ['pct5RM', 'pctBW', 'fixedKg', 'bodyweight', 'text', 'none'];
 const isInt = n => Number.isInteger(n);
 const bodyIds = rules.bodyAreas.map(b => b.id);
 
@@ -65,11 +67,41 @@ areas.forEach(a => {
       const per = (s.perWeek || a.perWeek).target;
       ok(`${s.id}: askAfter is at least one week of the area (${per})`, isInt(s.askAfter) && s.askAfter >= per);
     }
+    if (s.draft !== undefined) ok(`${s.id}: draft is true or false`, typeof s.draft === 'boolean');
+    if (s.exercises) {
+      const ex = s.exercises, exIds = ex.map(e => e.id);
+      ok(`${s.id}: has at least one exercise`, ex.length > 0);
+      eq(`${s.id}: exercise ids are unique`, new Set(exIds).size, exIds.length);
+      ex.forEach(e => {
+        const badKeys = Object.keys(e).filter(k => !EXERCISE_KEYS.includes(k));
+        if (badKeys.length) eq(`${s.id}/${e.id}: no unknown exercise fields`, badKeys, []);
+        ok(`${s.id}/${e.id}: id is a slug`, /^[a-z0-9-]+$/.test(e.id));
+        ok(`${s.id}/${e.id}: has a name`, typeof e.name === 'string' && e.name.length > 2);
+        ok(`${s.id}/${e.id}: sets is a positive integer`, isInt(e.sets) && e.sets >= 1);
+        ok(`${s.id}/${e.id}: reps is a non-empty string`, typeof e.reps === 'string' && e.reps.length > 0);
+        ok(`${s.id}/${e.id}: rest is a non-negative integer`, isInt(e.restSec) && e.restSec >= 0);
+        ok(`${s.id}/${e.id}: load uses a known rule`, e.load && LOAD_TYPES.includes(e.load.type));
+        if (e.type) ok(`${s.id}/${e.id}: type is one of the area's session types`, (a.sessionTypes || []).includes(e.type));
+      });
+      ok(`${s.id}: either every exercise has a type or none does`, ex.every(e => !!e.type) || ex.every(e => !e.type));
+
+      /* A rough clock, to catch a block that is five minutes or two hours. */
+      const secs = r => { const m = String(r).match(/^(\d+)(?:\s*[–-]\s*\d+)?\s*(s|min)\b/); return m ? Number(m[1]) * (m[2] === 'min' ? 60 : 1) : 45; };
+      const minutes = list => list.reduce((n, e) => n + e.sets * (secs(e.reps) + e.restSec), 0) / 60;
+      const groups = ex.some(e => e.type) ? [...new Set(ex.map(e => e.type))].map(ty => ex.filter(e => e.type === ty)) : [ex];
+      groups.forEach(g => ok(`${s.id}: a block takes roughly the area's ${a.minutes} min (${Math.round(minutes(g))})`, minutes(g) >= a.minutes * 0.4 && minutes(g) <= a.minutes * 1.6));
+    }
     if (s.perWeek) ok(`${s.id}: stage perWeek is min <= target <= max`, s.perWeek.min <= s.perWeek.target && s.perWeek.target <= s.perWeek.max);
     if (s.minGapDays !== undefined) ok(`${s.id}: stage gap is a positive integer`, isInt(s.minGapDays) && s.minGapDays >= 1);
     (s.requires || []).forEach(r => ok(`${s.id}: requires ${r.area} ${r.stage}, which exists`, byId[r.area] && byId[r.area].stages.some(x => x.id === r.stage)));
   });
 });
+
+console.log('everyone starts at stage 1, so stage 1 has to be runnable:');
+areas.forEach(a => ok(`${a.id}: ${a.stages[0].id} has exercises`, Array.isArray(a.stages[0].exercises) && a.stages[0].exercises.length > 0));
+eq('only muscle-up uses session types in stage 1', areas.filter(a => (a.stages[0].exercises || []).some(e => e.type)).map(a => a.id), ['mu']);
+eq('muscle-up stage 1 comes from the old plan, the rest are drafts', areas.filter(a => a.stages[0].draft === false).map(a => a.id), ['mu']);
+eq('and every other first stage says it is a draft', areas.filter(a => a.id !== 'mu').every(a => a.stages[0].draft === true), true);
 
 console.log('ladder lengths match the plan:');
 eq('full area-days per ladder', areas.map(a => a.stages.reduce((n, s) => n + (s.askAfter || 0), 0)), [44, 50, 84, 58, 48, 104, 86, 70]);

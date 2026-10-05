@@ -29,6 +29,56 @@
       "ready": [
         "3 × 20 deep squats",
         "2 min accumulated deep hold"
+      ],
+      "draft": true,
+      "exercises": [
+        {
+          "id": "ankle-rock",
+          "name": "Knee-to-wall ankle rocks",
+          "sets": 2,
+          "reps": "10 / side",
+          "restSec": 0,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Foot a hand-width from the wall, knee over the toes, heel down."
+        },
+        {
+          "id": "deep-squat",
+          "name": "Deep squat, heels down",
+          "sets": 3,
+          "reps": "12",
+          "tempo": "3 s down",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Full depth, heels flat, chest up."
+        },
+        {
+          "id": "squat-hold",
+          "name": "Deep squat hold",
+          "sets": 3,
+          "reps": "30 s",
+          "tempo": "Static",
+          "restSec": 45,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Elbows inside the knees, heels down. Two minutes in total is the standard for this stage."
+        },
+        {
+          "id": "reverse-lunge",
+          "name": "Reverse lunge",
+          "sets": 3,
+          "reps": "8 / leg",
+          "tempo": "2 s down",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Step back, back knee to a hand off the floor, front heel down."
+        }
       ]
     },
     {

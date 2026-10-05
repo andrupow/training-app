@@ -31,6 +31,56 @@
       "ready": [
         "3 × 15 straight-leg bridges",
         "arms overhead flat to the wall"
+      ],
+      "draft": true,
+      "exercises": [
+        {
+          "id": "wrist-prep",
+          "name": "Wrist extension rocks",
+          "sets": 2,
+          "reps": "10",
+          "restSec": 30,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Kneeling, palms down, rock forward and back."
+        },
+        {
+          "id": "thoracic-ext",
+          "name": "Thoracic extension over a roller",
+          "sets": 2,
+          "reps": "8",
+          "tempo": "3 s at the end range",
+          "restSec": 30,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Roller at mid-back, hands behind the head, extend over it with the ribs down."
+        },
+        {
+          "id": "wall-reach",
+          "name": "Overhead reach against a wall",
+          "sets": 2,
+          "reps": "30 s",
+          "tempo": "Static",
+          "restSec": 30,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Back to the wall, ribs down, arms overhead pressed flat to the wall. Stop where the back starts to arch."
+        },
+        {
+          "id": "straight-bridge",
+          "name": "Straight-leg bridge",
+          "sets": 3,
+          "reps": "12–15",
+          "tempo": "2 s hold at the top",
+          "restSec": 60,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Hips high, glutes tight, ribs down. Bend the knees (glute bridge) if the straight-leg version cramps."
+        }
       ]
     },
     {

@@ -7,7 +7,7 @@
 
 'use strict';
 
-var BUILD = '1.10.0-m11';
+var BUILD = '1.11.0-m12';
 var PLAN_URL = 'data/plan.json';
 var LS_PLAN = 'plan.cache.v1';
 var LS_LOGS = 'setLogs';
@@ -15,17 +15,18 @@ var LS_BASELINES = 'baselines';
 var LS_CHECKINS = 'checkIns';
 var LS_SETTINGS = 'settings';
 var LS_SCHEDULE = 'schedule';
+var LS_DAYPLANS = 'dayPlans';      /* the menu of each day, so the week can say what was skipped */
+var LS_AREADAYS = 'areaDays';      /* what each area-day contained, fixed when it was first planned */
 
 /* Everything the app owns, in one list. Export walks it, import restores it,
    and Milestone 5 gets checkIns backed up without touching this file. */
-var COLLECTIONS = [LS_BASELINES, LS_LOGS, LS_CHECKINS, LS_SCHEDULE, LS_SETTINGS];
+var COLLECTIONS = [LS_BASELINES, LS_LOGS, LS_CHECKINS, LS_SCHEDULE, LS_SETTINGS, LS_DAYPLANS, LS_AREADAYS];
 
 var EXPORT_NAG_DAYS = 7;
 var LS_TIMER = 'restTimer';
 
 var plan = null;
 var planScroll = 0;     /* remember where the week list was scrolled to */
-var todaySession = null; /* the session the Today tab is currently showing */
 
 /* ---------------------------------------------------------------- storage */
 /* localStorage can throw: private mode, storage pressure, quota. */
@@ -113,6 +114,7 @@ function hasDetail(entry) {
    leave the sums as well, or a session with one of them paused could never
    read as done. The logs themselves are untouched. */
 function activeExercises(session) {
+  if (areaPaused(session)) return [];
   var suppressed = sessionGate(session).suppressed;
   return session.exercises.filter(function (ex) { return !(ex.track && suppressed[ex.track]); });
 }
@@ -600,7 +602,10 @@ function sessionsForWeek(id) {
 }
 
 function sessionById(id) {
-  return plan.sessions.filter(function (s) { return s.id === id; })[0] || null;
+  var found = plan.sessions.filter(function (s) { return s.id === id; })[0];
+  if (found) return found;
+  var p = parseAreaDayId(id);                    /* "2026-10-06:mu": an area on a date */
+  return p && areaData ? areaDaySession(p.date, p.area) : null;
 }
 
 function checkpointsOn(date) {
@@ -750,8 +755,586 @@ function legacyAreaDays() {
   });
 }
 
-/* Everything trained, as { date, area, done, total, full } records. */
-function areaDays() { return legacyAreaDays(); }
+/* --- days, menus, and what each day held ------------------------------- */
+/* An area-day is one area on one date. Its id is "2026-10-06:mu", and it is
+   logged exactly like a plan session (sessionId|exerciseId|setIdx), so the set
+   chips, the set sheet, the runner and the rest timer all work on it as they
+   are. The session itself is never stored: it is built from the area's data
+   and from what was fixed on the day it was first planned. */
+
+var MAX_SITTINGS = 3;
+var FALLBACK_MINUTES = 45;
+var AREA_DAY_RE = /^(\d{4}-\d{2}-\d{2}):([a-z0-9-]+)$/;
+
+var dayPlans = {};    /* date -> { sittings: [{ minutes, areas }], suggested: [id], removed: { id: reason } } */
+var frozenDays = {};  /* "date:area" -> { stage, type } */
+
+function areaDayId(date, areaId) { return date + ':' + areaId; }
+
+function parseAreaDayId(id) {
+  var m = AREA_DAY_RE.exec(String(id));
+  return m ? { date: m[1], area: m[2] } : null;
+}
+
+function uniqueStrings(list) {
+  var seen = {}, out = [];
+  (Array.isArray(list) ? list : []).forEach(function (x) {
+    if (typeof x === 'string' && x && !seen[x]) { seen[x] = true; out.push(x); }
+  });
+  return out;
+}
+
+/* Storage can hold anything: a hand-edited file, an older build. Anything that
+   is not a well-formed day is dropped rather than trusted. */
+function cleanDayPlan(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+
+  var sittings = (Array.isArray(raw.sittings) ? raw.sittings : []).slice(0, MAX_SITTINGS).map(function (x) {
+    var m = x ? Number(x.minutes) : 0;
+    return { minutes: m > 0 && m <= 600 ? Math.round(m) : FALLBACK_MINUTES, areas: uniqueStrings(x && x.areas) };
+  });
+  if (!sittings.length) return null;
+
+  var removed = {};
+  if (raw.removed && typeof raw.removed === 'object' && !Array.isArray(raw.removed)) {
+    Object.keys(raw.removed).forEach(function (id) {
+      removed[id] = typeof raw.removed[id] === 'string' ? raw.removed[id] : '';
+    });
+  }
+  return { sittings: sittings, suggested: uniqueStrings(raw.suggested), removed: removed };
+}
+
+function loadDayPlans() {
+  var stored = lsGet(LS_DAYPLANS);
+  dayPlans = {};
+  if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return;
+  Object.keys(stored).forEach(function (date) {
+    var plan = /^\d{4}-\d{2}-\d{2}$/.test(date) ? cleanDayPlan(stored[date]) : null;
+    if (plan) dayPlans[date] = plan;
+  });
+}
+
+function loadFrozenDays() {
+  var stored = lsGet(LS_AREADAYS);
+  frozenDays = {};
+  if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return;
+  Object.keys(stored).forEach(function (key) {
+    var f = stored[key];
+    if (!parseAreaDayId(key) || !f || typeof f.stage !== 'string') return;
+    frozenDays[key] = f.type && typeof f.type === 'string' ? { stage: f.stage, type: f.type } : { stage: f.stage };
+  });
+}
+
+function saveCollection(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (err) {
+    console.warn(key + ' write failed', err);
+    toast('Could not save — phone storage is full or blocked.');
+    return false;
+  }
+}
+
+function saveDayPlans() { return saveCollection(LS_DAYPLANS, dayPlans); }
+function saveFrozenDays() { return saveCollection(LS_AREADAYS, frozenDays); }
+
+/* How long you usually have on this weekday, from the last time you said. */
+function defaultMinutes(date) {
+  var m = settings.weekdayMinutes && Number(settings.weekdayMinutes[isoDow(date)]);
+  if (m > 0) return m;
+  return areaData ? areaData.rules.defaults.dayMinutes : FALLBACK_MINUTES;
+}
+
+function rememberMinutes(date, minutes) {
+  settings.weekdayMinutes = settings.weekdayMinutes || {};
+  settings.weekdayMinutes[isoDow(date)] = minutes;
+  saveSettings();
+}
+
+function stageById(area, id) {
+  return area.stages.filter(function (s) { return s.id === id; })[0] || null;
+}
+
+/* Sets done so far per area-day, in one pass over the logs. */
+function doneByAreaDay() {
+  var out = {};
+  setLogs.forEach(function (e) {
+    if (e.done && parseAreaDayId(e.sessionId)) out[e.sessionId] = (out[e.sessionId] || 0) + 1;
+  });
+  return out;
+}
+
+/* The session types a stage actually has exercises for, in the area's order. */
+function stageTypes(area, stage) {
+  var used = {};
+  (stage.exercises || []).forEach(function (e) { if (e.type) used[e.type] = true; });
+  return (area.sessionTypes || []).filter(function (t) { return used[t]; });
+}
+
+/* Which kind of day an area is due: the type it did longest ago, one it has
+   never done first, ties in the order the area lists them. */
+function nextSessionType(area, stage, beforeDate) {
+  var types = stageTypes(area, stage);
+  if (!types.length) return null;
+
+  var last = {}, done = doneByAreaDay();
+  types.forEach(function (t) { last[t] = ''; });
+  Object.keys(frozenDays).forEach(function (key) {
+    var p = parseAreaDayId(key), f = frozenDays[key];
+    if (p.area !== area.id || p.date >= beforeDate || !f.type || last[f.type] === undefined) return;
+    if (done[key] && p.date > last[f.type]) last[f.type] = p.date;
+  });
+
+  var pick = types[0];
+  types.forEach(function (t) { if (last[t] < last[pick]) pick = t; });
+  return pick;
+}
+
+/* Fix what this area contains today, the first time it is planned. A stage
+   change or the next type in the rotation must never rewrite a day you did. */
+function freezeAreaDay(date, areaId) {
+  var key = areaDayId(date, areaId);
+  if (frozenDays[key]) return frozenDays[key];
+
+  var area = areaById(areaId);
+  var stage = area && currentStage(area);
+  if (!stage || !stage.exercises) return null;
+
+  var f = { stage: stage.id };
+  var type = nextSessionType(area, stage, date);
+  if (type) f.type = type;
+  frozenDays[key] = f;
+  saveFrozenDays();
+  return f;
+}
+
+/* Taken off before anything was done: forget what it would have held, so
+   planning it again picks fresh. Anything already logged stays put. */
+function unfreezeAreaDay(date, areaId) {
+  var key = areaDayId(date, areaId);
+  if (!frozenDays[key] || doneByAreaDay()[key]) return;
+  delete frozenDays[key];
+  saveFrozenDays();
+}
+
+var DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+/* A session-shaped object for one area on one date, so everything that already
+   knows how to show and log a session can show and log this. */
+function areaDaySession(date, areaId) {
+  var area = areaById(areaId);
+  if (!area) return null;
+
+  var f = frozenDays[areaDayId(date, areaId)] || null;
+  var stage = f ? stageById(area, f.stage) : currentStage(area);
+  if (!stage || !stage.exercises) return null;
+
+  var type = f ? (f.type || null) : nextSessionType(area, stage, date);
+  var exercises = stage.exercises.filter(function (e) { return !type || !e.type || e.type === type; });
+
+  return {
+    id: areaDayId(date, areaId),
+    areaId: areaId,
+    date: date,
+    week: null,                                  /* weeks here are Mon–Sun, not plan weeks */
+    weekLabel: fmtDateShort(date),
+    day: DAY_SHORT[isoDow(date)],
+    name: area.name + ' · ' + stage.id + (type ? ' · ' + type : ''),
+    stageId: stage.id,
+    type: type,
+    draft: !!stage.draft,
+    frozen: !!f,
+    exercises: exercises
+  };
+}
+
+/* An area is paused as a whole when a body area that guards it is red. */
+function areaPaused(session) {
+  var area = session && session.areaId ? areaById(session.areaId) : null;
+  return !!area && redGuards(area, sessionDate(session)).length > 0;
+}
+
+/* One record per area per date from the new logs, in the same shape as the
+   old plan's. Sets logged against an exercise the day no longer holds are not
+   counted. */
+function loggedAreaDays() {
+  var byId = {};
+  setLogs.forEach(function (e) {
+    if (!e.done || !parseAreaDayId(e.sessionId)) return;
+    (byId[e.sessionId] = byId[e.sessionId] || []).push(e);
+  });
+
+  var fullPct = areaData.rules.defaults.fullAreaPct;
+  var out = [];
+  Object.keys(byId).forEach(function (id) {
+    var p = parseAreaDayId(id);
+    var s = areaDaySession(p.date, p.area);
+    if (!s) return;
+
+    var inBlock = {}, total = 0;
+    s.exercises.forEach(function (ex) { inBlock[ex.id] = Number(ex.sets) || 0; total += inBlock[ex.id]; });
+    var done = byId[id].filter(function (e) { return e.setIdx < (inBlock[e.exerciseId] || 0); }).length;
+    if (!done) return;
+
+    out.push({ date: p.date, area: p.area, done: done, total: total, full: done * 100 >= total * fullPct });
+  });
+  return out;
+}
+
+/* Everything trained, old plan and new, as { date, area, done, total, full }.
+   If both ever land on the same area and date they are added together. */
+function areaDays() {
+  if (!areaData) return [];
+  var byKey = {};
+  legacyAreaDays().concat(loggedAreaDays()).forEach(function (r) {
+    var key = r.date + '|' + r.area;
+    var have = byKey[key];
+    if (!have) { byKey[key] = { date: r.date, area: r.area, done: r.done, total: r.total, full: r.full }; return; }
+    have.done += r.done;
+    have.total += r.total;
+    have.full = have.done * 100 >= have.total * areaData.rules.defaults.fullAreaPct;
+  });
+  return Object.keys(byKey).map(function (k) { return byKey[k]; });
+}
+
+/* --- the daily menu ----------------------------------------------------- */
+/* A day has one to three sittings, each with its own minutes and its own list
+   of areas. The menu is saved the first time the day is shown, so the week can
+   later say what was planned and what never happened. Everything that decides
+   something is a plain function of the plan, the logs and the rules. */
+
+function plannedAreaIds(plan) {
+  var out = [];
+  plan.sittings.forEach(function (st) {
+    st.areas.forEach(function (id) { if (out.indexOf(id) < 0) out.push(id); });
+  });
+  return out;
+}
+
+/* The order to do things in, from the rules: power, skill, strength, mobility,
+   kettlebell, then your priority. */
+function doOrder(areaIds) {
+  var order = areaData.rules.dayOrder;
+  return areaIds.slice().sort(function (a, b) {
+    var A = areaById(a), B = areaById(b);
+    return (order.indexOf(A.order) - order.indexOf(B.order)) || (A.priority - B.priority);
+  });
+}
+
+/* Most recent day before `date` this area was trained, or null. */
+function lastTrainedBefore(areaId, date, days) {
+  var last = null;
+  days.forEach(function (r) { if (r.area === areaId && r.date < date && (!last || r.date > last)) last = r.date; });
+  return last;
+}
+
+function agoText(n) {
+  return n === 0 ? 'today' : n === 1 ? 'yesterday' : n + ' days ago';
+}
+
+/* Why this area is where it is on the list. */
+function areaReason(area, date, days, week) {
+  var last = lastTrainedBefore(area.id, date, days);
+  var text = week.touched + '/' + week.target + ' this week, '
+    + (last ? daysBetween(last, date) + ' d since last' : 'not trained yet');
+  return text;
+}
+
+/* Held means a guarding body area is red. It is the one thing the menu will not
+   let you override: the red protocol is not advice. */
+function heldReason(area, date) {
+  var red = redGuards(area, date);
+  return red.length ? bodyLabel(red[0]).toLowerCase() + ' red' : null;
+}
+
+/* Things worth knowing before you add an area. They warn; they never block. */
+function menuWarnings(area, date, plan, days) {
+  var out = [];
+  var wk = areaWeek(area, weekStartOf(date), date, days);
+  var rules = areaData.rules;
+  var last = lastTrainedBefore(area.id, date, days);
+  var today = days.some(function (r) { return r.area === area.id && r.date === date; });
+
+  if (today) out.push('Already trained today. This adds to the same day.');
+  else if (wk.touched >= wk.max) out.push('Already at its weekly max of ' + wk.max + '.');
+  if (last && daysBetween(last, date) < wk.gap) {
+    out.push('Trained ' + agoText(daysBetween(last, date)) + '. It usually wants ' + wk.gap + '+ days between.');
+  }
+
+  /* Everything on today's menu, plus anything already done today. */
+  var onToday = plannedAreaIds(plan).concat(days.filter(function (r) { return r.date === date; }).map(function (r) { return r.area; }));
+  rules.conflicts.forEach(function (c) {
+    if (c.areas.indexOf(area.id) < 0) return;
+    var other = c.areas[0] === area.id ? c.areas[1] : c.areas[0];
+    if (onToday.indexOf(other) < 0) return;
+    out.push((c.soft ? 'Best not the same day as ' : 'Not usually with ') + areaById(other).name + ': ' + c.why + '.');
+  });
+
+  rules.budgets.forEach(function (b) {
+    if (b.areas.indexOf(area.id) < 0) return;
+    var used = 0, start = weekStartOf(date);
+    b.areas.forEach(function (id) { used += areaWeek(areaById(id), start, date, days).touched; });
+    if (used >= b.maxPerWeek) out.push('This week\'s ' + b.why + ' cap is used: ' + used + ' of ' + b.maxPerWeek + ' days.');
+  });
+  return out;
+}
+
+/* Which due areas to start the day with: in priority order, as many as fit the
+   sitting's minutes without breaking a hard rule, never one that is held. The
+   proper best-combination recommender comes later; this is deliberately small. */
+function suggestAreas(date, minutes, days) {
+  var start = weekStartOf(date);
+  var picked = [], used = 0;
+  var due = areaList().filter(function (a) {
+    return areaWeek(a, start, date, days).status.key === 'due' && !heldReason(a, date);
+  }).sort(function (a, b) { return a.priority - b.priority; });
+
+  due.forEach(function (a) {
+    if (picked.length >= areaData.rules.defaults.maxAreas) return;
+    if (used + a.minutes > minutes) return;
+    var clash = areaData.rules.conflicts.some(function (c) {
+      return !c.soft && c.areas.indexOf(a.id) >= 0 && c.areas.some(function (o) { return o !== a.id && picked.indexOf(o) >= 0; });
+    });
+    if (clash) return;
+    picked.push(a.id);
+    used += a.minutes;
+  });
+  return picked;
+}
+
+/* The menu is made the first time the day is shown. */
+function ensureDayPlan(date, days) {
+  if (dayPlans[date]) return dayPlans[date];
+
+  var minutes = defaultMinutes(date);
+  var picks = suggestAreas(date, minutes, days);
+  dayPlans[date] = { sittings: [{ minutes: minutes, areas: doOrder(picks) }], suggested: picks.slice(), removed: {} };
+  picks.forEach(function (id) { freezeAreaDay(date, id); });
+
+  if (!settings.menuSince) { settings.menuSince = date; saveSettings(); }
+  saveDayPlans();
+  return dayPlans[date];
+}
+
+function addAreaToDay(date, sittingIdx, areaId) {
+  var plan = dayPlans[date], area = areaById(areaId);
+  if (!plan || !plan.sittings[sittingIdx] || !area) return { ok: false, why: 'No such sitting.' };
+
+  var held = heldReason(area, date);
+  if (held) return { ok: false, why: area.name + ' is held: ' + held + '.' };
+
+  var sitting = plan.sittings[sittingIdx];
+  if (sitting.areas.indexOf(areaId) >= 0) return { ok: true };
+
+  sitting.areas = doOrder(sitting.areas.concat([areaId]));
+  delete plan.removed[areaId];
+  freezeAreaDay(date, areaId);
+  saveDayPlans();
+  return { ok: true };
+}
+
+/* Taking an area off. If the app had suggested it, that is a skip and is
+   remembered (with your reason, if you gave one); if you had added it yourself
+   it just goes. Once sets are logged it cannot be taken off. */
+function removeAreaFromDay(date, sittingIdx, areaId, reason) {
+  var plan = dayPlans[date];
+  if (!plan || !plan.sittings[sittingIdx]) return { ok: false, why: 'No such sitting.' };
+
+  var sitting = plan.sittings[sittingIdx];
+  var at = sitting.areas.indexOf(areaId);
+  if (at < 0) return { ok: true };
+
+  var elsewhere = plan.sittings.some(function (st, i) { return i !== sittingIdx && st.areas.indexOf(areaId) >= 0; });
+  if (!elsewhere && doneByAreaDay()[areaDayId(date, areaId)]) {
+    return { ok: false, why: 'Already started, so it stays on the day.' };
+  }
+
+  sitting.areas.splice(at, 1);
+  if (!elsewhere) {
+    if (plan.suggested.indexOf(areaId) >= 0) plan.removed[areaId] = reason || '';
+    unfreezeAreaDay(date, areaId);
+  }
+  saveDayPlans();
+  return { ok: true };
+}
+
+function addSitting(date, minutes) {
+  var plan = dayPlans[date];
+  if (!plan || plan.sittings.length >= MAX_SITTINGS) return -1;
+  plan.sittings.push({ minutes: minutes || 30, areas: [] });
+  saveDayPlans();
+  return plan.sittings.length - 1;
+}
+
+function removeSitting(date, sittingIdx) {
+  var plan = dayPlans[date];
+  if (!plan || plan.sittings.length < 2 || !plan.sittings[sittingIdx] || plan.sittings[sittingIdx].areas.length) return false;
+  plan.sittings.splice(sittingIdx, 1);
+  saveDayPlans();
+  return true;
+}
+
+function setSittingMinutes(date, sittingIdx, minutes) {
+  var plan = dayPlans[date];
+  if (!plan || !plan.sittings[sittingIdx] || !(minutes > 0)) return;
+  plan.sittings[sittingIdx].minutes = minutes;
+  if (sittingIdx === 0) rememberMinutes(date, minutes);
+  saveDayPlans();
+}
+
+/* Minutes planned in a sitting against the minutes it has. */
+function sittingLoad(sitting) {
+  var planned = 0;
+  sitting.areas.forEach(function (id) { var a = areaById(id); if (a) planned += a.minutes; });
+  return { planned: planned, over: Math.max(0, planned - sitting.minutes) };
+}
+
+/* Mark every set of an area's block done for a date, for something you did
+   without the app. Held areas are refused like anywhere else. */
+function logAreaBlock(date, areaId) {
+  var area = areaById(areaId);
+  if (!area) return { ok: false, why: 'No such area.' };
+  var held = heldReason(area, date);
+  if (held) return { ok: false, why: area.name + ' is held: ' + held + '.' };
+  if (!freezeAreaDay(date, areaId)) return { ok: false, why: 'There is nothing to log for ' + area.name + ' yet.' };
+
+  var session = areaDaySession(date, areaId);
+  session.exercises.forEach(function (ex) {
+    for (var i = 0; i < (Number(ex.sets) || 0); i++) {
+      var e = getLog(session.id, ex.id, i);
+      if (!e || !e.done) writeLog(session.id, ex.id, i, { done: true });
+    }
+  });
+  return { ok: true };
+}
+
+/* Where to start in an area-day: the first exercise that still has sets to do. */
+function firstOpenExercise(session) {
+  var list = runnableIndexes(session);
+  for (var i = 0; i < list.length; i++) {
+    var ex = session.exercises[list[i]];
+    if (firstUndoneSet(session, ex) < (Number(ex.sets) || 0)) return list[i];
+  }
+  return list.length ? list[0] : 0;
+}
+
+/* After one area-day in the runner: the next one on the same sitting that still
+   has sets to do, so a sitting runs as one go. */
+function nextAreaDay(session) {
+  var plan = session && session.areaId ? dayPlans[session.date] : null;
+  if (!plan) return null;
+
+  for (var i = 0; i < plan.sittings.length; i++) {
+    var ids = plan.sittings[i].areas;
+    var at = ids.indexOf(session.areaId);
+    if (at < 0) continue;
+    for (var j = at + 1; j < ids.length; j++) {
+      var next = areaDaySession(session.date, ids[j]);
+      if (next && !areaPaused(next) && doneSets(next) < totalSets(next)) return next;
+    }
+    return null;
+  }
+  return null;
+}
+
+/* What the menu shows for one sitting: every area, most urgent first. */
+var URGENCY = { due: 0, behind: 1, risk: 2, track: 3, done: 4, held: 5, ahead: 6 };
+
+function menuRows(date, sittingIdx, days) {
+  var plan = dayPlans[date];
+  var start = weekStartOf(date);
+
+  return areaList().map(function (area) {
+    var week = areaWeek(area, start, date, days);
+    var trained = days.filter(function (r) { return r.area === area.id && r.date === date; })[0] || null;
+    var inThis = plan.sittings[sittingIdx].areas.indexOf(area.id) >= 0;
+    var elsewhere = plan.sittings.some(function (st, i) { return i !== sittingIdx && st.areas.indexOf(area.id) >= 0; });
+    return {
+      area: area, week: week, record: trained,
+      selected: inThis, elsewhere: elsewhere,
+      held: heldReason(area, date),
+      reason: areaReason(area, date, days, week),
+      warnings: inThis ? [] : menuWarnings(area, date, plan, days)
+    };
+  }).sort(function (a, b) {
+    return (b.selected - a.selected) || (URGENCY[a.week.status.key] - URGENCY[b.week.status.key]) || (a.area.priority - b.area.priority);
+  });
+}
+
+/* How a cell of the week reads, in one word. Shapes in the grid are drawn from this.
+     full / partial   something logged
+     skipped          planned (or taken off the menu by you) and nothing logged
+     planned          on today's menu, not done yet
+     noplan           a day since menus began that was never opened, so unknown
+     none / future    nothing to say */
+function dayCellState(date, areaId, today, rec) {
+  if (rec) return rec.full ? 'full' : 'partial';
+  if (date > today) return 'future';
+
+  var plan = dayPlans[date];
+  if (plan) {
+    var removed = areaId in plan.removed;
+    if (plannedAreaIds(plan).indexOf(areaId) >= 0 && !removed) return date === today ? 'planned' : 'skipped';
+    if (removed) return 'skipped';
+    return 'none';
+  }
+  return settings.menuSince && date >= settings.menuSince && date < today ? 'noplan' : 'none';
+}
+
+/* The week in numbers, and what was skipped. */
+function weekSummary(start, today, days) {
+  var out = { done: 0, partial: 0, skipped: 0, planned: 0, skippedItems: [] };
+  areaList().forEach(function (a) {
+    areaWeek(a, start, today, days).cells.forEach(function (c) {
+      if (c.state === 'full') out.done++;
+      else if (c.state === 'partial') out.partial++;
+      else if (c.state === 'planned') out.planned++;
+      else if (c.state === 'skipped') {
+        out.skipped++;
+        var plan = dayPlans[c.date];
+        out.skippedItems.push({ area: a, date: c.date, reason: plan && plan.removed[a.id] || '' });
+      }
+    });
+  });
+  out.skippedItems.sort(function (a, b) {
+    return a.date < b.date ? -1 : a.date > b.date ? 1 : a.area.priority - b.area.priority;
+  });
+  return out;
+}
+
+/* A day, sitting by sitting, for the detail panel. Anything logged that was not
+   on the menu comes last, as "added". */
+function dayDetailItems(date, today, days) {
+  var plan = dayPlans[date];
+  var recs = days.filter(function (r) { return r.date === date; });
+  var out = { noPlan: !plan, sittings: [], extras: [] };
+  var listed = {};
+
+  if (plan) {
+    plan.sittings.forEach(function (st, i) {
+      out.sittings.push({
+        index: i, minutes: st.minutes,
+        items: st.areas.map(function (id) {
+          listed[id] = true;
+          var rec = recs.filter(function (r) { return r.area === id; })[0] || null;
+          return { area: areaById(id), state: dayCellState(date, id, today, rec), record: rec, reason: '' };
+        })
+      });
+    });
+    Object.keys(plan.removed).forEach(function (id) {
+      if (listed[id]) return;
+      listed[id] = true;
+      var rec = recs.filter(function (r) { return r.area === id; })[0] || null;
+      out.extras.push({ area: areaById(id), state: dayCellState(date, id, today, rec), record: rec, reason: plan.removed[id], removed: true });
+    });
+  }
+  recs.forEach(function (r) {
+    if (listed[r.area]) return;
+    out.extras.push({ area: areaById(r.area), state: r.full ? 'full' : 'partial', record: r, reason: '' });
+  });
+  return out;
+}
 
 /* How many full days an area has in its current stage. Everything so far counts,
    because nobody has left the first stage yet. */
@@ -816,7 +1399,7 @@ function areaWeek(area, start, today, days) {
   for (var i = 0; i < 7; i++) {
     var date = addDays(start, i);
     var rec = byDate[date] || null;
-    var state = rec ? (rec.full ? 'full' : 'partial') : (date > today ? 'future' : 'none');
+    var state = dayCellState(date, area.id, today, rec);
     if (rec) { touched++; if (rec.full) full++; }
     cells.push({ date: date, state: state, isToday: date === today, record: rec });
   }
@@ -1152,19 +1735,24 @@ function paintLogged(node, ex, session) {
     var e = getLog(session.id, ex.id, i);
     if (!hasDetail(e)) continue;
 
-    var bits = [];
-    if (e.loadKg !== undefined) bits.push(e.loadKg + ' kg');
-    if (e.reps !== undefined) bits.push(e.reps + (e.reps === 1 ? ' rep' : ' reps'));
-    if (e.rpe !== undefined) bits.push('RPE ' + e.rpe);
-
-    node.appendChild(el('div', { text: 'Set ' + (i + 1) + ' — ' + bits.join(' · ') }));
+    node.appendChild(el('div', { text: 'Set ' + (i + 1) + ' — ' + setBits(e).join(' · ') }));
   }
 }
 
+/* "20 kg", "5 reps", "RPE 8" — whatever was written down for the set. */
+function setBits(e) {
+  var bits = [];
+  if (e.loadKg !== undefined) bits.push(e.loadKg + ' kg');
+  if (e.reps !== undefined) bits.push(e.reps + (e.reps === 1 ? ' rep' : ' reps'));
+  if (e.rpe !== undefined) bits.push('RPE ' + e.rpe);
+  return bits;
+}
+
 function paintCount() {
-  if (!todaySession) return;
-  var sub = document.getElementById('appbar-sub');
-  sub.textContent = doneSets(todaySession) + ' of ' + totalSets(todaySession) + ' sets';
+  if (!todaySessions.length) return;
+  var done = 0, total = 0;
+  todaySessions.forEach(function (x) { done += doneSets(x); total += totalSets(x); });
+  document.getElementById('appbar-sub').textContent = fmtDateShort(todayISO()) + ' · ' + done + ' of ' + total + ' sets';
 }
 
 /* --- rest timer -------------------------------------------------------- */
@@ -1391,12 +1979,15 @@ function openSetSheet(ex, session, i, btn, logged) {
   if (entry.reps !== undefined) repsIn.value = entry.reps;
   if (entry.rpe !== undefined) rpeIn.value = entry.rpe;
 
+  var problem = el('p', { class: 'sheet-error', role: 'alert' });
+
   var form = el('form', { class: 'sheet' }, [
     el('h3', { text: ex.name }),
     el('p', { class: 'sheet-sub', text: 'Set ' + (i + 1) + ' of ' + ex.sets + ' — what actually happened' }),
     field('Load (kg)', loadIn),
     field('Reps', repsIn),
     field('RPE', rpeIn),
+    problem,
     el('div', { class: 'sheet-actions' }, [
       el('button', { type: 'button', class: 'btn btn-quiet', id: 'sheet-clear', text: 'Clear' }),
       el('button', { type: 'button', class: 'btn btn-quiet', id: 'sheet-cancel', text: 'Cancel' }),
@@ -1430,13 +2021,38 @@ function openSetSheet(ex, session, i, btn, logged) {
     close();
   });
 
+  /* Out of range is refused, not trimmed to the limit: 999 reps trimmed to 300
+     is still wrong, and nobody would see it. */
   form.addEventListener('submit', function (e) {
     e.preventDefault();
+
+    var checks = [
+      checkSetValue(loadIn.value, SET_LIMITS[0]),
+      checkSetValue(repsIn.value, SET_LIMITS[1]),
+      checkSetValue(rpeIn.value, SET_LIMITS[2])
+    ];
+    var inputs = [loadIn, repsIn, rpeIn];
+    var firstBad = -1;
+    checks.forEach(function (c, k) {
+      if (c.error) {
+        inputs[k].setAttribute('aria-invalid', 'true');
+        if (firstBad < 0) firstBad = k;
+      } else {
+        inputs[k].removeAttribute('aria-invalid');
+      }
+    });
+
+    if (firstBad >= 0) {
+      problem.textContent = checks.filter(function (c) { return c.error; }).map(function (c) { return c.error; }).join(' ');
+      inputs[firstBad].focus();
+      return;
+    }
+
     writeLog(session.id, ex.id, i, {
       done: true,                                  /* you logged it, so you did it */
-      loadKg: num(loadIn.value, 0, 500),
-      reps: num(repsIn.value, 0, 999),
-      rpe: num(rpeIn.value, 1, 10)
+      loadKg: checks[0].value,
+      reps: checks[1].value,
+      rpe: checks[2].value
     });
     refresh();
     close();
@@ -1451,6 +2067,52 @@ function field(label, input) {
     el('span', { text: label }),
     input
   ]);
+}
+
+/* What one logged set can hold. Past these it is a typo, not a lift: the set
+   sheet refuses them, and the Progress tab lists any already on the phone. */
+var SET_LIMITS = [
+  { key: 'loadKg', label: 'Load', unit: ' kg', min: 0, max: 250 },
+  { key: 'reps',   label: 'Reps', unit: '',    min: 0, max: 300 },
+  { key: 'rpe',    label: 'RPE',  unit: '',    min: 1, max: 10 }
+];
+
+/* Blank is fine, it means "as planned". Anything else has to be a number in range. */
+function checkSetValue(raw, limit) {
+  var s = String(raw == null ? '' : raw).trim().replace(',', '.');
+  if (s === '') return { value: undefined };
+  var n = Number(s);
+  if (!isFinite(n)) return { error: limit.label + ' has to be a number.' };
+  if (n < limit.min || n > limit.max) {
+    return { error: limit.label + ' has to be between ' + limit.min + ' and ' + limit.max + limit.unit + '.' };
+  }
+  return { value: n };
+}
+
+/* Sets already logged with a value outside those limits (a number that is not a
+   number counts too), and which fields are the odd ones. */
+function suspectSets() {
+  var out = [];
+  setLogs.forEach(function (e) {
+    var bad = SET_LIMITS.filter(function (l) {
+      var v = e[l.key];
+      return v !== undefined && (typeof v !== 'number' || !isFinite(v) || v < l.min || v > l.max);
+    });
+    if (bad.length) out.push({ entry: e, bad: bad });
+  });
+  return out;
+}
+
+/* Remove only the odd numbers. The set stays done, and keeps the time it was
+   logged at. */
+function clearSuspect(item) {
+  var e = item.entry;
+  var ts = e.ts;
+  var patch = {};
+  item.bad.forEach(function (l) { patch[l.key] = undefined; });
+
+  var kept = writeLog(e.sessionId, e.exerciseId, e.setIdx, patch);
+  if (kept && ts) { kept.ts = ts; saveLogs(); }
 }
 
 /* Blank means "no change from the plan", not zero. */
@@ -1473,127 +2135,286 @@ function toast(msg) {
 }
 
 /* --- Today --- */
-/* Today's session, or the next one up. Logging only unlocks on the day
-   itself — anything else is the plan browser, which is read-only. */
+/* The menu for today: one to three sittings, each a list of areas with its own
+   minutes. The areas on a sitting are the ones you will do; everything else is
+   below it, one tap away, with the reason it is or is not a good idea. */
 
-var DAY_NAME = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday' };
+var todaySessions = [];     /* the area-days on screen, for the set count in the app bar */
+var todaySitting = 0;       /* which sitting is showing */
+var todayOpen = {};         /* area-day id -> showing its exercises */
 
-function nextTrainingSession(afterDate) {
-  return plan.sessions.filter(function (s) {
-    return !isSkipped(s) && sessionDate(s) > afterDate && s.tag !== 'rest';
-  })[0] || null;
+var SKIP_REASONS = [['no time', 'No time'], ['tired', 'Tired'], ['pain', 'Pain'], ['other', 'Other']];
+
+function dataLoading(title) {
+  setView(title, '', [el('p', { class: 'empty', text: areaLoad === 'failed'
+    ? 'Could not load the areas. Connect once so they can be cached, then they work offline.'
+    : 'Loading areas…' })]);
+}
+
+/* Re-draw in place, keeping the scroll: a tap on a button should not jump the page. */
+function repaintToday() {
+  var y = window.scrollY;
+  renderToday();
+  window.scrollTo(0, y);
+}
+
+/* One line per red body area: what it has paused, and until when. */
+function heldCallouts(date) {
+  var red = redAreasOn(date);
+  return Object.keys(red).map(function (body) {
+    var paused = areaList().filter(function (a) { return a.guardedBy.indexOf(body) >= 0; })
+      .map(function (a) { return a.name; });
+    if (!paused.length) return null;
+    return el('div', { class: 'callout callout-red' }, [
+      el('strong', { text: 'Red · ' + bodyLabel(body).toLowerCase() }),
+      document.createTextNode('Paused until ' + fmtDateShort(addDays(red[body], 1)) + ': ' + paused.join(', ') + '.')
+    ]);
+  }).filter(Boolean);
+}
+
+/* Sitting tabs, and the time you have for the one showing. */
+function sittingBar(date, plan) {
+  var sitting = plan.sittings[todaySitting];
+  var wrap = el('div', { class: 'sit-bar' });
+
+  if (plan.sittings.length > 1) {
+    var tabs = el('div', { class: 'sit-row' });
+    plan.sittings.forEach(function (st, i) {
+      var b = el('button', {
+        class: 'sit-chip' + (i === todaySitting ? ' is-on' : ''), type: 'button',
+        'aria-pressed': String(i === todaySitting),
+        text: 'Sitting ' + (i + 1) + ' · ' + st.minutes + ' min'
+      });
+      b.addEventListener('click', function () { todaySitting = i; repaintToday(); });
+      tabs.appendChild(b);
+    });
+    wrap.appendChild(tabs);
+  }
+
+  var options = areaData.rules.defaults.timeOptions.slice();
+  if (options.indexOf(sitting.minutes) < 0) { options.push(sitting.minutes); options.sort(function (a, b) { return a - b; }); }
+
+  var times = el('div', { class: 'sit-row' }, [el('span', { class: 'sit-label', text: 'Time:' })]);
+  options.forEach(function (m) {
+    var b = el('button', {
+      class: 'sit-chip' + (m === sitting.minutes ? ' is-on' : ''), type: 'button',
+      'aria-pressed': String(m === sitting.minutes), text: m + ' min'
+    });
+    b.addEventListener('click', function () { setSittingMinutes(date, todaySitting, m); repaintToday(); });
+    times.appendChild(b);
+  });
+  wrap.appendChild(times);
+  return wrap;
+}
+
+/* Take an area off. Something the app suggested becomes a skip, so ask why
+   (you may say nothing); something you added yourself just goes. */
+function takeOff(date, sittingIdx, areaId) {
+  var plan = dayPlans[date];
+  var area = areaById(areaId);
+
+  function go(reason) {
+    var r = removeAreaFromDay(date, sittingIdx, areaId, reason);
+    if (!r.ok) toast(r.why);
+    repaintToday();
+  }
+
+  if (plan.suggested.indexOf(areaId) < 0) { go(''); return; }
+
+  var list = el('div', { class: 'picklist' });
+  SKIP_REASONS.concat([['', 'No reason']]).forEach(function (r) {
+    var b = el('button', { class: 'card pick', type: 'button' }, [el('div', { class: 'card-title', text: r[1] })]);
+    b.addEventListener('click', function () { closeSheet(); go(r[0]); });
+    list.appendChild(b);
+  });
+  openSheet('Take ' + area.name + ' off today?', 'It was suggested, so the week will show it as skipped. A reason is optional.', [list]);
+}
+
+/* One area on one date: its progress, its start button and, when opened, its
+   exercises with the same set chips as ever. */
+function areaDayCard(date, sittingIdx, areaId, plan, onlyOne) {
+  var area = areaById(areaId);
+  var s = areaDaySession(date, areaId);
+  if (!area || !s) {
+    return el('div', { class: 'card' }, [
+      el('div', { class: 'card-title', text: area ? area.name : areaId }),
+      el('div', { class: 'card-sub', text: 'Nothing is written for this stage yet.' })
+    ]);
+  }
+
+  if (!todaySessions.some(function (x) { return x.id === s.id; })) todaySessions.push(s);
+
+  var paused = areaPaused(s);
+  var total = totalSets(s), done = doneSets(s);
+  var finished = !paused && total > 0 && done >= total;
+  var open = s.id in todayOpen ? todayOpen[s.id] : onlyOne;
+
+  var head = el('button', { class: 'ad-head', type: 'button', 'aria-expanded': String(open) }, [
+    el('span', { class: 'ad-title', text: area.name }),
+    el('span', { class: 'ad-prog', text: paused ? 'held' : done + ' / ' + total }),
+    el('span', { class: 'chev', text: open ? '⌃' : '⌄' })
+  ]);
+  head.addEventListener('click', function () { todayOpen[s.id] = !open; repaintToday(); });
+
+  var meta = [s.stageId + (s.type ? ' · ' + s.type : ''), '~' + area.minutes + ' min'];
+  var badges = el('div', { class: 'badges' }, [
+    paused ? badge('Held', 'badge-test') : null,
+    finished ? badge('Done', 'badge-green') : null,
+    s.draft ? badge('Draft') : null
+  ]);
+
+  var card = el('div', { class: 'card ad-card' + (finished ? ' is-done' : '') }, [
+    head,
+    el('div', { class: 'ad-meta' }, [el('span', { text: meta.join(' · ') }), badges])
+  ]);
+
+  var actions = el('div', { class: 'ad-actions' });
+  if (!paused && !finished && total > 0) {
+    actions.appendChild(el('a', { class: 'btn btn-go', href: '#/run/' + s.id + '/' + firstOpenExercise(s), text: done ? '▶ Resume' : '▶ Start' }));
+  }
+  if (!sessionHasLogs(s)) {
+    var off = el('button', { class: 'btn btn-quiet', type: 'button', text: 'Take off' });
+    off.addEventListener('click', function () { takeOff(date, sittingIdx, areaId); });
+    actions.appendChild(off);
+  }
+  if (actions.childNodes.length) card.appendChild(actions);
+
+  if (paused) {
+    card.appendChild(el('div', { class: 'ad-note', text: 'Held: ' + heldReason(area, date) + '. Nothing to do here until it clears.' }));
+  } else if (s.draft && open) {
+    card.appendChild(el('div', { class: 'ad-note', text: 'First-draft prescription: sets and reps for this stage have not been reviewed yet.' }));
+  }
+
+  if (open && !paused) {
+    var gate = sessionGate(s);
+    s.exercises.forEach(function (ex) { card.appendChild(exerciseCard(ex, s, 'live', gate)); });
+  }
+  return card;
+}
+
+/* An area that is not on this sitting, and why you might or might not add it. */
+function addRow(row, date, sittingIdx) {
+  var a = row.area;
+  var lines = [el('div', { class: 'add-why', text: row.held ? 'Held: ' + row.held + '.' : row.reason })];
+  if (row.record) lines.push(el('div', { class: 'add-why', text: 'Done today: ' + row.record.done + ' of ' + row.record.total + ' sets.' }));
+  if (row.elsewhere) lines.push(el('div', { class: 'add-why', text: 'Already on another sitting today.' }));
+  row.warnings.forEach(function (w) { lines.push(el('div', { class: 'add-warn', text: w })); });
+
+  var action;
+  if (row.held) {
+    action = el('span', { class: 'badge badge-test', text: 'Held' });
+  } else {
+    action = el('button', { class: 'btn btn-add', type: 'button', text: 'Add' });
+    action.addEventListener('click', function () {
+      var r = addAreaToDay(date, sittingIdx, a.id);
+      if (!r.ok) toast(r.why);
+      todayOpen[areaDayId(date, a.id)] = true;
+      repaintToday();
+    });
+  }
+
+  return el('div', { class: 'add-row' + (row.held ? ' is-held' : '') }, [
+    el('div', { class: 'add-main' }, [
+      el('div', { class: 'add-name', text: a.name }),
+      el('div', { class: 'add-meta' }, [
+        el('span', { text: currentStage(a).id + ' · ~' + a.minutes + ' min' }),
+        row.held ? null : statusTag(row.week.status)
+      ])
+    ].concat(lines)),
+    action
+  ]);
+}
+
+/* Something done without the app: pick the day and the area; every set of its
+   block is marked done. */
+function openElsewhereSheet(today) {
+  var daySel = el('select', { id: 'log-date' }, [0, 1, 2, 3, 4, 5, 6].map(function (n) {
+    var d = addDays(today, -n);
+    return el('option', { value: d, text: n === 0 ? 'Today' : n === 1 ? 'Yesterday' : DAY_SHORT[isoDow(d)] + ' ' + fmtDateShort(d) });
+  }));
+
+  var list = el('div', { class: 'picklist' });
+  areaList().forEach(function (a) {
+    var b = el('button', { class: 'card pick', type: 'button' }, [
+      el('div', { class: 'card-title', text: a.name }),
+      el('div', { class: 'card-sub', text: 'Marks every set of ' + currentStage(a).id + ' as done.' })
+    ]);
+    b.addEventListener('click', function () {
+      var date = daySel.value;
+      var r = logAreaBlock(date, a.id);
+      closeSheet();
+      toast(r.ok ? a.name + ' logged for ' + fmtDateShort(date) + '.' : r.why);
+      repaintToday();
+    });
+    list.appendChild(b);
+  });
+
+  openSheet('Log something done elsewhere', 'Pick the day, then the area.', [field('Day', daySel), list]);
 }
 
 function renderToday() {
+  if (!areaData) return dataLoading('Today');
+
   var today = todayISO();
-  var scheduled = plan.sessions.filter(function (s) { return !isSkipped(s) && sessionDate(s) === today; })[0] || null;
-  var s = scheduled || nextSession();
+  var days = areaDays();
+  var plan = ensureDayPlan(today, days);
+  if (todaySitting >= plan.sittings.length) todaySitting = 0;
+  var sitting = plan.sittings[todaySitting];
+  todaySessions = [];
 
-  todaySession = null;
+  var nodes = heldCallouts(today);
+  nodes.push(sittingBar(today, plan));
 
-  if (!s) {
-    setView('Today', '', [
-      el('p', { class: 'empty', text: 'The block is finished. Nothing left on the schedule.' }),
-      el('p', { class: 'buildline', text: 'Build ' + BUILD })
-    ]);
-    window.scrollTo(0, 0);
-    return;
-  }
-
-  /* A rest day shows what is coming and nothing else. */
-  if (scheduled && s.tag === 'rest') {
-    var after = nextTrainingSession(today);
-    setView('Today', s.weekLabel || '', [
-      el('div', { class: 'callout' }, [
-        el('strong', { text: 'Rest day · ' + fmtDateShort(today) }),
-        document.createTextNode(s.exercises[0] && s.exercises[0].cue ? s.exercises[0].cue : 'Complete rest.')
-      ]),
-      after ? el('p', { class: 'section-label', text: 'Next session · ' + (DAY_NAME[after.day] || after.day) }) : null,
-      after ? sessionLinkCard(after) : null,
-      el('p', { class: 'buildline', text: 'Build ' + BUILD })
-    ].filter(Boolean));
-    window.scrollTo(0, 0);
-    return;
-  }
-
-  var live = !!scheduled;
-  var nodes = [];
-
-  if (!live) {
-    nodes.push(el('p', { class: 'section-label', text: 'Next session · ' + (DAY_NAME[s.day] || s.day) }));
-  }
-
-  nodes.push(el('div', { class: 'session-head' }, [
-    el('div', { class: 'badges', style: 'justify-content:flex-start;margin:0 0 6px' }, [
-      badge(TAG_LABEL[s.tag] || s.tag, tagClass('badge', s.tag)),
-      s.deload ? badge('Deload') : null,
-      badge(s.block),
-      s.muPhase && s.muPhase !== '—' ? badge('Phase ' + s.muPhase) : null,
-      moveBadges(s)
-    ]),
-    el('h2', { text: s.name }),
-    el('div', { class: 'meta', text: s.day + ' ' + fmtDate(sessionDate(s)) + ' · ' + (s.weekLabel || s.week)
-      + (isMoved(s) ? ' · planned for ' + fmtDateShort(s.date) : '') })
+  var load = sittingLoad(sitting);
+  nodes.push(el('div', { class: 'total-line' }, [
+    el('span', { text: sitting.areas.length ? 'About ' + load.planned + ' min of ' + sitting.minutes : 'Nothing on this sitting yet.' }),
+    load.over ? el('span', { class: 'over', text: '+' + load.over + ' min over' }) : null
   ]));
 
-  if (s.deload) {
-    nodes.push(el('div', { class: 'callout' }, [
-      el('strong', { text: 'Deload week' }),
-      document.createTextNode('Reduced volume. Take it as written — it is part of the plan, not a concession.')
-    ]));
+  var cards = sitting.areas.map(function (id) { return areaDayCard(today, todaySitting, id, plan, sitting.areas.length === 1); });
+
+  var startable = sitting.areas.map(function (id) { return areaDaySession(today, id); })
+    .filter(function (x) { return x && !areaPaused(x) && doneSets(x) < totalSets(x); })[0];
+  if (startable) {
+    nodes.push(el('a', { class: 'btn btn-go btn-block btn-start', href: '#/run/' + startable.id + '/' + firstOpenExercise(startable),
+      text: sitting.areas.some(function (id) { var x = areaDaySession(today, id); return x && doneSets(x) > 0; }) ? '▶ Carry on with this sitting' : '▶ Start this sitting' }));
+  }
+  cards.forEach(function (c) { nodes.push(c); });
+
+  if (!sitting.areas.length) {
+    nodes.push(el('p', { class: 'hint', text: plan.suggested.length
+      ? 'Everything suggested has been taken off. Add what you feel like below.'
+      : 'Nothing is due yet this week. Add what you feel like below.' }));
   }
 
-  checkpointsOn(s.date).forEach(function (c) {
-    nodes.push(el('div', { class: 'callout callout-checkpoint' }, [
-      el('strong', { text: c.label }),
-      document.createTextNode(c.detail)
-    ]));
-  });
-
-  if (live && s.exercises.length) {
-    var start = el('a', { class: 'btn btn-go btn-block btn-start', href: '#/run/' + s.id + '/0',
-      text: doneSets(s) ? '▶ Resume session' : '▶ Start session' });
-    nodes.push(start);
+  var others = menuRows(today, todaySitting, days).filter(function (r) { return !r.selected; });
+  if (others.length) {
+    nodes.push(el('p', { class: 'section-label', text: 'Add to this sitting' }));
+    others.forEach(function (r) { nodes.push(addRow(r, today, todaySitting)); });
   }
 
-  var swap = el('button', { class: 'btn btn-block btn-move', type: 'button', text: 'Do a different session' });
-  swap.addEventListener('click', function () { movePicker(todayISO()); });
-  nodes.push(swap);
+  var more = el('div', { class: 'sheet-actions today-actions' });
+  if (plan.sittings.length < MAX_SITTINGS) {
+    var another = el('button', { class: 'btn', type: 'button', text: '+ Another sitting today' });
+    another.addEventListener('click', function () { todaySitting = addSitting(today, 30); repaintToday(); });
+    more.appendChild(another);
+  }
+  if (plan.sittings.length > 1 && !sitting.areas.length) {
+    var drop = el('button', { class: 'btn btn-quiet', type: 'button', text: 'Remove this sitting' });
+    drop.addEventListener('click', function () { removeSitting(today, todaySitting); todaySitting = 0; repaintToday(); });
+    more.appendChild(drop);
+  }
+  nodes.push(more);
 
-  nodes.push(el('p', { class: 'hint', text: live
-    ? 'Or tap a set to tick it off by hand. Long-press to record what actually happened.'
-    : 'Logging opens on the day.' }));
+  var elsewhere = el('button', { class: 'btn btn-block btn-move', type: 'button', text: 'Log something done elsewhere' });
+  elsewhere.addEventListener('click', function () { openElsewhereSheet(today); });
+  nodes.push(elsewhere);
 
-  var gate = sessionGate(s);
-  if (gate.redAreas.length) nodes.push(redBanner(s, gate));
-  var hb = holdBanner(s, gate);
-  if (hb) nodes.push(hb);
-
-  var mode = live ? 'live' : (sessionHasLogs(s) ? 'review' : 'plain');
-  s.exercises.forEach(function (ex) {
-    if (ex.track && gate.suppressed[ex.track]) return;    /* red: off the page entirely */
-    nodes.push(exerciseCard(ex, s, mode, gate));
-  });
-
+  nodes.push(el('p', { class: 'hint', text: 'The plan from before the areas is still under Plan, to read. Tap a set to tick it off by hand, long-press to record what actually happened.' }));
   nodes.push(el('p', { class: 'buildline', text: 'Build ' + BUILD }));
 
   setView('Today', '', nodes);
-  if (live) {
-    todaySession = s;
-    paintCount();
-  }
-  window.scrollTo(0, 0);
-}
-
-function sessionLinkCard(s) {
-  return el('a', { class: 'card is-now', href: '#/session/' + s.id }, [
-    el('div', { class: 'card-top' }, [
-      el('span', { class: 'dot ' + tagClass('dot', s.tag) }),
-      el('span', { class: 'card-title', text: s.day + ' ' + fmtDateShort(sessionDate(s)) }),
-      el('span', { class: 'chev', text: '›' })
-    ]),
-    el('div', { class: 'card-sub', text: s.name })
-  ]);
+  paintCount();
 }
 
 /* ---------------------------------------------------------------- backup */
@@ -1717,7 +2538,7 @@ function inspectBackup(raw) {
     var key = COLLECTIONS[i];
     if (!(key in data)) continue;
     var v = data[key];
-    var wantArray = key !== LS_SETTINGS && key !== LS_SCHEDULE;
+    var wantArray = [LS_SETTINGS, LS_SCHEDULE, LS_DAYPLANS, LS_AREADAYS].indexOf(key) < 0;
 
     if (wantArray ? !Array.isArray(v) : (typeof v !== 'object' || v === null || Array.isArray(v))) {
       return { error: '“' + key + '” is the wrong shape in that file.' };
@@ -1736,8 +2557,26 @@ function describeBackup(found) {
   if (found[LS_BASELINES]) bits.push(found[LS_BASELINES].length + ' baseline ' + (found[LS_BASELINES].length === 1 ? 'entry' : 'entries'));
   if (found[LS_LOGS]) bits.push(found[LS_LOGS].length + ' logged ' + (found[LS_LOGS].length === 1 ? 'set' : 'sets'));
   if (found[LS_CHECKINS]) bits.push(found[LS_CHECKINS].length + ' check-' + (found[LS_CHECKINS].length === 1 ? 'in' : 'ins'));
+  if (found[LS_DAYPLANS]) {
+    var planned = Object.keys(found[LS_DAYPLANS]).length;
+    bits.push(planned + ' planned ' + (planned === 1 ? 'day' : 'days'));
+  }
   if (!bits.length) return 'no records';
   return bits.every(function (b) { return b.indexOf('0 ') === 0; }) ? 'nothing yet' : bits.join(', ');
+}
+
+/* Write a checked backup to storage. Menus and what each day contained hang off
+   the logs, so when a file brings logs but not them (it predates them) they are
+   cleared: a restore must never leave a menu pointing at sets that are gone. */
+function writeBackup(data) {
+  COLLECTIONS.forEach(function (key) {
+    if (key in data) localStorage.setItem(key, JSON.stringify(data[key]));
+  });
+  if (LS_LOGS in data) {
+    [LS_DAYPLANS, LS_AREADAYS].forEach(function (key) {
+      if (!(key in data)) localStorage.removeItem(key);
+    });
+  }
 }
 
 /* Restore replaces what is on the phone. Say so plainly, with both sides of
@@ -1770,9 +2609,7 @@ function importData(file) {
     if (!ok) return;
 
     try {
-      COLLECTIONS.forEach(function (key) {
-        if (key in result.data) localStorage.setItem(key, JSON.stringify(result.data[key]));
-      });
+      writeBackup(result.data);
     } catch (err) {
       console.warn('import write failed', err);
       toast('Could not write the restored data — storage is full or blocked.');
@@ -1784,6 +2621,8 @@ function importData(file) {
     loadCheckIns();
     loadSchedule();
     loadSettings();
+    loadDayPlans();
+    loadFrozenDays();
     renderProgress();
     paintTabBadge();
     toast('Restored ' + incoming + '.');
@@ -1891,6 +2730,7 @@ function firstUndoneSet(session, ex) {
    an exercise off Today and Plan; the runner has to agree, or one tap on
    "Start session" walks you straight back into what it just pulled. */
 function runnableIndexes(session) {
+  if (areaPaused(session)) return [];
   var suppressed = sessionGate(session).suppressed;
   var out = [];
   session.exercises.forEach(function (ex, i) {
@@ -2253,12 +3093,21 @@ function runSummary(s) {
   var finish = el('button', { class: 'run-action', type: 'button', text: 'Finish' });
   finish.addEventListener('click', function () { location.hash = '#/today'; });
 
+  /* A sitting runs as one go: the next area on it that still has sets to do. */
+  var next = nextAreaDay(s);
+  var nextBtn = null;
+  if (next) {
+    nextBtn = el('button', { class: 'run-action', type: 'button', text: 'Next: ' + areaById(next.areaId).name + ' ▶' });
+    nextBtn.addEventListener('click', function () { location.hash = '#/run/' + next.id + '/' + firstOpenExercise(next); });
+  }
+
   return el('div', { class: 'run-body run-done' }, [
     el('div', { class: 'run-ex', text: 'Session done' }),
     el('div', { class: 'run-setline', text: s.name }),
     el('div', { class: 'run-big', text: done + ' / ' + total }),
     el('div', { class: 'run-hint', text: 'sets logged · ' + mins + ' min' }),
-    finish,
+    nextBtn || finish,
+    nextBtn ? finish : null,
     el('div', { class: 'run-cue', text: done < total
       ? 'Some sets were skipped. You can still tick them off on the Today tab.'
       : 'Everything the plan asked for. Check in tomorrow morning.' })
@@ -3316,6 +4165,8 @@ function renderProgress() {
     ]));
   }
 
+  nodes.push(dataCheckSection());           /* short, and something to act on: keep it near the top */
+
   dueRecalibrations().forEach(function (c) {
     nodes.push(el('div', { class: 'callout callout-due' }, [
       el('strong', { text: 'Recalibration due · ' + c.label + ' · ' + fmtDateShort(c.date) }),
@@ -3356,6 +4207,62 @@ function renderProgress() {
   if (btn) btn.addEventListener('click', function () { openBaselineSheet(); });
 
   window.scrollTo(0, 0);
+}
+
+/* Where a logged set came from, in words. */
+function describeLoggedSet(e) {
+  var s = sessionById(e.sessionId);
+  var ex = s && s.exercises.filter(function (x) { return x.id === e.exerciseId; })[0];
+  var date = s ? sessionDate(s) : null;
+  if (!date && e.ts) date = String(e.ts).slice(0, 10);
+  return {
+    what: (ex ? ex.name : e.exerciseId) + ' · set ' + (e.setIdx + 1),
+    when: date ? fmtDate(date) : 'date unknown'
+  };
+}
+
+/* Sets whose numbers cannot be real, each with a one-tap clear. Nothing is shown
+   when everything is fine. */
+function dataCheckSection() {
+  var items = suspectSets();
+  if (!items.length) return null;
+
+  function cleared(count) {
+    toast(count === 1 ? 'Cleared. The set is still done.' : 'Cleared ' + count + ' sets. They are still done.');
+    renderProgress();
+    paintTabBadge();
+  }
+
+  var wrap = el('div', {}, [
+    el('p', { class: 'section-label', text: 'Check your data' }),
+    el('div', { class: 'callout callout-due' }, [
+      el('strong', { text: items.length === 1 ? 'One set looks like a typo' : items.length + ' sets look like typos' }),
+      document.createTextNode('A load over 250 kg, more than 300 reps, or an RPE outside 1–10. Clearing removes only the odd numbers; the set stays done.')
+    ])
+  ]);
+
+  items.forEach(function (item) {
+    var d = describeLoggedSet(item.entry);
+    var clearBtn = el('button', { class: 'linkbtn', type: 'button', text: 'Clear values' });
+    clearBtn.addEventListener('click', function () {
+      clearSuspect(item);
+      cleared(1);
+    });
+    wrap.appendChild(el('div', { class: 'card hist' }, [
+      el('div', { class: 'card-top' }, [el('span', { class: 'card-title', text: d.what }), clearBtn]),
+      el('div', { class: 'card-sub', text: d.when + ' · ' + setBits(item.entry).join(' · ') })
+    ]));
+  });
+
+  if (items.length > 1) {
+    var allBtn = el('button', { class: 'btn btn-quiet btn-block', type: 'button', text: 'Clear all ' + items.length });
+    allBtn.addEventListener('click', function () {
+      items.forEach(clearSuspect);
+      cleared(items.length);
+    });
+    wrap.appendChild(allBtn);
+  }
+  return wrap;
 }
 
 function baselineTable(b) {
@@ -3545,9 +4452,14 @@ function renderError(msg) {
 var areaLoad = 'loading';                    /* loading | ready | failed */
 var areasView = { week: null, day: null };   /* the week and day the tab is showing */
 
-var STATE_TEXT = { full: 'done', partial: 'partial', none: 'not trained', future: 'not yet' };
+var STATE_TEXT = {
+  full: 'done', partial: 'partial', skipped: 'skipped', planned: 'planned',
+  noplan: 'no plan recorded', none: 'not trained', future: 'not yet'
+};
 
-/* One glyph per state. Shape carries the meaning, colour only reinforces it. */
+/* One glyph per state. Shape carries the meaning, colour only reinforces it:
+   filled disc done, half disc partial, dashed ring planned, cross skipped,
+   hatching no plan recorded, dot nothing. */
 function stateGlyph(state) {
   var svg = svgEl('svg', { class: 'g', viewBox: '0 0 20 20', 'aria-hidden': 'true' });
   if (state === 'full') {
@@ -3555,11 +4467,21 @@ function stateGlyph(state) {
   } else if (state === 'partial') {
     svg.appendChild(svgEl('circle', { class: 'g-ring', cx: 10, cy: 10, r: 7.5 }));
     svg.appendChild(svgEl('path', { class: 'g-part', d: 'M10 2.5 A7.5 7.5 0 0 0 10 17.5 Z' }));
+  } else if (state === 'planned') {
+    svg.appendChild(svgEl('circle', { class: 'g-plan', cx: 10, cy: 10, r: 7.5 }));
+  } else if (state === 'skipped') {
+    svg.appendChild(svgEl('path', { class: 'g-skip', d: 'M5.5 5.5 L14.5 14.5 M14.5 5.5 L5.5 14.5' }));
+  } else if (state === 'noplan') {
+    svg.appendChild(svgEl('path', { class: 'g-hatch', d: 'M4 12 L12 4 M8 16 L16 8 M12 18 L18 12' }));
   } else if (state === 'none') {
     svg.appendChild(svgEl('circle', { class: 'g-dot', cx: 10, cy: 10, r: 1.9 }));
   }
   return svg;
 }
+
+var REASON_TEXT = {};
+SKIP_REASONS.forEach(function (r) { REASON_TEXT[r[0]] = r[1]; });
+function reasonText(reason) { return reason ? (REASON_TEXT[reason] || reason) : ''; }
 
 function statusTag(status) {
   return status.label ? el('span', { class: 'st st-' + status.key, text: status.label }) : null;
@@ -3620,16 +4542,47 @@ function weekGrid(start, today, days) {
   return grid;
 }
 
-function weekLegend() {
+/* Only the shapes this week actually uses, so the legend never explains
+   something that is not on screen. */
+function weekLegend(sum, hasNoPlan) {
   var wrap = el('div', { class: 'wk-legend' });
-  [['full', 'Done'], ['partial', 'Partial'], ['none', 'Not trained']].forEach(function (p) {
+  var items = [['full', 'Done'], ['partial', 'Partial']];
+  if (sum.planned) items.push(['planned', 'Planned']);
+  if (sum.skipped) items.push(['skipped', 'Skipped']);
+  if (hasNoPlan) items.push(['noplan', 'No plan recorded']);
+  items.push(['none', 'Not trained']);
+  items.forEach(function (p) {
     wrap.appendChild(el('span', {}, [stateGlyph(p[0]), p[1]]));
   });
   return wrap;
 }
 
+/* The line under a logged item: "5 of 5 sets", "3 of 17 sets · partial". */
+function recNote(r) {
+  return r.done + ' of ' + r.total + ' sets' + (r.full ? '' : ' · partial');
+}
+
+function detailRow(item, extra) {
+  var area = item.area;
+  var note = '';
+  if (item.record) note = recNote(item.record);
+  else if (item.state === 'skipped') note = 'Skipped' + (item.reason ? ' · ' + reasonText(item.reason) : '');
+  else if (item.state === 'planned' || item.state === 'future') note = 'Planned';
+
+  if (item.record && item.removed) note += ' · taken off the menu';
+  if (extra) note += (note ? ' · ' : '') + extra;
+
+  return el('div', { class: 'wk-item' }, [
+    stateGlyph(item.state === 'future' ? 'planned' : item.state),
+    el('span', { text: area ? area.name : '' }),
+    el('span', { class: 'wk-note', text: note })
+  ]);
+}
+
+/* One day: each sitting in turn, then anything logged that was not on the menu.
+   A day nobody opened says so, rather than looking like a day off. */
 function dayDetail(date, today, days) {
-  var recs = days.filter(function (r) { return r.date === date; });
+  var d = dayDetailItems(date, today, days);
   var card = el('div', { class: 'card' }, [
     el('div', { class: 'card-top' }, [
       el('span', { class: 'card-title', text: fmtDate(date) }),
@@ -3637,20 +4590,50 @@ function dayDetail(date, today, days) {
     ])
   ]);
 
-  if (!recs.length) {
-    card.appendChild(el('div', { class: 'card-sub', text: date > today ? 'Nothing yet.' : 'Nothing logged for any area.' }));
+  if (d.noPlan) {
+    var since = settings.menuSince && date >= settings.menuSince && date < today;
+    if (!d.extras.length) {
+      card.appendChild(el('div', { class: 'card-sub', text: date > today ? 'Nothing yet.'
+        : since ? 'No plan recorded for this day.' : 'Nothing logged for any area.' }));
+      return card;
+    }
+    if (since) card.appendChild(el('div', { class: 'card-sub', text: 'No plan recorded for this day. What was logged:' }));
+    d.extras.forEach(function (it) { card.appendChild(detailRow(it)); });
     return card;
   }
 
-  recs.forEach(function (r) {
-    var area = areaById(r.area);
-    card.appendChild(el('div', { class: 'wk-item' }, [
-      stateGlyph(r.full ? 'full' : 'partial'),
-      el('span', { text: area ? area.name : r.area }),
-      el('span', { class: 'wk-note', text: r.done + ' of ' + r.total + ' sets' + (r.full ? '' : ' · partial') })
-    ]));
+  d.sittings.forEach(function (st) {
+    card.appendChild(el('div', { class: 'wk-sit', text: 'Sitting ' + (st.index + 1) + ' · ' + st.minutes + ' min' }));
+    if (!st.items.length) card.appendChild(el('div', { class: 'card-sub', text: 'Nothing planned.' }));
+    st.items.forEach(function (it) { card.appendChild(detailRow(it)); });
   });
+
+  if (d.extras.length) {
+    card.appendChild(el('div', { class: 'wk-sit', text: 'Not on the menu' }));
+    d.extras.forEach(function (it) { card.appendChild(detailRow(it, it.removed ? '' : 'added')); });
+  }
   return card;
+}
+
+/* What was skipped this week, with the reason you gave, one line each. */
+function skippedList(sum) {
+  if (!sum.skippedItems.length) return null;
+  var DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  var shown = sum.skippedItems.slice(0, 6);
+  var rows = shown.map(function (s) {
+    var why = reasonText(s.reason);
+    return el('li', { text: DAYS[isoDow(s.date)] + ' · ' + s.area.name + (why ? ' · ' + why : '') });
+  });
+  if (sum.skippedItems.length > shown.length) {
+    rows.push(el('li', { text: '+ ' + (sum.skippedItems.length - shown.length) + ' more — tap a day to see it' }));
+  }
+  return el('ul', { class: 'wk-skips', 'aria-label': 'Skipped this week' }, rows);
+}
+
+function weekHasNoPlan(start, today, days) {
+  return areaList().some(function (a) {
+    return areaWeek(a, start, today, days).cells.some(function (c) { return c.state === 'noplan'; });
+  });
 }
 
 function weekCard(start, today, days) {
@@ -3663,13 +4646,9 @@ function weekCard(start, today, days) {
   prev.addEventListener('click', function () { areasView.week = addDays(start, -7); areasView.day = null; repaintAreas(); });
   next.addEventListener('click', function () { areasView.week = addDays(start, 7); areasView.day = null; repaintAreas(); });
 
-  var full = 0, partial = 0;
-  areaList().forEach(function (a) {
-    areaWeek(a, start, today, days).cells.forEach(function (c) {
-      if (c.state === 'full') full++;
-      else if (c.state === 'partial') partial++;
-    });
-  });
+  var sum = weekSummary(start, today, days);
+  var line = 'Done ' + sum.done + ' · Partial ' + sum.partial + ' · Skipped ' + sum.skipped;
+  if (sum.planned) line += ' · Planned today ' + sum.planned;
 
   return el('div', { class: 'card wk-card' }, [
     el('div', { class: 'wk-head' }, [
@@ -3681,8 +4660,9 @@ function weekCard(start, today, days) {
       next
     ]),
     weekGrid(start, today, days),
-    weekLegend(),
-    el('p', { class: 'wk-sum', text: 'Done ' + full + ' · Partial ' + partial })
+    weekLegend(sum, weekHasNoPlan(start, today, days)),
+    el('p', { class: 'wk-sum', text: line }),
+    skippedList(sum)
   ]);
 }
 
@@ -3736,7 +4716,7 @@ function renderAreas() {
   ];
   areaList().forEach(function (a) { nodes.push(areaCard(a, days)); });
 
-  nodes.push(el('p', { class: 'hint', text: 'History from before the areas (weighted pull-ups, sprints, hinge, kettlebell press and a few prehab exercises) is kept but not counted here. Skipped days arrive with the daily menu.' }));
+  nodes.push(el('p', { class: 'hint', text: 'History from before the areas (weighted pull-ups, sprints, hinge, kettlebell press and a few prehab exercises) is kept but not counted here. A day counts as skipped only when it was on that day’s menu, or taken off it, and nothing was logged.' }));
   nodes.push(el('p', { class: 'buildline', text: 'Build ' + BUILD }));
 
   setView('Areas', areaList().length + ' areas', nodes);
@@ -3872,6 +4852,13 @@ function renderAreaDetail(id) {
   window.scrollTo(0, 0);
 }
 
+/* Today, Areas and the runner all draw from the area data. Everything else
+   (Plan, Check-in, Progress) works without it. An empty hash is Today. */
+function routeNeedsAreas(hash) {
+  var tab = String(hash || '').replace(/^#\/?/, '').split('/')[0] || 'today';
+  return tab === 'today' || tab === 'areas' || tab === 'run';
+}
+
 /* ----------------------------------------------------------------- router */
 
 function route() {
@@ -3895,7 +4882,7 @@ function route() {
   else if (tab === 'areas' && parts[1]) renderAreaDetail(parts[1]);
   else if (tab === 'areas') renderAreas();
   else if (tab === 'session') renderSession(parts[1]);
-  else if (tab === 'today') renderToday();
+  else if (tab === 'today') { renderToday(); window.scrollTo(0, 0); }
   else if (tab === 'checkin') renderCheckIn();
   else if (tab === 'progress') renderProgress();
   else {
@@ -3907,10 +4894,11 @@ function route() {
   view().focus({ preventScroll: true });
 }
 
-/* A dot on the Progress tab when a backup is overdue — the nag has to be
-   visible from the screens you actually use, not only from the one it is on. */
+/* A dot on the Progress tab when a backup is overdue or a set looks like a typo —
+   the nag has to be visible from the screens you actually use, not only from
+   the one it is on. */
 function paintTabBadge() {
-  mark('progress', exportOverdue());
+  mark('progress', exportOverdue() || suspectSets().length > 0);
   /* Only nag for a check-in once there is a session behind you. */
   mark('checkin', hasLoggedASession() && checkInDueToday());
 
@@ -4012,7 +5000,8 @@ loadAreaData().then(function (data) {
 }).catch(function () {
   areaLoad = 'failed';
 }).then(function () {
-  if (plan && /^#\/areas/.test(location.hash)) route();
+  /* The plan usually arrives first, so the screen drawn then said "loading". */
+  if (plan && routeNeedsAreas(location.hash)) route();
 });
 
 loadPlan().then(function (json) {
@@ -4022,6 +5011,8 @@ loadPlan().then(function (json) {
   loadSettings();
   loadCheckIns();
   loadSchedule();
+  loadDayPlans();
+  loadFrozenDays();
   restoreTimer();
   scheduleReminder();
   if (!location.hash) location.replace('#/today');

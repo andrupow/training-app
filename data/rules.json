@@ -2,7 +2,7 @@
   "schema": 1,
   "weekStart": "mon",
   "defaults": {
-    "dayMinutes": 60,
+    "dayMinutes": 45,
     "timeOptions": [
       30,
       45,

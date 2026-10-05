@@ -2,7 +2,7 @@
    Bump CACHE on every deploy. skipWaiting + clients.claim so the phone
    never keeps serving yesterday's build. */
 
-var CACHE = 'plan-v1.10.0-m11';
+var CACHE = 'plan-v1.11.0-m12';
 
 var PRECACHE = [
   './',

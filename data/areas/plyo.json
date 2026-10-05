@@ -37,6 +37,67 @@
       "ready": [
         "3 × 12 single-leg heel raises, 3 s down, pain-free",
         "10 quiet stick landings from 30 cm"
+      ],
+      "draft": true,
+      "exercises": [
+        {
+          "id": "ankle-rock",
+          "name": "Knee-to-wall ankle rocks",
+          "sets": 2,
+          "reps": "10 / side",
+          "restSec": 0,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Foot a hand-width from the wall, knee over the toes, heel down."
+        },
+        {
+          "id": "sl-heel-raise",
+          "name": "Single-leg heel raise off a step",
+          "sets": 3,
+          "reps": "10 / leg",
+          "tempo": "3 s down",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Full stretch at the bottom, full height at the top. The slow lowering is the point."
+        },
+        {
+          "id": "achilles-iso",
+          "name": "Achilles isometric hold",
+          "sets": 4,
+          "reps": "30 s",
+          "tempo": "Static",
+          "restSec": 90,
+          "load": {
+            "type": "bodyweight"
+          },
+          "cue": "Single-leg heel raise held at mid-height, about 70% effort, pain-free."
+        },
+        {
+          "id": "stick-landing",
+          "name": "Stick landings",
+          "sets": 3,
+          "reps": "5",
+          "restSec": 60,
+          "load": {
+            "type": "text",
+            "text": "20–30 cm box"
+          },
+          "cue": "Step off, land quietly on the balls of the feet, knees over the toes, freeze for 2 s. About 15 contacts."
+        },
+        {
+          "id": "skipping",
+          "name": "Skipping",
+          "sets": 1,
+          "reps": "20 s",
+          "restSec": 45,
+          "load": {
+            "type": "none"
+          },
+          "cue": "Light and quiet. Together with the landings that is about 40 contacts."
+        }
       ]
     },
     {

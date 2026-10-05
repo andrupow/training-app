@@ -355,6 +355,8 @@ a.card:active { background: var(--surface-2); }
 
 .sheet h3 { margin: 0; font-size: 17px; line-height: 1.3; letter-spacing: -0.01em; }
 .sheet-sub { margin: 4px 0 14px; font-size: 13px; color: var(--muted); }
+.sheet-error { margin: 2px 0 10px; font-size: 13.5px; line-height: 1.35; color: var(--serious-text); }
+.sheet-error:empty { display: none; }
 
 .field {
   display: flex;
@@ -379,6 +381,7 @@ a.card:active { background: var(--surface-2); }
 }
 
 .field input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.field input[aria-invalid="true"], .field input[aria-invalid="true"]:focus { outline: 2px solid var(--serious); outline-offset: -1px; }
 
 .sheet-actions { display: flex; gap: 8px; margin-top: 16px; }
 
@@ -453,6 +456,8 @@ a.card:active { background: var(--surface-2); }
 .callout-due strong { color: var(--test); }
 
 .linkbtn {
+  flex: none;
+  white-space: nowrap;
   margin-left: auto;
   border: 0;
   background: none;
@@ -1133,6 +1138,9 @@ svg.g { width: 18px; height: 18px; display: block; }
 .g-part { fill: var(--warning); }
 .g-ring { fill: none; stroke: var(--muted); stroke-width: 1.8; }
 .g-dot { fill: var(--line); }
+.g-plan { fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-dasharray: 3.2 2.6; }
+.g-skip { fill: none; stroke: var(--serious); stroke-width: 2.2; stroke-linecap: round; }
+.g-hatch { fill: none; stroke: var(--muted); stroke-width: 1.4; stroke-linecap: round; opacity: .65; }
 
 /* Status words sit under the area name; text carries it, colour only helps. */
 .st { font-size: 11.5px; font-weight: 640; line-height: 1.25; display: block; }
@@ -1147,7 +1155,10 @@ svg.g { width: 18px; height: 18px; display: block; }
 .wk-sum { margin: 10px 0 0; font-size: 14px; }
 
 .wk-item { display: flex; align-items: center; gap: 8px; padding: 6px 0 2px; font-size: 14.5px; }
-.wk-note { margin-left: auto; font-size: 12.5px; color: var(--muted); }
+.wk-note { margin-left: auto; font-size: 12.5px; color: var(--muted); text-align: right; }
+.wk-sit { margin: 10px 0 0; font-size: 11.5px; font-weight: 640; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.wk-skips { margin: 6px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--serious-text); }
+.wk-skips li { padding: 1px 0; }
 
 /* The ladder: one chip per stage, where you are filled in. */
 .ladder { display: flex; flex-wrap: wrap; gap: 4px; margin: 9px 0 7px; }
@@ -1173,3 +1184,50 @@ svg.g { width: 18px; height: 18px; display: block; }
 /* Key/value rows whose values are words, not numbers: let them wrap. */
 .kv-text .kv-key { flex: 0 0 34%; }
 .kv-text .kv-val { flex: 1; min-width: 0; text-align: right; white-space: normal; overflow-wrap: anywhere; font-size: 14.5px; }
+
+/* ---------- Today: sittings and the area menu (Milestone 12) ---------- */
+
+.sit-bar { margin-bottom: 6px; }
+.sit-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }
+.sit-label { font-size: 13px; color: var(--muted); margin-right: 2px; }
+.sit-chip {
+  font: inherit; font-size: 13.5px; color: var(--text);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 999px;
+  padding: 0 12px; min-height: 36px; cursor: pointer;
+}
+.sit-chip.is-on { border-color: var(--accent); color: var(--accent); font-weight: 640; }
+.sit-chip:focus-visible, .ad-head:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.total-line { display: flex; align-items: baseline; gap: 10px; margin: 2px 2px 10px; font-size: 14px; color: var(--muted); }
+.total-line .over { color: var(--serious-text); font-weight: 650; }
+
+.ad-card.is-done { opacity: 0.88; }
+.ad-head {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  min-height: 34px; padding: 0;
+  font: inherit; color: inherit; text-align: left;
+  background: none; border: 0; cursor: pointer;
+}
+.ad-title { font-size: 16.5px; font-weight: 640; letter-spacing: -0.01em; }
+.ad-prog { margin-left: auto; font-size: 13.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ad-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 1px; font-size: 13px; color: var(--muted); }
+.ad-meta .badges { margin-left: 0; }
+.ad-actions { display: flex; gap: 8px; margin-top: 10px; }
+.ad-actions a.btn { display: flex; align-items: center; justify-content: center; text-decoration: none; }
+.ad-note { margin-top: 8px; font-size: 13px; color: var(--muted); }
+.ad-card .ex { margin: 10px 0 0; background: var(--bg); }
+
+.add-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  padding: 11px 12px; margin-bottom: 8px;
+}
+.add-row.is-held { opacity: 0.75; }
+.add-main { flex: 1; min-width: 0; }
+.add-name { font-size: 15px; font-weight: 620; line-height: 1.25; }
+.add-meta { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-top: 1px; font-size: 12.5px; color: var(--muted); }
+.add-meta .st { display: inline; }
+.add-why { margin-top: 2px; font-size: 12.5px; color: var(--muted); }
+.add-warn { margin-top: 3px; font-size: 12.5px; color: var(--warn-text); }
+.btn-add { flex: none; min-width: 64px; }
+.today-actions { margin: 4px 0 12px; }
