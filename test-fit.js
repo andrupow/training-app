@@ -69,7 +69,7 @@ console.log('the first weeks of an area run at its minimum:');
 f=ctx.fitTargets(items(true),999,TIGHT);
 eq('everything in ramp-in: all minimums, and all listed', [tg(f), f.ramp.length, f.trimmed], [{mu:2,hspu:2,bridge:2,pistol:2,nordic:2,kb:2,oap:1,plyo:1},8,[]]);
 eq('ramp-in is not reported as a trim', ctx.trimmedLine(f), '');
-ok('it says who is starting out and for how long', ctx.rampLine(f).startsWith('Starting out, minimum only for 2 weeks: Muscle-up,'));
+ok('it says who is in ramp-in and for how long', ctx.rampLine(f).startsWith('Ramp-in, minimum only for the first 2 weeks: Muscle-up,'));
 const mix=items(false); mix[0].ramp=true; mix[5].ramp=true;
 f=ctx.fitTargets(mix,999,TIGHT);
 eq('a mix: muscle-up and kettlebell at their minimum, the rest at nominal', [tg(f).mu,tg(f).kb,tg(f).bridge,tg(f).nordic], [2,2,3,3]);

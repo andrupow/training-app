@@ -70,7 +70,7 @@ ok('this week\u2019s fit was saved with it', !!ctx.weekFits['2026-10-05']);
 console.log('the list:');
 reset(); seed(D,['mu']);
 let rows=ctx.menuRows(D,0,[]);
-eq('selected first, then most urgent, then priority', names(rows), ['mu','hspu','pistol','oap','plyo','nordic','bridge','kb']);
+eq('selected first, then what the recommender would add to the 15 minutes left, then most urgent, then priority', names(rows), ['mu','nordic','hspu','pistol','oap','plyo','bridge','kb']);
 eq('the reason says why (the status tag says Due)', rows[0].reason, '0/2 this week, not trained yet');
 eq('and for one not due', rows.find(r=>r.area.id==='bridge').reason, '0/3 this week, not trained yet');
 ctx.checkIns=[ci('2026-10-03',{hamstring:8})];
@@ -216,6 +216,97 @@ ok('the skipped list is empty when nothing was skipped', ctx.skippedList({skippe
 ok('and draws when something was', (()=>{try{return ctx.skippedList(sm)!==null;}catch(e){return false;}})());
 ok('the card and each kind of day detail draw', ['2026-10-05','2026-10-06','2026-10-07','2026-10-08','2026-10-09','2026-09-30'].every(d=>{try{ctx.dayDetail(d,'2026-10-08',days());return true;}catch(e){return false;}})
   && (()=>{try{ctx.weekCard('2026-10-05','2026-10-08',days());return true;}catch(e){return false;}})());
+
+console.log('why each area is on the menu:');
+reset();
+const p1=ctx.ensureDayPlan(D,[]);
+eq('every suggestion keeps the reason it was made for', Object.keys(p1.why).sort(), p1.suggested.slice().sort());
+eq('in words', p1.why.nordic, 'Needs today to reach its target for the week.');
+ctx.loadDayPlans();
+eq('and it survives a reload', ctx.dayPlans[D].why, p1.why);
+
+console.log('a new sitting is a new question:');
+reset(); seed(D,['mu']); ctx.addSitting(D,30);
+let filled=ctx.fillSitting(D,1,[]);
+eq('with muscle-up already on the menu it fills with what is still worth doing: not muscle-up, not HSPU or one-arm', filled, ['pistol','nordic']);
+eq('they go into that sitting, in order', ctx.dayPlans[D].sittings.map(s=>s.areas), [['mu'],['pistol','nordic']]);
+eq('they count as suggested, so taking one off is a skip', ctx.dayPlans[D].suggested, ['mu','pistol','nordic']);
+eq('with the reasons', ctx.dayPlans[D].why, {pistol:'Still needs 2 more this week.',nordic:'Needs today to reach its target for the week.'});
+ok('and are frozen', !!ctx.frozenDays[D+':pistol']&&!!ctx.frozenDays[D+':nordic']);
+eq('a sitting that already has something is left alone', ctx.fillSitting(D,1,[]), []);
+eq('so is one that does not exist', ctx.fillSitting(D,7,[]), []);
+reset(); seed(D,['mu']); ctx.addSitting(D,30); ctx.removeAreaFromDay(D,0,'mu','tired');
+ctx.dayPlans[D].sittings[0].areas=[];
+eq('something you took off is not suggested again', ctx.fillSitting(D,1,[]).includes('mu'), false);
+reset(); seed(D,[]); ctx.addSitting(D,30);
+eq('what was done today counts: pistol trained this morning is not suggested again', (train(D,'pistol'), ctx.fillSitting(D,1,days()).includes('pistol')), false);
+
+console.log('a different time on an untouched day is a new question too:');
+reset(); ctx.ensureDayPlan(D,[]);
+eq('45 minutes', ctx.dayPlans[D].sittings[0].areas, ['nordic','oap','bridge']);
+ctx.setSittingMinutes(D,0,60);
+eq('it can change', ctx.resuggest(D,[]), true);
+eq('60 minutes fits one more', ctx.dayPlans[D].sittings[0].areas, ['pistol','nordic','oap','bridge']);
+eq('suggested and reasons follow', [ctx.dayPlans[D].suggested, Object.keys(ctx.dayPlans[D].why).sort()], [['pistol','nordic','oap','bridge'], ['bridge','nordic','oap','pistol']]);
+ok('the new one is frozen', !!ctx.frozenDays[D+':pistol']);
+ctx.setSittingMinutes(D,0,30);
+ctx.resuggest(D,[]);
+ok('and 30 drops some, and forgets what they would have held', ctx.dayPlans[D].sittings[0].areas.length<4&&!ctx.frozenDays[D+':bridge']);
+reset(); ctx.ensureDayPlan(D,[]); ctx.addAreaToDay(D,0,'kb'); ctx.setSittingMinutes(D,0,60);
+eq('once you have added something it is yours: left alone', [ctx.resuggest(D,[]), ctx.dayPlans[D].sittings[0].areas.includes('kb')], [false,true]);
+reset(); ctx.ensureDayPlan(D,[]); ctx.removeAreaFromDay(D,0,'nordic','tired'); ctx.setSittingMinutes(D,0,60);
+eq('or taken off', ctx.resuggest(D,[]), false);
+reset(); ctx.ensureDayPlan(D,[]); ctx.writeLog(D+':nordic','nordic',0,{done:true}); ctx.setSittingMinutes(D,0,60);
+eq('or started', ctx.resuggest(D,[]), false);
+reset(); ctx.ensureDayPlan(D,[]); ctx.addSitting(D,30); ctx.setSittingMinutes(D,0,60);
+eq('or with two sittings', ctx.resuggest(D,[]), false);
+eq('no menu, nothing to do', (reset(), ctx.resuggest(D,[])), false);
+
+console.log('each row on the list, as the recommender sees it:');
+reset(); seed(D,['mu']);
+rows=ctx.menuRows(D,0,[]);
+const row=id=>rows.find(r=>r.area.id===id);
+eq('Nordic is what it would add to the 15 minutes left', [row('nordic').recommended, row('nordic').advice.why], [true,'Needs today to reach its target for the week.']);
+eq('HSPU is ruled out by muscle-up', [row('hspu').recommended,row('hspu').advice.kind], [false,'conflict']);
+eq('the bridge would fit 15 minutes on its own, but Nordic is the better use of it', [row('bridge').advice.kind,row('bridge').advice.why], ['time','Needs about 12 min; 5 left today.']);
+eq('what is on the menu says so', [row('mu').recommended,row('mu').advice.kind], [false,'excluded']);
+eq('a full sitting has no room for anything', (ctx.dayPlans[D].sittings[0].minutes=30, ctx.menuRows(D,0,[]).find(r=>r.area.id==='bridge').advice.why), 'Needs about 12 min; today has no room.');
+ctx.dayPlans[D].sittings[0].minutes=45;
+ctx.checkIns=[ci('2026-10-07',{elbow:4})];
+rows=ctx.menuRows(D,0,[]);
+eq('an amber elbow holds muscle-up and one-arm, and holds nothing else', rows.filter(r=>r.hold).map(r=>r.area.id).sort(), ['mu','oap']);
+eq('and says why', row('mu').hold, 'medial elbow amber');
+ctx.checkIns=[];
+
+console.log('the time chip and the new screens draw:');
+reset(); ctx.ensureDayPlan(D,[]);
+eq('the chip changes the minutes and asks again', [ctx.changeSittingMinutes(D,0,60,[]), ctx.dayPlans[D].sittings[0].areas], [true,['pistol','nordic','oap','bridge']]);
+eq('on a second sitting it only changes the minutes', [ctx.addSitting(D,30), ctx.changeSittingMinutes(D,1,45,[]), ctx.dayPlans[D].sittings[1].minutes], [1,false,45]);
+const draws=(f)=>{try{f();return true;}catch(e){console.log('   ',String(e.stack).split('\n').slice(0,3).join(' | '));return false;}};
+ok('the fit block, for this week, last week and next', ['2026-10-05','2026-09-28','2026-10-12'].every(s=>draws(()=>ctx.fitBlock(s,D,[]))));
+ctx.weekFits={};   // the pinned weeks the other tests use would answer
+eq('a finished week nobody looked at has none', ctx.fitBlock('2026-09-28',D,[]), null);
+reset(); ctx.weekFits={}; ctx.settings.weekdayMinutes={0:20,1:20,2:20,3:20,4:20,5:20,6:20};
+ok('the over-booked callout appears when the minimums do not fit (140 min against 280)', ctx.overBooked(D,[])!==null);
+reset(); ctx.weekFits={}; ctx.settings.weekdayMinutes={0:60,1:60,2:60,3:60,4:60,5:60,6:60};
+eq('and not when they do', ctx.overBooked(D,[]), null);
+reset(); seed(D,['mu']);
+ok('an add row for a recommended area, a refused one and a held one', (()=>{
+  const rs=ctx.menuRows(D,0,[]);
+  ctx.checkIns=[ci('2026-10-07',{hamstring:8,elbow:4})];
+  const rs2=ctx.menuRows(D,0,[]);
+  ctx.checkIns=[];
+  return rs.concat(rs2).filter(r=>!r.selected).every(r=>draws(()=>ctx.addRow(r,D,0)));
+})());
+ok('the area card, with reasons, a hold and a held area', (()=>{
+  ctx.checkIns=[ci('2026-10-07',{elbow:4})]; ctx.todaySessions=[];
+  const a=draws(()=>ctx.areaDayCard(D,0,'mu',ctx.dayPlans[D],true));
+  ctx.checkIns=[ci('2026-10-07',{elbow:8})];
+  const b=draws(()=>ctx.areaDayCard(D,0,'mu',ctx.dayPlans[D],true));
+  ctx.checkIns=[];
+  return a&&b;
+})());
+ok('Today and the Areas tab as a whole', draws(()=>{ ctx.todayISO=()=>D; ctx.renderToday(); ctx.renderAreas(); ctx.renderAreaDetail('kb'); }));
 
 console.log('logging something done elsewhere:');
 reset();

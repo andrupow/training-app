@@ -773,7 +773,7 @@ var MAX_SITTINGS = 3;
 var FALLBACK_MINUTES = 45;
 var AREA_DAY_RE = /^(\d{4}-\d{2}-\d{2}):([a-z0-9-]+)$/;
 
-var dayPlans = {};    /* date -> { sittings: [{ minutes, areas }], suggested: [id], removed: { id: reason } } */
+var dayPlans = {};    /* date -> { sittings: [{ minutes, areas }], suggested: [id], removed: { id: reason }, why: { id: why it was suggested } } */
 var frozenDays = {};  /* "date:area" -> { stage, type } */
 
 function areaDayId(date, areaId) { return date + ':' + areaId; }
@@ -808,7 +808,11 @@ function cleanDayPlan(raw) {
       removed[id] = typeof raw.removed[id] === 'string' ? raw.removed[id] : '';
     });
   }
-  return { sittings: sittings, suggested: uniqueStrings(raw.suggested), removed: removed };
+  var why = {};
+  if (raw.why && typeof raw.why === 'object' && !Array.isArray(raw.why)) {
+    Object.keys(raw.why).forEach(function (id) { if (typeof raw.why[id] === 'string' && raw.why[id]) why[id] = raw.why[id]; });
+  }
+  return { sittings: sittings, suggested: uniqueStrings(raw.suggested), removed: removed, why: why };
 }
 
 function loadDayPlans() {
@@ -1300,11 +1304,11 @@ function holdReason(area, date) {
 }
 
 /* The app's state, handed over as plain data. */
-function recommendInput(date, slots, days) {
+function recommendInput(date, slots, days, opts) {
   var start = weekStartOf(date);
   ensureWeekFit(start, days);
 
-  var plan = dayPlans[date];
+  var plan = opts && opts.fresh ? null : dayPlans[date];      /* fresh: ask as if the menu were empty */
   var onMenu = plan ? plannedAreaIds(plan) : [];
   var already = onMenu.slice();
   days.forEach(function (r) { if (r.date === date && already.indexOf(r.area) < 0) already.push(r.area); });
@@ -1331,8 +1335,8 @@ function recommendInput(date, slots, days) {
 }
 
 /* Today's recommendation in the order to do things, sitting by sitting. */
-function recommendFor(date, slots, days) {
-  var out = recommendDay(recommendInput(date, slots, days));
+function recommendFor(date, slots, days, opts) {
+  var out = recommendDay(recommendInput(date, slots, days, opts));
   out.picked = doOrder(out.picked);
   out.sittings = out.sittings.map(doOrder);
   return out;
@@ -1343,18 +1347,67 @@ function suggestAreas(date, minutes, days) {
   return recommendFor(date, [minutes], days).picked;
 }
 
+/* The reason each pick was made, kept with the menu so it still reads the same
+   once the day has moved on. */
+function whyOf(rec, ids) {
+  var out = {};
+  ids.forEach(function (id) { if (rec.lines[id] && rec.lines[id].why) out[id] = rec.lines[id].why; });
+  return out;
+}
+
 /* The menu is made the first time the day is shown. */
 function ensureDayPlan(date, days) {
   if (dayPlans[date]) return dayPlans[date];
 
   var minutes = defaultMinutes(date);
-  var picks = suggestAreas(date, minutes, days);
-  dayPlans[date] = { sittings: [{ minutes: minutes, areas: doOrder(picks) }], suggested: picks.slice(), removed: {} };
+  var rec = recommendFor(date, [minutes], days);
+  var picks = rec.picked;
+  dayPlans[date] = { sittings: [{ minutes: minutes, areas: picks.slice() }], suggested: picks.slice(), removed: {}, why: whyOf(rec, picks) };
   picks.forEach(function (id) { freezeAreaDay(date, id); });
 
   if (!settings.menuSince) { settings.menuSince = date; saveSettings(); }
   saveDayPlans();
   return dayPlans[date];
+}
+
+/* A new sitting is a new question: what is still worth doing, given what is on
+   the menu and what is already done today? Fills an empty sitting from that. */
+function fillSitting(date, sittingIdx, days) {
+  var plan = dayPlans[date], st = plan && plan.sittings[sittingIdx];
+  if (!st || st.areas.length) return [];
+
+  var rec = recommendFor(date, [st.minutes], days);
+  st.areas = rec.picked.slice();
+  plan.why = plan.why || {};
+  rec.picked.forEach(function (id) {
+    freezeAreaDay(date, id);
+    if (plan.suggested.indexOf(id) < 0) plan.suggested.push(id);
+    if (rec.lines[id].why) plan.why[id] = rec.lines[id].why;
+  });
+  saveDayPlans();
+  return rec.picked;
+}
+
+/* Changing the time on a day nobody has touched is a new question too. Only when
+   the menu is exactly what was suggested (one sitting, nothing added, nothing
+   taken off, nothing started); otherwise it is yours and is left alone. */
+function resuggest(date, days) {
+  var plan = dayPlans[date];
+  if (!plan || plan.sittings.length !== 1 || Object.keys(plan.removed).length) return false;
+
+  var now = plan.sittings[0].areas;
+  if (now.slice().sort().join() !== plan.suggested.slice().sort().join()) return false;
+  var done = doneByAreaDay();
+  if (now.some(function (id) { return done[areaDayId(date, id)]; })) return false;
+
+  var rec = recommendFor(date, [plan.sittings[0].minutes], days, { fresh: true });
+  now.forEach(function (id) { if (rec.picked.indexOf(id) < 0) unfreezeAreaDay(date, id); });
+  rec.picked.forEach(function (id) { freezeAreaDay(date, id); });
+  plan.sittings[0].areas = rec.picked.slice();
+  plan.suggested = rec.picked.slice();
+  plan.why = whyOf(rec, rec.picked);
+  saveDayPlans();
+  return true;
 }
 
 function addAreaToDay(date, sittingIdx, areaId) {
@@ -1423,6 +1476,13 @@ function setSittingMinutes(date, sittingIdx, minutes) {
   saveDayPlans();
 }
 
+/* The time chip on Today: remembers it, and asks again what fits if the day is
+   still exactly as it was suggested. */
+function changeSittingMinutes(date, sittingIdx, minutes, days) {
+  setSittingMinutes(date, sittingIdx, minutes);
+  return sittingIdx === 0 ? resuggest(date, days) : false;
+}
+
 /* Minutes planned in a sitting against the minutes it has. */
 function sittingLoad(sitting) {
   var planned = 0;
@@ -1485,6 +1545,10 @@ function menuRows(date, sittingIdx, days) {
   var plan = dayPlans[date];
   var start = weekStartOf(date);
 
+  /* What the recommender would add to this sitting, in the minutes it has left. */
+  var sitting = plan.sittings[sittingIdx];
+  var rec = recommendFor(date, [Math.max(0, sitting.minutes - sittingLoad(sitting).planned)], days);
+
   return areaList().map(function (area) {
     var week = areaWeek(area, start, date, days);
     var trained = days.filter(function (r) { return r.area === area.id && r.date === date; })[0] || null;
@@ -1494,11 +1558,15 @@ function menuRows(date, sittingIdx, days) {
       area: area, week: week, record: trained,
       selected: inThis, elsewhere: elsewhere,
       held: heldReason(area, date),
+      hold: holdReason(area, date),
       reason: areaReason(area, date, days, week),
+      advice: rec.lines[area.id],
+      recommended: !inThis && !!rec.lines[area.id].picked,
       warnings: inThis ? [] : menuWarnings(area, date, plan, days)
     };
   }).sort(function (a, b) {
-    return (b.selected - a.selected) || (URGENCY[a.week.status.key] - URGENCY[b.week.status.key]) || (a.area.priority - b.area.priority);
+    return (b.selected - a.selected) || (b.recommended - a.recommended)
+      || (URGENCY[a.week.status.key] - URGENCY[b.week.status.key]) || (a.area.priority - b.area.priority);
   });
 }
 
@@ -1734,7 +1802,7 @@ function trimmedLine(fit) {
 function rampLine(fit) {
   if (!fit.ramp.length) return '';
   var names = fit.ramp.map(function (id) { var a = areaById(id); return a ? a.name : id; });
-  return 'Starting out, minimum only for ' + areaData.rules.defaults.rampWeeks + ' weeks: ' + names.join(', ') + '.';
+  return 'Ramp-in, minimum only for the first ' + areaData.rules.defaults.rampWeeks + ' weeks: ' + names.join(', ') + '.';
 }
 
 /* Body areas guarding this area that are under the red protocol on `date`. */
@@ -2572,6 +2640,17 @@ function heldCallouts(date) {
   }).filter(Boolean);
 }
 
+/* When even the minimums do not fit the minutes you have, say so where you will
+   see it. Tight and comfortable weeks say nothing here; the Areas tab has them. */
+function overBooked(today, days) {
+  var fit = weekFitFor(weekStartOf(today), days, today);
+  if (!fit || fit.verdict !== 'over') return null;
+  return el('div', { class: 'callout callout-due' }, [
+    el('strong', { text: 'This week is over-booked' }),
+    document.createTextNode(feasibilityLine(fit) + ' The lowest priorities will slip first. More minutes on some days, or fewer areas, would fix it.')
+  ]);
+}
+
 /* Sitting tabs, and the time you have for the one showing. */
 function sittingBar(date, plan) {
   var sitting = plan.sittings[todaySitting];
@@ -2600,7 +2679,7 @@ function sittingBar(date, plan) {
       class: 'sit-chip' + (m === sitting.minutes ? ' is-on' : ''), type: 'button',
       'aria-pressed': String(m === sitting.minutes), text: m + ' min'
     });
-    b.addEventListener('click', function () { setSittingMinutes(date, todaySitting, m); repaintToday(); });
+    b.addEventListener('click', function () { changeSittingMinutes(date, todaySitting, m, areaDays()); repaintToday(); });
     times.appendChild(b);
   });
   wrap.appendChild(times);
@@ -2656,16 +2735,21 @@ function areaDayCard(date, sittingIdx, areaId, plan, onlyOne) {
   ]);
   head.addEventListener('click', function () { todayOpen[s.id] = !open; repaintToday(); });
 
+  var hold = paused ? null : holdReason(area, date);
+  var why = plan.why && plan.why[areaId] ? plan.why[areaId] : (plan.suggested.indexOf(areaId) < 0 ? 'You added this one.' : '');
+
   var meta = [s.stageId + (s.type ? ' · ' + s.type : ''), '~' + area.minutes + ' min'];
   var badges = el('div', { class: 'badges' }, [
     paused ? badge('Held', 'badge-test') : null,
+    hold ? badge('Hold', 'badge-test') : null,
     finished ? badge('Done', 'badge-green') : null,
     s.draft ? badge('Draft') : null
   ]);
 
   var card = el('div', { class: 'card ad-card' + (finished ? ' is-done' : '') }, [
     head,
-    el('div', { class: 'ad-meta' }, [el('span', { text: meta.join(' · ') }), badges])
+    el('div', { class: 'ad-meta' }, [el('span', { text: meta.join(' · ') }), badges]),
+    why && !paused ? el('div', { class: 'ad-why', text: why }) : null
   ]);
 
   var actions = el('div', { class: 'ad-actions' });
@@ -2681,7 +2765,10 @@ function areaDayCard(date, sittingIdx, areaId, plan, onlyOne) {
 
   if (paused) {
     card.appendChild(el('div', { class: 'ad-note', text: 'Held: ' + heldReason(area, date) + '. Nothing to do here until it clears.' }));
-  } else if (s.draft && open) {
+  } else if (hold) {
+    card.appendChild(el('div', { class: 'ad-note', text: 'Hold: ' + hold + '. Train it, but keep the load where it is.' }));
+  }
+  if (!paused && s.draft && open) {
     card.appendChild(el('div', { class: 'ad-note', text: 'First-draft prescription: sets and reps for this stage have not been reviewed yet.' }));
   }
 
@@ -2698,6 +2785,14 @@ function addRow(row, date, sittingIdx) {
   var lines = [el('div', { class: 'add-why', text: row.held ? 'Held: ' + row.held + '.' : row.reason })];
   if (row.record) lines.push(el('div', { class: 'add-why', text: 'Done today: ' + row.record.done + ' of ' + row.record.total + ' sets.' }));
   if (row.elsewhere) lines.push(el('div', { class: 'add-why', text: 'Already on another sitting today.' }));
+
+  /* The recommender's own words, where the warnings below do not already say it:
+     what makes it worth adding, or that it will not fit or is not needed. */
+  var adviceKinds = ['time', 'limit', 'met'];
+  if (row.recommended) lines.push(el('div', { class: 'add-rec', text: row.advice.why }));
+  else if (!row.held && !row.elsewhere && !row.record && adviceKinds.indexOf(row.advice.kind) >= 0) lines.push(el('div', { class: 'add-why', text: row.advice.why }));
+
+  if (row.hold) lines.push(el('div', { class: 'add-warn', text: 'Hold: ' + row.hold + '. Keep the load where it is.' }));
   row.warnings.forEach(function (w) { lines.push(el('div', { class: 'add-warn', text: w })); });
 
   var action;
@@ -2718,7 +2813,8 @@ function addRow(row, date, sittingIdx) {
       el('div', { class: 'add-name', text: a.name }),
       el('div', { class: 'add-meta' }, [
         el('span', { text: currentStage(a).id + ' · ~' + a.minutes + ' min' }),
-        row.held ? null : statusTag(row.week.status)
+        row.held ? null : statusTag(row.week.status),
+        row.recommended ? el('span', { class: 'st st-rec', text: 'Suggested' }) : null
       ])
     ].concat(lines)),
     action
@@ -2763,6 +2859,8 @@ function renderToday() {
   todaySessions = [];
 
   var nodes = heldCallouts(today);
+  var over = overBooked(today, days);
+  if (over) nodes.push(over);
   nodes.push(sittingBar(today, plan));
 
   var load = sittingLoad(sitting);
@@ -2784,7 +2882,7 @@ function renderToday() {
   if (!sitting.areas.length) {
     nodes.push(el('p', { class: 'hint', text: plan.suggested.length
       ? 'Everything suggested has been taken off. Add what you feel like below.'
-      : 'Nothing is due yet this week. Add what you feel like below.' }));
+      : 'Nothing is recommended for this time. Add what you feel like below.' }));
   }
 
   var others = menuRows(today, todaySitting, days).filter(function (r) { return !r.selected; });
@@ -2796,7 +2894,7 @@ function renderToday() {
   var more = el('div', { class: 'sheet-actions today-actions' });
   if (plan.sittings.length < MAX_SITTINGS) {
     var another = el('button', { class: 'btn', type: 'button', text: '+ Another sitting today' });
-    another.addEventListener('click', function () { todaySitting = addSitting(today, 30); repaintToday(); });
+    another.addEventListener('click', function () { todaySitting = addSitting(today, 30); fillSitting(today, todaySitting, areaDays()); repaintToday(); });
     more.appendChild(another);
   }
   if (plan.sittings.length > 1 && !sitting.areas.length) {
@@ -4941,7 +5039,7 @@ function weekGrid(start, today, days) {
     var w = areaWeek(area, start, today, days);
     grid.appendChild(el('div', { class: 'wk-lab' }, [
       el('div', { class: 'n', text: area.short }),
-      el('div', { class: 's', text: currentStage(area).id + ' · ' + w.touched + '/' + w.target }),
+      el('div', { class: 's', text: currentStage(area).id + ' · ' + w.touched + '/' + w.target + (w.ramp ? ' · ramp' : '') }),
       statusTag(w.status)
     ]));
 
@@ -5048,6 +5146,18 @@ function skippedList(sum) {
   return el('ul', { class: 'wk-skips', 'aria-label': 'Skipped this week' }, rows);
 }
 
+/* How the week's time was shared out: whether the minimums fit, what was
+   trimmed to make it fit, who is starting out. Nothing for a finished week that
+   was never looked at while it ran. */
+function fitBlock(start, today, days) {
+  var fit = weekFitFor(start, days, today);
+  if (!fit) return null;
+  var lines = [feasibilityLine(fit), trimmedLine(fit), rampLine(fit)].filter(Boolean);
+  return el('div', { class: 'wk-fit wk-fit-' + fit.verdict }, lines.map(function (text, i) {
+    return el('p', { class: i === 0 ? 'wk-fit-main' : '', text: text });
+  }));
+}
+
 function weekHasNoPlan(start, today, days) {
   return areaList().some(function (a) {
     return areaWeek(a, start, today, days).cells.some(function (c) { return c.state === 'noplan'; });
@@ -5080,7 +5190,8 @@ function weekCard(start, today, days) {
     weekGrid(start, today, days),
     weekLegend(sum, weekHasNoPlan(start, today, days)),
     el('p', { class: 'wk-sum', text: line }),
-    skippedList(sum)
+    skippedList(sum),
+    fitBlock(start, today, days)
   ]);
 }
 
@@ -5116,6 +5227,7 @@ function renderAreas() {
   var days = areaDays();
   var current = weekStartOf(today);
   var first = firstWeekStart(days);
+  ensureWeekFit(current, days);
 
   var start = areasView.week || current;
   if (start > current) start = current;
@@ -5240,7 +5352,8 @@ function renderAreaDetail(id) {
     ['Load', area.load],
     ['Guarded by', area.guardedBy.map(bodyLabel).join(', ')]
   ];
-  if (area.perWeek.nominalTarget) rows.splice(3, 0, ['Nominal target', area.perWeek.nominalTarget + ' days, trimmed to fit your time']);
+  if (w.ramp) rows.splice(3, 0, ['Target this week', w.target + ' (ramp-in: the minimum for the first ' + areaData.rules.defaults.rampWeeks + ' weeks)']);
+  else if (w.target < w.nominal) rows.splice(3, 0, ['Target this week', w.target + ' (' + w.nominal + ' nominal, fitted to your time)']);
 
   var kv = el('div', { class: 'kv kv-text' });
   rows.forEach(function (r) {
