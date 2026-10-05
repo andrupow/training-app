@@ -144,5 +144,50 @@ eq('bad weeks and bad dates are dropped on load', Object.keys(ctx.weekFits), ['2
 {const w=console.warn; console.warn=()=>{}; store.weekFits='not json'; ctx.loadWeekFits(); console.warn=w;}
 eq('unreadable storage is an empty set', ctx.weekFits, {});
 
+console.log('"no time" is a reason, and a pattern is a fact about your week:');
+reset(); ctx.settings.weekdayMinutes={0:45,1:45,2:30,3:45,4:45,5:60,6:60};
+const pl=(removed)=>({sittings:[{minutes:45,areas:[]}],suggested:Object.keys(removed),removed:removed,why:{}});
+eq('the settings are data', ctx.areaData.rules.noTime, {weeks:2,minSkips:2});
+eq('nothing taken off: no cut', ctx.noTimeCut('2026-10-12'), 0);
+ctx.dayPlans['2026-09-29']=pl({mu:'no time'});
+eq('once is not a pattern', ctx.noTimeCut('2026-10-12'), 0);
+ctx.dayPlans['2026-10-06']=pl({kb:'no time'});
+eq('twice in two weeks: the minutes of both, 30 + 30, a week on average', ctx.noTimeCut('2026-10-12'), 30);
+ctx.dayPlans['2026-10-07']=pl({pistol:'tired',oap:'',plyo:'pain'});
+eq('other reasons, and no reason, are not "no time"', ctx.noTimeCut('2026-10-12'), 30);
+ctx.dayPlans['2026-10-08']=pl({bridge:'no time'});
+eq('another one adds its 12 minutes: 72 over two weeks', ctx.noTimeCut('2026-10-12'), 36);
+eq('only the last two weeks count: a month ago does not', (ctx.dayPlans['2026-09-01']=pl({mu:'no time',kb:'no time'}), ctx.noTimeCut('2026-10-12')), 36);
+eq('and nothing from the week itself, or after', (ctx.dayPlans['2026-10-13']=pl({mu:'no time',kb:'no time'}), ctx.noTimeCut('2026-10-12')), 36);
+eq('two weeks further on, the old ones have dropped out and only the two from 13 Oct are left: 60 minutes over two weeks', ctx.noTimeCut('2026-10-26'), 30);
+eq('and a week after that nothing is', ctx.noTimeCut('2026-11-09'), 0);
+eq('an area that is no longer there is not counted', (ctx.dayPlans['2026-10-09']=pl({rowing:'no time'}), ctx.noTimeCut('2026-10-12')), 36);
+
+reset(); ctx.settings.weekdayMinutes={0:45,1:45,2:30,3:45,4:45,5:60,6:60};
+const hist8=['mu','hspu','bridge','pistol','nordic','kb','oap','plyo'].map(id=>rec('2026-09-14',id));
+let nf=ctx.computeWeekFit('2026-10-12',hist8);
+eq('with no skips the week is what you said: 330, nothing cut', [nf.stated,nf.noTime,nf.budget,nf.targets.nordic], [330,0,330,3]);
+eq('and says nothing about it', ctx.noTimeLine(nf), '');
+ctx.dayPlans['2026-09-29']=pl({mu:'no time'}); ctx.dayPlans['2026-10-06']=pl({kb:'no time'});
+nf=ctx.computeWeekFit('2026-10-12',hist8);
+eq('after two "no time" the week is planned for 300', [nf.stated,nf.noTime,nf.budget], [330,30,300]);
+eq('so one more day is trimmed: Nordic from 3 to 2', [nf.targets.nordic, nf.trimmed.map(x=>x.id+x.to)], [2,['nordic2','kb2','oap1','plyo1']]);
+eq('and the line says why', ctx.noTimeLine(nf), 'You said 330 min, but things were taken off for no time lately, so this week plans for 300.');
+eq('the feasibility line speaks of the minutes it planned for', ctx.feasibilityLine(nf), 'Your minimums need 280 min a week; you have 300. Tight.');
+ctx.dayPlans['2026-10-07']=pl({mu:'no time',kb:'no time',hspu:'no time',bridge:'no time',pistol:'no time',oap:'no time',plyo:'no time'});
+nf=ctx.computeWeekFit('2026-10-12',hist8);
+ok('a great many cannot take the minutes below nothing', nf.budget>=0&&nf.noTime>0);
+ctx.dayPlans={};
+nf=ctx.computeWeekFit('2026-10-12',hist8);
+ctx.ensureWeekFit('2026-10-05',hist8);
+ctx.dayPlans['2026-09-22']=pl({mu:'no time',kb:'no time'});
+ctx.todayISO=()=>'2026-10-07';
+ctx.weekFits={}; const s2=ctx.ensureWeekFit('2026-10-05',hist8);
+eq('what was said and what was cut are kept with the saved week', [s2.stated,s2.noTime,s2.budget], [330,30,300]);
+ctx.weekFits={}; ctx.loadWeekFits();
+eq('and survive a reload', [ctx.weekFits['2026-10-05'].stated, ctx.weekFits['2026-10-05'].noTime], [330,30]);
+eq('a week saved before this existed reads as having had nothing cut', (c=>[c.stated,c.noTime])(ctx.cleanWeekFit({budget:330,cost:302,minCost:280,targets:{mu:2}})), [330,0]);
+eq('and a half-sensible one is repaired', (c=>[c.stated,c.noTime])(ctx.cleanWeekFit({budget:300,noTime:30,cost:302,minCost:280,targets:{mu:2}})), [330,30]);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail?1:0);

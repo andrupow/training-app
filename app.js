@@ -1,5 +1,5 @@
 /* The Integrated Plan — Milestones 1-8, complete; M9-M10 runner and rescheduling;
-   M11 workout areas, M12 the daily menu, M13 the recommender, M14 stages and level-up
+   M11 workout areas, M12 the daily menu, M13 the recommender, M14 stages and level-up, M15 weekly feedback
    Shell + PWA + plan browser + today's session with set logging
    + dated baselines and the load calculator + rest timer + JSON backup
    + morning check-in, the traffic light, HOLD gating and progression charts.
@@ -7,7 +7,7 @@
 
 'use strict';
 
-var BUILD = '1.13.0-m14';
+var BUILD = '1.14.0-m15';
 var PLAN_URL = 'data/plan.json';
 var LS_PLAN = 'plan.cache.v1';
 var LS_LOGS = 'setLogs';
@@ -1075,6 +1075,17 @@ function deloadSets(sets) {
 /* A week's worth of days is the easy block at the end of a stage. */
 function deloadDays(area, stage) { return stageWeek(area, stage).target; }
 
+/* The stage an area was at on a date, replaying what you decided: before the first
+   move it was where that move started from, and "not yet" changes nothing. An area
+   that never moved is where it is now. */
+function stageAtDate(area, date) {
+  var moves = decisions.filter(function (d) { return d.area === area.id && d.action !== 'stay'; });
+  if (!moves.length) return currentStage(area);
+  var at = null;
+  moves.forEach(function (d) { if (d.date <= date) at = d; });         /* oldest first, so the last one wins */
+  return stageById(area, at ? at.to : moves[0].from) || currentStage(area);
+}
+
 /* The stage a day was done in: what it was fixed to when first planned, and the
    first stage for anything from the old plan. */
 function stageOfDay(area, date) {
@@ -1926,6 +1937,8 @@ function cleanWeekFit(raw) {
 
   var out = { budget: n(raw.budget), cost: n(raw.cost), minCost: n(raw.minCost), startCost: n(raw.startCost), targets: {}, trimmed: [], ramp: uniqueStrings(raw.ramp) };
   if (out.budget === null || out.cost === null || out.minCost === null) return null;
+  out.noTime = n(raw.noTime) || 0;
+  out.stated = n(raw.stated) !== null ? n(raw.stated) : out.budget + out.noTime;
   if (out.startCost === null) out.startCost = out.cost;
   out.verdict = ['fits', 'tight', 'over'].indexOf(raw.verdict) >= 0 ? raw.verdict : 'fits';
 
@@ -2012,6 +2025,24 @@ function fitTargets(items, budget, tightRatio) {
   };
 }
 
+/* Things taken off the menu for "no time" say the minutes you gave were more than
+   you had. Over the last few weeks, the minutes of what was taken off for that
+   reason, on average a week, are cut from the week's time. A single time is not a
+   pattern. */
+function noTimeCut(start) {
+  var N = areaData.rules.noTime;
+  var from = addDays(start, -7 * N.weeks), skips = 0, minutes = 0;
+  Object.keys(dayPlans).forEach(function (date) {
+    if (date < from || date >= start) return;
+    var removed = dayPlans[date].removed;
+    Object.keys(removed).forEach(function (id) {
+      var a = areaById(id);
+      if (removed[id] === 'no time' && a) { skips++; minutes += a.minutes; }
+    });
+  });
+  return skips >= N.minSkips ? Math.round(minutes / N.weeks) : 0;
+}
+
 function computeWeekFit(start, days) {
   var items = areaList().map(function (a) {
     var per = stageWeek(a, currentStage(a));
@@ -2021,7 +2052,11 @@ function computeWeekFit(start, days) {
       ramp: inRamp(a.id, start, days)
     };
   });
-  return fitTargets(items, weekMinutes(start), areaData.rules.defaults.tightRatio || 0.85);
+  var stated = weekMinutes(start), cut = noTimeCut(start);
+  var fit = fitTargets(items, Math.max(0, stated - cut), areaData.rules.defaults.tightRatio || 0.85);
+  fit.stated = stated;
+  fit.noTime = cut;
+  return fit;
 }
 
 /* The fit for a week. A week already underway or finished uses what was saved;
@@ -2054,6 +2089,12 @@ function trimmedLine(fit) {
     var a = areaById(t.id);
     return (a ? a.name : t.id) + ' ' + t.from + '→' + t.to;
   }).join(', ') + '.';
+}
+
+/* When "no time" has been the reason lately, say how the week's minutes were worked out. */
+function noTimeLine(fit) {
+  if (!fit.noTime) return '';
+  return 'You said ' + fit.stated + ' min, but things were taken off for no time lately, so this week plans for ' + fit.budget + '.';
 }
 
 function rampLine(fit) {
@@ -2105,7 +2146,9 @@ function weekStatus(area, per, gap, start, end, today, touched, mine) {
 
 function areaWeek(area, start, today, days) {
   var end = addDays(start, 6);
-  var stage = currentStage(area);
+  /* A week that has finished is judged by the stage the area was in then, not the one
+     it is in now: moving up must not change what an old week asked for. */
+  var stage = end < today ? stageAtDate(area, start) : currentStage(area);
   var authored = stageWeek(area, stage);
   var gap = stageGap(area, stage);
 
@@ -2153,6 +2196,214 @@ function firstWeekStart(days) {
   var first = plan && plan.meta ? plan.meta.startDate : todayISO();
   days.forEach(function (r) { if (r.date < first) first = r.date; });
   return weekStartOf(first);
+}
+
+/* --- how an area is doing ---------------------------------------------------- */
+/* Judged over the last few finished weeks, each against the target it was fitted
+   to at the time (or as authored, for a week nobody looked at while it ran). The
+   thresholds are data, in rules.json. */
+
+var VERDICT_LABEL = {
+  new: 'New', consistent: 'Consistent', building: 'Building', slipping: 'Slipping',
+  dormant: 'Dormant', overreaching: 'Overreaching', mixed: 'Uneven'
+};
+
+/* Sets done against sets prescribed, over the days trained in a week, in per cent.
+   Null for a week with no training. */
+function weekCompletion(areaId, start, days) {
+  var end = addDays(start, 6), done = 0, total = 0;
+  days.forEach(function (r) {
+    if (r.area === areaId && r.date >= start && r.date <= end) { done += r.done; total += r.total; }
+  });
+  return total ? Math.round(done * 100 / total) : null;
+}
+
+/* The verdict, from plain numbers.
+     f  { weeks: [{ status }] finished weeks oldest first, firstTrained, lastTrained, today, intoLights }
+   First match wins: too new to judge, gone quiet, pushing too hard, slipping,
+   consistent, building, otherwise uneven. */
+function verdictOf(f, T) {
+  function count(list, keys) { return list.filter(function (w) { return keys.indexOf(w.status) >= 0; }).length; }
+  var recent = f.weeks.slice(-T.window);
+  var quiet = f.lastTrained ? daysBetween(f.lastTrained, f.today) : null;
+
+  if (!f.firstTrained) return { key: 'new', why: 'Not trained yet.' };
+  if (quiet !== null && quiet >= T.dormantDays) return { key: 'dormant', why: 'Nothing for ' + quiet + ' days.' };
+
+  /* The warnings come before anything about history: pushing too hard is no less
+     worth saying in the first week. */
+  if (count(f.weeks.slice(-2), ['over'])) return { key: 'overreaching', why: 'Went over its weekly maximum recently.' };
+  if (f.intoLights >= 2) {
+    return { key: 'overreaching', why: 'Trained ' + f.intoLights + ' times in the last two weeks with a guarding body area amber or red.' };
+  }
+
+  if (daysBetween(f.firstTrained, f.today) < T.newWeeks * 7) {
+    return { key: 'new', why: 'Under ' + T.newWeeks + ' weeks of history, so too early to judge.' };
+  }
+
+  /* One finished week is not a pattern: say so rather than judge it. The warnings above
+     (gone quiet, pushing too hard) do not wait for one. */
+  if (f.weeks.length < 2) {
+    return { key: 'new', why: f.weeks.length ? 'Only one finished week so far.' : 'No finished week to judge yet.' };
+  }
+
+  /* With fewer finished weeks than the rule looks at, it is all of the weeks you have. */
+  var lately = f.weeks.slice(-T.slippingWindow);
+  var misses = count(lately, ['missed']);
+  if (misses >= Math.min(T.slippingMisses, lately.length)) {
+    return { key: 'slipping', why: 'Missed its minimum in ' + misses + ' of the last ' + lately.length + ' weeks.' };
+  }
+  var hits = count(recent, ['hit']);
+  if (hits >= Math.min(T.consistentHits, recent.length)) return { key: 'consistent', why: 'Hit its target in ' + hits + ' of the last ' + recent.length + ' weeks.' };
+  var met = count(recent, ['hit', 'met']);
+  if (met >= Math.min(T.buildingHits, recent.length)) return { key: 'building', why: 'Met its minimum in ' + met + ' of the last ' + recent.length + ' weeks.' };
+  return { key: 'mixed', why: 'Met its minimum in ' + met + ' of the last ' + recent.length + ' weeks.' };
+}
+
+/* Under the threshold for two finished weeks running, both with training in them. */
+function isMostlyPartial(weeks, T) {
+  var last = weeks.slice(-2);
+  return last.length === 2 && last.every(function (w) { return w.completion !== null && w.completion < T.mostlyPartialPct; });
+}
+
+/* Times in the last two weeks this area was trained while a body area that
+   guards it was amber or red. */
+function daysIntoLights(area, today, days) {
+  return days.filter(function (r) {
+    return r.area === area.id && r.date <= today && daysBetween(r.date, today) < 14
+      && !!(heldReason(area, r.date) || holdReason(area, r.date));
+  }).length;
+}
+
+/* How an area is doing, from the app's state. */
+function areaFeedback(area, today, days) {
+  var T = areaData.rules.verdicts;
+  var current = weekStartOf(today);
+  var mine = days.filter(function (r) { return r.area === area.id && r.date <= today; });
+  var firstTrained = null, lastTrained = null;
+  mine.forEach(function (r) {
+    if (!firstTrained || r.date < firstTrained) firstTrained = r.date;
+    if (!lastTrained || r.date > lastTrained) lastTrained = r.date;
+  });
+  var firstWeek = firstTrained ? weekStartOf(firstTrained) : null;
+
+  /* Weeks from before the areas existed were asked for something else, so they are
+     history, not misses. */
+  var era = settings.menuSince ? weekStartOf(settings.menuSince) : null;
+
+  var weeks = [];
+  for (var k = T.window; k >= 1; k--) {
+    var s = addDays(current, -7 * k);
+    if (!firstWeek || s < firstWeek || (era && s < era)) continue;      /* before it began: not a miss */
+    var w = areaWeek(area, s, today, days);
+    weeks.push({ start: s, touched: w.touched, min: w.min, target: w.target, max: w.max, status: w.status.key, completion: weekCompletion(area.id, s, days) });
+  }
+
+  var verdict = verdictOf({ weeks: weeks, firstTrained: firstTrained, lastTrained: lastTrained, today: today, intoLights: daysIntoLights(area, today, days) }, T);
+  return {
+    verdict: verdict.key, label: VERDICT_LABEL[verdict.key], why: verdict.why,
+    mostlyPartial: isMostlyPartial(weeks, T), weeks: weeks, firstTrained: firstTrained, lastTrained: lastTrained
+  };
+}
+
+/* --- the week at a glance, nudges and pace ------------------------------------ */
+
+/* "5 of 8 areas on track". An area held by a red light cannot be on track or off
+   it, so it is counted apart. */
+function weekStrip(today, days) {
+  var start = weekStartOf(today);
+  var on = 0, total = 0, held = 0;
+  areaList().forEach(function (a) {
+    var key = areaWeek(a, start, today, days).status.key;
+    if (key === 'held') { held++; return; }
+    total++;
+    if (key === 'done' || key === 'track' || key === 'due') on++;
+  });
+  return { onTrack: on, total: total, held: held,
+    text: on + ' of ' + total + ' areas on track' + (held ? ' · ' + held + ' held' : '') };
+}
+
+function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+
+/* A few gentle things worth knowing, most important first and at most a couple.
+   Nothing here nags about an area a red light has paused. */
+function nudgesFor(today, days) {
+  var N = areaData.rules.nudges;
+  var start = weekStartOf(today), end = addDays(start, 6);
+  var left = daysBetween(today, end) + 1;
+  var summary = weekSummary(start, today, days);
+  var found = [];
+
+  areaList().forEach(function (a) {
+    var w = areaWeek(a, start, today, days);
+    if (w.status.key === 'held') return;
+    var fb = areaFeedback(a, today, days);
+    var skipped = summary.skippedItems.filter(function (s) { return s.area.id === a.id; }).length;
+
+    function add(rank, kind, text) { found.push({ area: a.id, kind: kind, rank: rank, priority: a.priority, text: text }); }
+
+    if (w.status.key === 'risk') {
+      var need = w.min - w.touched;
+      add(1, 'risk', a.name + ': ' + plural(need, 'more day', 'more days') + ' needed for its minimum, and ' + plural(left, 'day', 'days') + ' left this week.');
+    } else if (skipped >= N.skippedTimes) {
+      add(2, 'skipped', a.name + ': skipped ' + (skipped === 2 ? 'twice' : skipped + ' times') + ' this week.');
+    } else if (w.status.key === 'behind') {
+      add(3, 'behind', a.name + ' is behind this week: ' + plural(w.target - w.touched, 'more day', 'more days') + ' for its target.');
+    } else if (fb.verdict === 'slipping') {
+      add(4, 'slipping', a.name + ': ' + fb.why.charAt(0).toLowerCase() + fb.why.slice(1));
+    } else if (fb.mostlyPartial) {
+      add(5, 'partial', a.name + ': finishing under ' + areaData.rules.verdicts.mostlyPartialPct + '% of its sets lately. A shorter day or more time may suit it.');
+    } else if (fb.verdict === 'dormant') {
+      add(6, 'dormant', a.name + ': ' + fb.why.charAt(0).toLowerCase() + fb.why.slice(1));
+    }
+  });
+
+  var noTime = summary.skippedItems.filter(function (s) { return s.reason === 'no time'; }).length;
+  if (noTime >= N.noTimeSkips) {
+    found.push({ area: null, kind: 'noTime', rank: 2, priority: 0,
+      text: plural(noTime, 'thing', 'things') + ' taken off for no time this week. Fewer areas, or a longer day, may fit better.' });
+  }
+
+  found.sort(function (x, y) { return (x.rank - y.rank) || (x.priority - y.priority); });
+  return found.slice(0, N.maxShown);
+}
+
+/* When the next review is likely, from how often you have actually been doing full
+   days of this area (not the target). */
+function paceFor(area, today, days) {
+  var P = areaData.rules.pace;
+  var prog = stageProgress(area, days);
+  var goal = prog.nextAsk !== null ? prog.nextAsk : prog.askAfter;
+  if (!goal) return { kind: 'none' };
+  var remaining = goal - prog.full;
+  if (remaining <= 0) return { kind: 'due' };
+
+  var mine = days.filter(function (r) { return r.area === area.id && r.date <= today; });
+  var first = null;
+  mine.forEach(function (r) { if (!first || r.date < first) first = r.date; });
+
+  /* The window is the last few weeks ending today, or since the first day if that is later. */
+  var windowStart = addDays(today, -(P.window * 7 - 1));
+  var from = first && first > windowStart ? first : windowStart;
+  var observed = first ? (daysBetween(from, today) + 1) / 7 : 0;
+  if (observed < P.minWeeks) return { kind: 'early' };
+
+  var recentFull = mine.filter(function (r) { return r.full && r.date >= from; }).length;
+  if (!recentFull) return { kind: 'stalled', remaining: remaining };
+
+  var perWeek = recentFull / observed;
+  var weeks = Math.ceil(remaining / perWeek);
+  return { kind: 'pace', remaining: remaining, perWeek: Math.round(perWeek * 10) / 10, weeks: weeks, date: addDays(today, weeks * 7) };
+}
+
+function paceText(p) {
+  if (p.kind === 'due') return 'The review is due now.';
+  if (p.kind === 'early') return 'Too early to say when the review will be.';
+  if (p.kind === 'stalled') return plural(p.remaining, 'full day', 'full days') + ' to go, but none lately, so no date yet.';
+  if (p.kind === 'pace') {
+    return 'At your pace (' + p.perWeek + ' full days a week) the review is about ' + plural(p.weeks, 'week', 'weeks') + ' away, around ' + fmtDateShort(p.date) + '.';
+  }
+  return '';
 }
 
 /* ------------------------------------------------------------------ views */
@@ -2897,6 +3148,39 @@ function heldCallouts(date) {
   }).filter(Boolean);
 }
 
+/* The week in one line, and a couple of gentle things worth knowing. Tap for the grid. */
+function weekStripBlock(today, days) {
+  var strip = weekStrip(today, days);
+  var kids = [el('div', { class: 'ws-main', text: 'This week: ' + strip.text })];
+  nudgesFor(today, days).forEach(function (n) { kids.push(el('div', { class: 'nudge', text: n.text })); });
+  return el('a', { class: 'week-strip', href: '#/areas' }, kids);
+}
+
+/* The week that has just finished, once: what was done, what was skipped. It stays
+   until you put it away, and only for the week before this one. */
+function lastWeekCard(today, days) {
+  var start = addDays(weekStartOf(today), -7), end = addDays(start, 6);
+  if (settings.lastWeekSeen === start) return null;
+  var happened = days.some(function (r) { return r.date >= start && r.date <= end; })
+    || Object.keys(dayPlans).some(function (d) { return d >= start && d <= end; });
+  if (!happened) return null;
+
+  var sum = weekSummary(start, today, days);
+  var open = el('button', { class: 'btn', type: 'button', text: 'See it in Areas' });
+  open.addEventListener('click', function () { areasView.week = start; areasView.day = null; location.hash = '#/areas'; });
+  var away = el('button', { class: 'btn btn-quiet', type: 'button', text: 'Put it away' });
+  away.addEventListener('click', function () { settings.lastWeekSeen = start; saveSettings(); repaintToday(); });
+
+  return el('div', { class: 'card monday-card' }, [
+    el('div', { class: 'card-top' }, [el('span', { class: 'card-title', text: 'Last week · ' + fmtDateShort(start) + ' – ' + fmtDateShort(end) })]),
+    weekGrid(start, today, days, { static: true }),
+    weekLegend(sum, weekHasNoPlan(start, today, days)),
+    el('p', { class: 'wk-sum', text: 'Done ' + sum.done + ' · Partial ' + sum.partial + ' · Skipped ' + sum.skipped }),
+    skippedList(sum),
+    el('div', { class: 'sheet-actions', style: 'margin-top:10px' }, [open, away])
+  ]);
+}
+
 /* When even the minimums do not fit the minutes you have, say so where you will
    see it. Tight and comfortable weeks say nothing here; the Areas tab has them. */
 function overBooked(today, days) {
@@ -3120,9 +3404,12 @@ function renderToday() {
   todaySessions = [];
 
   var nodes = heldCallouts(today);
+  var lastWeek = lastWeekCard(today, days);
+  if (lastWeek) nodes.push(lastWeek);
   reviewCards(today, days).forEach(function (c) { nodes.push(c); });
   var over = overBooked(today, days);
   if (over) nodes.push(over);
+  nodes.push(weekStripBlock(today, days));
   nodes.push(sittingBar(today, plan));
 
   var load = sittingLoad(sitting);
@@ -5282,7 +5569,8 @@ function repaintAreas() {
 }
 
 /* Areas down the side, Monday to Sunday across. Tap a day to see it. */
-function weekGrid(start, today, days) {
+function weekGrid(start, today, days, opts) {
+  var live = !(opts && opts.static);                /* static: for reading, nothing to tap */
   var grid = el('div', { class: 'wk-grid', role: 'grid', 'aria-label': 'Areas by day' });
   var LETTER = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -5291,12 +5579,12 @@ function weekGrid(start, today, days) {
   grid.appendChild(el('div'));
   LETTER.forEach(function (letter, i) {
     var date = addDays(start, i);
-    var b = el('button', {
-      class: 'wk-day' + (date === today ? ' is-today' : '') + (date === areasView.day ? ' is-sel' : ''),
-      type: 'button',
+    var b = el(live ? 'button' : 'div', {
+      class: 'wk-day' + (date === today ? ' is-today' : '') + (live && date === areasView.day ? ' is-sel' : ''),
+      type: live ? 'button' : null,
       'aria-label': fmtDateShort(date) + (date === today ? ', today' : '')
     }, [letter, el('b', { text: String(Number(date.slice(8, 10))) })]);
-    b.addEventListener('click', function () { pickDay(date); });
+    if (live) b.addEventListener('click', function () { pickDay(date); });
     grid.appendChild(b);
   });
 
@@ -5309,13 +5597,13 @@ function weekGrid(start, today, days) {
     ]));
 
     w.cells.forEach(function (c) {
-      var cell = el('button', {
+      var cell = el(live ? 'button' : 'div', {
         class: 'wk-cell' + (c.isToday ? ' is-today' : '') + (c.state === 'future' ? ' is-future' : '')
-          + (c.date === areasView.day ? ' is-sel' : ''),
-        type: 'button',
+          + (live && c.date === areasView.day ? ' is-sel' : ''),
+        type: live ? 'button' : null,
         'aria-label': area.name + ', ' + fmtDateShort(c.date) + ': ' + STATE_TEXT[c.state]
       }, [c.state === 'future' ? null : stateGlyph(c.state)]);
-      cell.addEventListener('click', function () { pickDay(c.date); });
+      if (live) cell.addEventListener('click', function () { pickDay(c.date); });
       grid.appendChild(cell);
     });
   });
@@ -5417,7 +5705,7 @@ function skippedList(sum) {
 function fitBlock(start, today, days) {
   var fit = weekFitFor(start, days, today);
   if (!fit) return null;
-  var lines = [feasibilityLine(fit), trimmedLine(fit), rampLine(fit)].filter(Boolean);
+  var lines = [feasibilityLine(fit), noTimeLine(fit), trimmedLine(fit), rampLine(fit)].filter(Boolean);
   return el('div', { class: 'wk-fit wk-fit-' + fit.verdict }, lines.map(function (text, i) {
     return el('p', { class: i === 0 ? 'wk-fit-main' : '', text: text });
   }));
@@ -5471,8 +5759,19 @@ function ladderRow(area, here) {
   }));
 }
 
+/* The verdict as a small label, coloured by what it means. */
+function verdictChip(fb) {
+  return el('span', { class: 'vd vd-' + fb.verdict, title: fb.why, text: fb.label });
+}
+
+/* "2 2 3 1": days trained in each of the last finished weeks, oldest first. */
+function weeksText(fb) {
+  return fb.weeks.length ? fb.weeks.map(function (w) { return w.touched; }).join('  ') : 'nothing yet';
+}
+
 function areaCard(area, days) {
   var prog = stageProgress(area, days);
+  var fb = areaFeedback(area, todayISO(), days);
   return el('a', { class: 'card', href: '#/areas/' + area.id }, [
     el('div', { class: 'card-top' }, [
       el('span', { class: 'card-title', text: area.name }),
@@ -5484,7 +5783,12 @@ function areaCard(area, days) {
     el('div', { class: 'card-sub', text: area.goal }),
     ladderRow(area, prog.stage.id),
     el('div', { class: 'card-sub', text: 'Stage ' + prog.stage.id + ' · ' + prog.stage.name
-      + (prog.askAfter ? ' · ' + prog.full + ' of ' + prog.askAfter + ' full days' : ' · ' + prog.full + ' full days') })
+      + (prog.askAfter ? ' · ' + prog.full + ' of ' + prog.askAfter + ' full days' : ' · ' + prog.full + ' full days') }),
+    el('div', { class: 'vd-row' }, [
+      verdictChip(fb),
+      fb.mostlyPartial ? el('span', { class: 'vd vd-partial', text: 'Mostly partial' }) : null,
+      el('span', { class: 'vd-weeks', text: 'Last weeks: ' + weeksText(fb) })
+    ])
   ]);
 }
 
@@ -5900,7 +6204,6 @@ function renderAreaDetail(id) {
   ensureWeekFit(start, days);        /* the target shown here is the one the week is judged by */
   var w = areaWeek(area, start, today, days);
   var prog = stageProgress(area, days);
-  var recent = recentWeekCounts(area, start, 3, days, firstWeekStart(days));
 
   var nodes = [
     el('a', { class: 'back', href: '#/areas', text: '‹ Areas' }),
@@ -5911,9 +6214,10 @@ function renderAreaDetail(id) {
   ];
 
   var ladderKv = el('div', { class: 'kv kv-text' });
+  var pace = paceText(paceFor(area, today, days));
   [['Stage', prog.stage.id + ' · ' + prog.stage.name],
    ['Full days here', prog.full + (prog.askAfter ? ' of ' + prog.askAfter : '')],
-   ['Where that is', phaseText(prog)]].forEach(function (r) {
+   ['Where that is', phaseText(prog)]].concat(pace ? [['Review', pace]] : []).forEach(function (r) {
     ladderKv.appendChild(el('div', { class: 'kv-row' }, [el('span', { class: 'kv-key', text: r[0] }), el('span', { class: 'kv-val', text: r[1] })]));
   });
   var pick = el('button', { class: 'btn btn-quiet', type: 'button', text: 'Set the stage yourself' });
@@ -5926,9 +6230,13 @@ function renderAreaDetail(id) {
   var decided = decisionList(area);
   if (decided) nodes.push(decided);
 
+  var fb = areaFeedback(area, today, days);
+  var last = fb.weeks.length ? fb.weeks[fb.weeks.length - 1] : null;
   var rows = [
     ['This week', w.touched + ' of ' + w.target + (w.status.label ? ' · ' + w.status.label : '')],
-    ['Last 3 weeks', recent.map(function (n) { return n === null ? '–' : n; }).join('  ')],
+    ['How it is going', fb.label + '. ' + fb.why],
+    ['Last weeks', fb.weeks.length ? fb.weeks.map(function (x) { return x.touched + '/' + x.target; }).join('  ') : 'nothing yet'],
+    ['Completion', last && last.completion !== null ? last.completion + '% of sets last week' + (fb.mostlyPartial ? ' · mostly partial lately' : '') : 'no sets last week'],
     ['Days a week', w.min + ' · ' + w.target + ' · ' + w.max + '  (min · target · max)'],
     ['Days apart', 'at least ' + w.gap],
     ['A session takes', 'about ' + area.minutes + ' min'],
