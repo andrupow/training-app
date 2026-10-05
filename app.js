@@ -3520,7 +3520,7 @@ function areaDayCard(date, sittingIdx, areaId, plan, onlyOne) {
   var hold = paused ? null : holdReason(area, date);
   var why = plan.why && plan.why[areaId] ? plan.why[areaId] : (plan.suggested.indexOf(areaId) < 0 ? 'You added this one.' : '');
 
-  var meta = [s.stageId + (s.type ? ' · ' + s.type : ''), '~' + area.minutes + ' min'];
+  var meta = (area.track ? [] : [s.stageId + (s.type ? ' · ' + s.type : '')]).concat(['~' + area.minutes + ' min']);
   var badges = el('div', { class: 'badges' }, [
     paused ? badge('Held', 'badge-test') : null,
     hold ? badge('Hold', 'badge-test') : null,
@@ -3536,7 +3536,15 @@ function areaDayCard(date, sittingIdx, areaId, plan, onlyOne) {
   ]);
 
   var actions = el('div', { class: 'ad-actions' });
-  if (!paused && !finished && total > 0) {
+  if (!paused && !finished && total > 0 && area.track) {
+    var mark = el('button', { class: 'btn btn-go', type: 'button', text: 'Mark done' });
+    mark.addEventListener('click', function () {
+      var r = logAreaBlock(date, areaId);
+      if (!r.ok) toast(r.why);
+      repaintToday();
+    });
+    actions.appendChild(mark);
+  } else if (!paused && !finished && total > 0) {
     actions.appendChild(el('a', { class: 'btn btn-go', href: '#/run/' + s.id + '/' + firstOpenExercise(s), text: done ? '▶ Resume' : '▶ Start' }));
   }
   if (!sessionHasLogs(s)) {
@@ -6019,14 +6027,16 @@ function areaCard(area, days) {
     el('div', { class: 'card-top' }, [
       el('span', { class: 'card-title', text: area.name }),
       el('div', { class: 'badges' }, [
+        area.custom ? badge('Yours') : null,
         prog.due ? badge('Review due', 'badge-test') : prog.phase === 'deload' ? badge('Easy block') : null,
         el('span', { class: 'chev', text: '›' })
       ])
     ]),
     el('div', { class: 'card-sub', text: area.goal }),
-    ladderRow(area, prog.stage.id),
-    el('div', { class: 'card-sub', text: 'Stage ' + prog.stage.id + ' · ' + prog.stage.name
-      + (prog.askAfter ? ' · ' + prog.full + ' of ' + prog.askAfter + ' full days' : ' · ' + prog.full + ' full days') }),
+    area.track ? null : ladderRow(area, prog.stage.id),
+    el('div', { class: 'card-sub', text: area.track ? 'Tracked · ' + prog.full + ' full days so far'
+      : 'Stage ' + prog.stage.id + ' · ' + prog.stage.name
+        + (prog.askAfter ? ' · ' + prog.full + ' of ' + prog.askAfter + ' full days' : ' · ' + prog.full + ' full days') }),
     el('div', { class: 'vd-row' }, [
       verdictChip(fb),
       fb.mostlyPartial ? el('span', { class: 'vd vd-partial', text: 'Mostly partial' }) : null,
@@ -6060,6 +6070,10 @@ function renderAreas() {
     el('p', { class: 'section-label', text: 'Areas' })
   ];
   areaList().forEach(function (a) { nodes.push(areaCard(a, days)); });
+  var addBtn = el('button', { class: 'btn btn-block', type: 'button', text: '+ Add an area' });
+  addBtn.addEventListener('click', openAddAreaSheet);
+  nodes.push(addBtn);
+  nodes.push(skippedAreasNote());
 
   if (!decisions.length) nodes.push(el('p', { class: 'hint', text: 'Every area starts at the first rung of its ladder. If you are already further along in one, open it and choose Set the stage yourself.' }));
   nodes.push(el('p', { class: 'hint', text: 'History from before the areas (weighted pull-ups, sprints, hinge, kettlebell press and a few prehab exercises) is kept but not counted here. A day counts as skipped only when it was on that day’s menu, or taken off it, and nothing was logged.' }));
@@ -6143,6 +6157,12 @@ function renderReview(id) {
   if (!areaData) return areasLoading();
   var area = areaById(id);
   if (!area) return renderNotFound('No area "' + id + '".');
+  if (area.track) {
+    return setView('Review', area.short || area.name, [
+      el('a', { class: 'back', href: '#/areas/' + area.id, text: '‹ ' + area.name }),
+      el('p', { class: 'empty', text: area.name + ' is tracked, so there is no ladder to review.' })
+    ]);
+  }
 
   var today = todayISO();
   var days = areaDays();
@@ -6365,6 +6385,151 @@ function equipmentSection() {
   return wrap;
 }
 
+/* --- adding an area ---------------------------------------------------------- */
+
+var ORDER_LABEL = { power: 'Power (jumps, sprints)', skill: 'Skill (technique work)', strength: 'Strength', mobility: 'Mobility', kettlebell: 'Kettlebell or conditioning' };
+var LOAD_LABEL = { low: 'Light on the body', medium: 'Moderate', high: 'Hard on the body' };
+
+/* The entry point: three ways to add, and where to read about them. */
+function openAddAreaSheet() {
+  var list = el('div', { class: 'picklist' });
+  [['Track something simple', 'A run, climbing, mobility: a target and a time, no ladder.', openTrackForm],
+   ['Import an area pack', 'A whole ladder, from one JSON file. It is checked before it is added.', pickPackFile],
+   ['How adding areas works', 'The pack format, with a starter you can copy.', function () { closeSheet(); location.hash = '#/howto'; }]
+  ].forEach(function (o) {
+    var b = el('button', { class: 'card pick', type: 'button' }, [el('div', { class: 'card-title', text: o[0] }), el('div', { class: 'card-sub', text: o[1] })]);
+    b.addEventListener('click', o[2]);
+    list.appendChild(b);
+  });
+  openSheet('Add an area', 'The eight stay as they are. What you add joins the menu, the week and the verdicts.', [list]);
+}
+
+/* Something you only want to track. */
+function openTrackForm() {
+  var draft = { name: '', perWeek: 3, minutes: 30, order: 'strength', load: 'medium', guardedBy: [] };
+  var problem = el('p', { class: 'sheet-error', role: 'alert' });
+
+  var name = el('input', { type: 'text', id: 'f-area-name', placeholder: 'Morning run' });
+  var minutes = el('input', { type: 'text', inputmode: 'numeric', id: 'f-area-min', placeholder: '30' });
+  minutes.value = String(draft.minutes);
+  var order = el('select', { id: 'f-area-order' }, areaData.rules.dayOrder.map(function (o) { return el('option', { value: o, text: ORDER_LABEL[o] || o }); }));
+  order.value = draft.order;
+  var load = el('select', { id: 'f-area-load' }, ['low', 'medium', 'high'].map(function (l) { return el('option', { value: l, text: LOAD_LABEL[l] }); }));
+  load.value = draft.load;
+
+  var days = el('div', { class: 'sit-row' }, [el('span', { class: 'sit-label', text: 'Days a week:' })]);
+  [1, 2, 3, 4, 5, 6, 7].forEach(function (n) {
+    var b = el('button', { class: 'sit-chip' + (n === draft.perWeek ? ' is-on' : ''), type: 'button', 'aria-pressed': String(n === draft.perWeek), text: String(n) });
+    b.addEventListener('click', function () {
+      draft.perWeek = n;
+      Array.prototype.forEach.call(days.querySelectorAll('.sit-chip'), function (c) { c.classList.remove('is-on'); c.setAttribute('aria-pressed', 'false'); });
+      b.classList.add('is-on'); b.setAttribute('aria-pressed', 'true');
+    });
+    days.appendChild(b);
+  });
+
+  var hurt = el('div', { class: 'eq-bells' });
+  areas().forEach(function (id) {
+    var b = el('button', { class: 'sit-chip', type: 'button', 'aria-pressed': 'false', text: bodyLabel(id) });
+    b.addEventListener('click', function () {
+      var i = draft.guardedBy.indexOf(id);
+      if (i >= 0) draft.guardedBy.splice(i, 1); else draft.guardedBy.push(id);
+      var on = i < 0;
+      b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on));
+    });
+    hurt.appendChild(b);
+  });
+
+  var add = el('button', { class: 'btn btn-go btn-block', type: 'button', text: 'Add it' });
+  add.addEventListener('click', function () {
+    var r = addCustomArea(trackedAreaFrom({ name: name.value, perWeek: draft.perWeek, minutes: minutes.value, order: order.value, load: load.value, guardedBy: draft.guardedBy }));
+    if (!r.ok) { problem.textContent = r.errors.slice(0, 3).join(' '); return; }
+    closeSheet();
+    toast(r.area.name + ' added.');
+    location.hash = '#/areas/' + r.area.id;
+  });
+
+  openSheet('Track something', 'It gets a target, a time, a place on the menu and a verdict. No ladder.', [
+    field('Name', name), days, field('Minutes', minutes), field('Kind', order), field('Load', load),
+    el('p', { class: 'hint', text: 'Could it hurt anything? A red light on these pauses it:' }), hurt, problem, add
+  ]);
+}
+
+/* An area pack: pick the file, check it, show what is in it. */
+function pickPackFile() {
+  var input = el('input', { type: 'file', accept: 'application/json,.json', class: 'visually-hidden' });
+  input.addEventListener('change', function () {
+    var file = input.files && input.files[0];
+    if (!file) return;
+    if (file.size > 512 * 1024) { showPackProblems(['That file is too big for an area pack (over 500 KB).']); return; }
+    var reader = new FileReader();
+    reader.onerror = function () { showPackProblems(['Could not read that file.']); };
+    reader.onload = function () { reviewPack(String(reader.result || '')); };
+    reader.readAsText(file);
+  });
+  document.body.appendChild(input);
+  input.click();
+  setTimeout(function () { input.remove(); }, 60000);
+}
+
+function showPackProblems(errors, warnings) {
+  var shown = errors.slice(0, 10);
+  var nodes = [el('ul', { class: 'pack-list is-bad' }, shown.map(function (e) { return el('li', { text: e }); }))];
+  if (errors.length > shown.length) nodes.push(el('p', { class: 'hint', text: 'And ' + (errors.length - shown.length) + ' more.' }));
+  nodes.push(el('a', { class: 'rv-link', href: '#/howto', text: 'How an area pack is written' }));
+  openSheet('That pack cannot be added', 'Nothing was changed. Fix these and try again.', nodes);
+}
+
+function reviewPack(text) {
+  var parsed;
+  try { parsed = JSON.parse(text); } catch (err) { showPackProblems(['That file is not valid JSON.']); return; }
+  var r = validateAreaPack(parsed, { taken: areaList().map(function (a) { return a.id; }) });
+  if (!r.ok) { showPackProblems(r.errors); return; }
+
+  var a = r.area;
+  var exercises = (a.stages || []).reduce(function (n, s) { return n + s.exercises.length; }, 0);
+  var kv = el('div', { class: 'kv kv-text' });
+  [['Name', a.name], ['Goal', a.goal], ['Stages', (a.stages || []).length + ' (' + exercises + ' exercises)'],
+   ['Days a week', a.perWeek.min + ' · ' + a.perWeek.target + ' · ' + a.perWeek.max], ['A session takes', 'about ' + a.minutes + ' min'],
+   ['Guarded by', a.guardedBy.length ? a.guardedBy.map(bodyLabel).join(', ') : 'nothing']
+  ].forEach(function (row) {
+    kv.appendChild(el('div', { class: 'kv-row' }, [el('span', { class: 'kv-key', text: row[0] }), el('span', { class: 'kv-val', text: row[1] })]));
+  });
+  var nodes = [kv];
+  if (r.warnings.length) nodes.push(el('ul', { class: 'pack-list' }, r.warnings.slice(0, 6).map(function (w) { return el('li', { text: w }); })));
+
+  var add = el('button', { class: 'btn btn-go btn-block', type: 'button', text: 'Add ' + a.name });
+  add.addEventListener('click', function () {
+    var done = addCustomArea(parsed);
+    if (!done.ok) { showPackProblems(done.errors); return; }
+    closeSheet();
+    toast(done.area.name + ' added.');
+    location.hash = '#/areas/' + done.area.id;
+  });
+  nodes.push(add);
+  openSheet('Add this area?', r.warnings.length ? 'It passes. Worth a look first:' : 'It passes every check.', nodes);
+}
+
+/* One of your own that no longer loads, with why, and a way to clear it. */
+function skippedAreasNote() {
+  var skipped = (areaData && areaData.skipped) || [];
+  if (!skipped.length) return null;
+  return el('div', {}, [
+    el('p', { class: 'section-label', text: 'Could not load' })
+  ].concat(skipped.map(function (s) {
+    var drop = el('button', { class: 'linkbtn', type: 'button', text: 'Remove' });
+    drop.addEventListener('click', function () {
+      if (!confirm('Remove "' + s.id + '"? It cannot be loaded as it is.')) return;
+      removeCustomArea(s.id);
+      renderAreas();
+    });
+    return el('div', { class: 'card hist' }, [
+      el('div', { class: 'card-top' }, [el('span', { class: 'card-title', text: s.id }), drop]),
+      el('div', { class: 'card-sub', text: s.errors.slice(0, 2).join(' ') })
+    ]);
+  })));
+}
+
 /* Which stage of an area, by position — for "you are at P1, this needs P4". */
 function stageIndex(area, stageId) {
   for (var i = 0; i < area.stages.length; i++) {
@@ -6465,13 +6630,17 @@ function renderAreaDetail(id) {
   });
   var pick = el('button', { class: 'btn btn-quiet', type: 'button', text: 'Set the stage yourself' });
   pick.addEventListener('click', function () { openStagePicker(area, function () { renderAreaDetail(id); }); });
-  nodes.push(el('p', { class: 'section-label', text: 'Where you are on the ladder' }), ladderKv,
-    el('div', { class: 'sheet-actions', style: 'margin-top:0' }, [
-      el('a', { class: prog.due ? 'btn btn-go' : 'btn', href: '#/review/' + area.id, text: prog.due ? 'Open the review' : 'Review now' }),
-      pick
-    ]));
-  var decided = decisionList(area);
-  if (decided) nodes.push(decided);
+  if (area.track) {
+    nodes.push(el('p', { class: 'hint', text: 'Tracked: it has a target and a time, and a place on the menu, but no ladder. ' + prog.full + ' full days so far.' }));
+  } else {
+    nodes.push(el('p', { class: 'section-label', text: 'Where you are on the ladder' }), ladderKv,
+      el('div', { class: 'sheet-actions', style: 'margin-top:0' }, [
+        el('a', { class: prog.due ? 'btn btn-go' : 'btn', href: '#/review/' + area.id, text: prog.due ? 'Open the review' : 'Review now' }),
+        pick
+      ]));
+    var decided = decisionList(area);
+    if (decided) nodes.push(decided);
+  }
 
   var fb = areaFeedback(area, today, days);
   var last = fb.weeks.length ? fb.weeks[fb.weeks.length - 1] : null;
@@ -6508,12 +6677,25 @@ function renderAreaDetail(id) {
     rules.forEach(function (line) { nodes.push(el('p', { class: 'hint', text: line })); });
   }
 
-  nodes.push(el('p', { class: 'section-label', text: 'Ladder' }));
-  nodes.push(ladderRow(area, prog.stage.id));
-  area.stages.forEach(function (s) { nodes.push(stageCard(area, s, prog)); });
+  if (!area.track) {
+    nodes.push(el('p', { class: 'section-label', text: 'Ladder' }));
+    nodes.push(ladderRow(area, prog.stage.id));
+    area.stages.forEach(function (s) { nodes.push(stageCard(area, s, prog)); });
+  }
+
+  if (area.custom) {
+    var drop = el('button', { class: 'btn btn-quiet btn-block', type: 'button', text: 'Remove this area' });
+    drop.addEventListener('click', function () {
+      if (!confirm('Remove ' + area.name + '? Its days stay in your history and come back if you add it again.')) return;
+      removeCustomArea(area.id);
+      toast(area.name + ' removed.');
+      location.hash = '#/areas';
+    });
+    nodes.push(drop);
+  }
 
   nodes.push(el('p', { class: 'buildline', text: 'Build ' + BUILD }));
-  setView(area.short, 'Stage ' + prog.stage.id, nodes);
+  setView(area.short, area.track ? 'Tracked' : 'Stage ' + prog.stage.id, nodes);
   window.scrollTo(0, 0);
 }
 
