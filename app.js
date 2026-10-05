@@ -1735,13 +1735,17 @@ function paintLogged(node, ex, session) {
     var e = getLog(session.id, ex.id, i);
     if (!hasDetail(e)) continue;
 
-    var bits = [];
-    if (e.loadKg !== undefined) bits.push(e.loadKg + ' kg');
-    if (e.reps !== undefined) bits.push(e.reps + (e.reps === 1 ? ' rep' : ' reps'));
-    if (e.rpe !== undefined) bits.push('RPE ' + e.rpe);
-
-    node.appendChild(el('div', { text: 'Set ' + (i + 1) + ' — ' + bits.join(' · ') }));
+    node.appendChild(el('div', { text: 'Set ' + (i + 1) + ' — ' + setBits(e).join(' · ') }));
   }
+}
+
+/* "20 kg", "5 reps", "RPE 8" — whatever was written down for the set. */
+function setBits(e) {
+  var bits = [];
+  if (e.loadKg !== undefined) bits.push(e.loadKg + ' kg');
+  if (e.reps !== undefined) bits.push(e.reps + (e.reps === 1 ? ' rep' : ' reps'));
+  if (e.rpe !== undefined) bits.push('RPE ' + e.rpe);
+  return bits;
 }
 
 function paintCount() {
@@ -1975,12 +1979,15 @@ function openSetSheet(ex, session, i, btn, logged) {
   if (entry.reps !== undefined) repsIn.value = entry.reps;
   if (entry.rpe !== undefined) rpeIn.value = entry.rpe;
 
+  var problem = el('p', { class: 'sheet-error', role: 'alert' });
+
   var form = el('form', { class: 'sheet' }, [
     el('h3', { text: ex.name }),
     el('p', { class: 'sheet-sub', text: 'Set ' + (i + 1) + ' of ' + ex.sets + ' — what actually happened' }),
     field('Load (kg)', loadIn),
     field('Reps', repsIn),
     field('RPE', rpeIn),
+    problem,
     el('div', { class: 'sheet-actions' }, [
       el('button', { type: 'button', class: 'btn btn-quiet', id: 'sheet-clear', text: 'Clear' }),
       el('button', { type: 'button', class: 'btn btn-quiet', id: 'sheet-cancel', text: 'Cancel' }),
@@ -2014,13 +2021,38 @@ function openSetSheet(ex, session, i, btn, logged) {
     close();
   });
 
+  /* Out of range is refused, not trimmed to the limit: 999 reps trimmed to 300
+     is still wrong, and nobody would see it. */
   form.addEventListener('submit', function (e) {
     e.preventDefault();
+
+    var checks = [
+      checkSetValue(loadIn.value, SET_LIMITS[0]),
+      checkSetValue(repsIn.value, SET_LIMITS[1]),
+      checkSetValue(rpeIn.value, SET_LIMITS[2])
+    ];
+    var inputs = [loadIn, repsIn, rpeIn];
+    var firstBad = -1;
+    checks.forEach(function (c, k) {
+      if (c.error) {
+        inputs[k].setAttribute('aria-invalid', 'true');
+        if (firstBad < 0) firstBad = k;
+      } else {
+        inputs[k].removeAttribute('aria-invalid');
+      }
+    });
+
+    if (firstBad >= 0) {
+      problem.textContent = checks.filter(function (c) { return c.error; }).map(function (c) { return c.error; }).join(' ');
+      inputs[firstBad].focus();
+      return;
+    }
+
     writeLog(session.id, ex.id, i, {
       done: true,                                  /* you logged it, so you did it */
-      loadKg: num(loadIn.value, 0, 500),
-      reps: num(repsIn.value, 0, 999),
-      rpe: num(rpeIn.value, 1, 10)
+      loadKg: checks[0].value,
+      reps: checks[1].value,
+      rpe: checks[2].value
     });
     refresh();
     close();
@@ -2035,6 +2067,52 @@ function field(label, input) {
     el('span', { text: label }),
     input
   ]);
+}
+
+/* What one logged set can hold. Past these it is a typo, not a lift: the set
+   sheet refuses them, and the Progress tab lists any already on the phone. */
+var SET_LIMITS = [
+  { key: 'loadKg', label: 'Load', unit: ' kg', min: 0, max: 250 },
+  { key: 'reps',   label: 'Reps', unit: '',    min: 0, max: 300 },
+  { key: 'rpe',    label: 'RPE',  unit: '',    min: 1, max: 10 }
+];
+
+/* Blank is fine, it means "as planned". Anything else has to be a number in range. */
+function checkSetValue(raw, limit) {
+  var s = String(raw == null ? '' : raw).trim().replace(',', '.');
+  if (s === '') return { value: undefined };
+  var n = Number(s);
+  if (!isFinite(n)) return { error: limit.label + ' has to be a number.' };
+  if (n < limit.min || n > limit.max) {
+    return { error: limit.label + ' has to be between ' + limit.min + ' and ' + limit.max + limit.unit + '.' };
+  }
+  return { value: n };
+}
+
+/* Sets already logged with a value outside those limits (a number that is not a
+   number counts too), and which fields are the odd ones. */
+function suspectSets() {
+  var out = [];
+  setLogs.forEach(function (e) {
+    var bad = SET_LIMITS.filter(function (l) {
+      var v = e[l.key];
+      return v !== undefined && (typeof v !== 'number' || !isFinite(v) || v < l.min || v > l.max);
+    });
+    if (bad.length) out.push({ entry: e, bad: bad });
+  });
+  return out;
+}
+
+/* Remove only the odd numbers. The set stays done, and keeps the time it was
+   logged at. */
+function clearSuspect(item) {
+  var e = item.entry;
+  var ts = e.ts;
+  var patch = {};
+  item.bad.forEach(function (l) { patch[l.key] = undefined; });
+
+  var kept = writeLog(e.sessionId, e.exerciseId, e.setIdx, patch);
+  if (kept && ts) { kept.ts = ts; saveLogs(); }
 }
 
 /* Blank means "no change from the plan", not zero. */
@@ -4087,6 +4165,8 @@ function renderProgress() {
     ]));
   }
 
+  nodes.push(dataCheckSection());           /* short, and something to act on: keep it near the top */
+
   dueRecalibrations().forEach(function (c) {
     nodes.push(el('div', { class: 'callout callout-due' }, [
       el('strong', { text: 'Recalibration due · ' + c.label + ' · ' + fmtDateShort(c.date) }),
@@ -4127,6 +4207,62 @@ function renderProgress() {
   if (btn) btn.addEventListener('click', function () { openBaselineSheet(); });
 
   window.scrollTo(0, 0);
+}
+
+/* Where a logged set came from, in words. */
+function describeLoggedSet(e) {
+  var s = sessionById(e.sessionId);
+  var ex = s && s.exercises.filter(function (x) { return x.id === e.exerciseId; })[0];
+  var date = s ? sessionDate(s) : null;
+  if (!date && e.ts) date = String(e.ts).slice(0, 10);
+  return {
+    what: (ex ? ex.name : e.exerciseId) + ' · set ' + (e.setIdx + 1),
+    when: date ? fmtDate(date) : 'date unknown'
+  };
+}
+
+/* Sets whose numbers cannot be real, each with a one-tap clear. Nothing is shown
+   when everything is fine. */
+function dataCheckSection() {
+  var items = suspectSets();
+  if (!items.length) return null;
+
+  function cleared(count) {
+    toast(count === 1 ? 'Cleared. The set is still done.' : 'Cleared ' + count + ' sets. They are still done.');
+    renderProgress();
+    paintTabBadge();
+  }
+
+  var wrap = el('div', {}, [
+    el('p', { class: 'section-label', text: 'Check your data' }),
+    el('div', { class: 'callout callout-due' }, [
+      el('strong', { text: items.length === 1 ? 'One set looks like a typo' : items.length + ' sets look like typos' }),
+      document.createTextNode('A load over 250 kg, more than 300 reps, or an RPE outside 1–10. Clearing removes only the odd numbers; the set stays done.')
+    ])
+  ]);
+
+  items.forEach(function (item) {
+    var d = describeLoggedSet(item.entry);
+    var clearBtn = el('button', { class: 'linkbtn', type: 'button', text: 'Clear values' });
+    clearBtn.addEventListener('click', function () {
+      clearSuspect(item);
+      cleared(1);
+    });
+    wrap.appendChild(el('div', { class: 'card hist' }, [
+      el('div', { class: 'card-top' }, [el('span', { class: 'card-title', text: d.what }), clearBtn]),
+      el('div', { class: 'card-sub', text: d.when + ' · ' + setBits(item.entry).join(' · ') })
+    ]));
+  });
+
+  if (items.length > 1) {
+    var allBtn = el('button', { class: 'btn btn-quiet btn-block', type: 'button', text: 'Clear all ' + items.length });
+    allBtn.addEventListener('click', function () {
+      items.forEach(clearSuspect);
+      cleared(items.length);
+    });
+    wrap.appendChild(allBtn);
+  }
+  return wrap;
 }
 
 function baselineTable(b) {
@@ -4758,10 +4894,11 @@ function route() {
   view().focus({ preventScroll: true });
 }
 
-/* A dot on the Progress tab when a backup is overdue — the nag has to be
-   visible from the screens you actually use, not only from the one it is on. */
+/* A dot on the Progress tab when a backup is overdue or a set looks like a typo —
+   the nag has to be visible from the screens you actually use, not only from
+   the one it is on. */
 function paintTabBadge() {
-  mark('progress', exportOverdue());
+  mark('progress', exportOverdue() || suspectSets().length > 0);
   /* Only nag for a check-in once there is a session behind you. */
   mark('checkin', hasLoggedASession() && checkInDueToday());
 
