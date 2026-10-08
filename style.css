@@ -1301,9 +1301,6 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
 .eq-row .kv-key { flex: 1 1 auto; min-width: 0; }
 
 /* The week in a line, nudges, verdicts, and last week's card. */
-.week-strip { display: block; margin-bottom: 12px; padding: 10px 14px; text-decoration: none; color: var(--text);
-  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
-.ws-main { font-size: 14.5px; font-weight: 620; }
 .nudge { margin-top: 5px; font-size: 13.5px; line-height: 1.35; color: var(--muted); }
 .vd-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 8px; }
 .vd { font-size: 11.5px; font-weight: 640; line-height: 1; padding: 4px 8px; border-radius: 10px; background: var(--surface-2); color: var(--muted); }
@@ -1323,3 +1320,69 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
 .howto-list { margin: 6px 0 12px; padding-left: 18px; font-size: 14.5px; line-height: 1.45; }
 .howto-list li { margin: 5px 0; }
 .howto-code { margin: 10px 0 14px; padding: 12px; overflow-x: auto; font-size: 12px; line-height: 1.45; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; white-space: pre; tab-size: 2; }
+
+/* ---------- this week / last week (Today) ---------- */
+
+.tw-card { padding: 4px 14px 8px; margin-bottom: 12px; }
+
+.tw-head { display: flex; align-items: center; gap: 8px; min-height: var(--tap); }
+.tw-title { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.tw-toggle {
+  margin: 0 -6px 0 auto; padding: 0 6px; min-height: var(--tap);
+  border: 0; background: none; color: var(--accent);
+  font: inherit; font-size: 15px; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tw-main { font-size: 17px; font-variant-numeric: tabular-nums; }
+.tw-main strong { font-weight: 650; letter-spacing: -0.01em; }
+.tw-sub { min-height: 1.45em; margin-top: 1px; font-size: 13.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tw-empty { margin: 0 0 8px; color: var(--muted); font-size: 14.5px; }
+.tw-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; margin-top: 4px; }
+.tw-info { font-size: 14.5px; font-weight: 620; }
+
+/* One cell per day, Monday to Sunday. The ring is how much of that day's menu got done,
+   in the same colours as the grid in Areas: green done, amber part-way on a day gone,
+   dashed blue still to come, a cross for a day skipped. */
+.tw-strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; margin: 12px -4px 0; }
+
+.tw-day {
+  --c: var(--line);
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  min-width: 0; padding: 6px 0 4px;
+  border: 0; border-radius: 10px; background: none;
+  color: inherit; font: inherit; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.tw-day:active { background: var(--surface-2); }
+.tw-day:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.tw-ring {
+  --p: 0;
+  display: grid; place-items: center;
+  width: 28px; height: 28px;
+  border: 2px solid var(--c); border-radius: 50%;
+  background: conic-gradient(var(--c) calc(var(--p) * 1%), transparent 0);
+  color: #fff; font-size: 14px; font-weight: 700; line-height: 1;
+}
+.tw-dow { font-size: 12px; font-weight: 600; line-height: 1.2; color: var(--muted); }
+.tw-n { font-size: 11.5px; line-height: 1.2; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.tw-done    { --c: var(--good); }
+.tw-today   { --c: var(--good); }
+.tw-partial { --c: var(--warning); }
+.tw-planned { --c: var(--accent); }
+.tw-planned .tw-ring { border-style: dashed; }
+.tw-skipped { --c: var(--serious); }
+.tw-skipped .tw-ring { color: var(--serious); }
+.tw-rest .tw-ring { width: 8px; height: 8px; margin: 10px 0; border: 0; background: var(--line); }
+
+.tw-day.is-today .tw-ring { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tw-day.is-today .tw-dow { color: var(--accent); }
+
+.tw-open {
+  margin: 0 -6px 0 auto; padding: 0 6px; min-height: var(--tap);
+  border: 0; background: none; color: var(--accent);
+  font: inherit; font-size: 14.5px; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}

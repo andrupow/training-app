@@ -7,7 +7,7 @@
 
 'use strict';
 
-var BUILD = '1.19.0-lookahead';
+var BUILD = '1.20.0-weekcard';
 var PLAN_URL = 'data/plan.json';
 var LS_PLAN = 'plan.cache.v1';
 var LS_LOGS = 'setLogs';
@@ -3179,6 +3179,7 @@ function paintCount() {
   var done = 0, total = 0;
   todaySessions.forEach(function (x) { done += doneSets(x); total += totalSets(x); });
   document.getElementById('appbar-sub').textContent = fmtDateShort(todayISO()) + ' · ' + done + ' of ' + total + ' sets';
+  paintTodayWeek();
 }
 
 /* --- rest timer -------------------------------------------------------- */
@@ -3780,12 +3781,200 @@ function heldCallouts(date) {
   }).filter(Boolean);
 }
 
-/* The week in one line, and a couple of gentle things worth knowing. Tap for the grid. */
+/* --- the week on Today ----------------------------------------------------- */
+/* One card: how much of the week is done, what is lined up for the rest of it, and
+   a switch to last week that is always there (the "just finished" card below goes
+   once it is put away). Each day is one ring, filled by how much of that day's
+   menu got done; tap one to open the day in Areas. Counts are area-days, the unit
+   the grid in Areas uses.
+
+   This week keeps what the strip always said (areas on track, and a couple of
+   nudges). Last week says how each area finished instead, and what was skipped. */
+
+var todayWeek = 0;              /* 0 = this week, -1 = last week; back to this week on every visit */
+var weekCardForecast = null;    /* what the card was last drawn with, so a tick does not redo it */
+
+var DAY3 = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+function fmtRange(from, to) {
+  var a = from.split('-'), b = to.split('-');
+  if (a[1] === b[1]) return Number(a[2]) + '–' + Number(b[2]) + ' ' + (MONTHS[Number(a[1]) - 1] || '?');
+  return fmtDateShort(from) + ' – ' + fmtDateShort(to);
+}
+
+/* The Monday of the week the card is showing: 0 is this week, -1 the one before. */
+function shownWeekStart(today, offset) { return addDays(weekStartOf(today), 7 * offset); }
+
+/* A week from before the areas began was asked for something else, so it is history,
+   not a miss. areaFeedback judges it the same way. */
+function weekBeforeAreas(start) {
+  return !!settings.menuSince && start < weekStartOf(settings.menuSince);
+}
+
+/* Did anything happen in the week starting `start`: a day trained, or a menu made? */
+function weekHappened(start, days) {
+  var end = addDays(start, 6);
+  return days.some(function (r) { return r.date >= start && r.date <= end; })
+    || Object.keys(dayPlans).some(function (d) { return d >= start && d <= end; });
+}
+
+/* A week as seven days, from the same cells the grid in Areas draws. A day's agenda is
+   everything that was, or is, lined up for it: done, partial, skipped (on the menu and
+   not done) and planned (on the menu, or in the forecast for a day ahead).
+
+     status  done      everything on the day's agenda is done
+             today     today, and not finished (may be part-way)
+             planned   a day ahead
+             partial   a day gone with some of it done
+             skipped   a day gone with none of it done
+             rest      nothing on the agenda
+     fill    per cent of the agenda done: a partly done area-day counts as the share of
+             its sets that were ticked
+
+   `outcome` is how each area finished the week, for a week that has finished. */
+function weekPicture(start, today, days, forecast) {
+  var cells = [];
+  for (var i = 0; i < 7; i++) cells.push({ date: addDays(start, i), done: 0, partial: 0, skipped: 0, planned: 0, got: 0 });
+  var totals = { done: 0, partial: 0, skipped: 0, planned: 0 };
+  var outcome = { hit: 0, over: 0, met: 0, missed: 0 };
+
+  areaList().forEach(function (a) {
+    var w = areaWeek(a, start, today, days);
+    if (w.status.key in outcome) outcome[w.status.key]++;
+
+    w.cells.forEach(function (c, i) {
+      var state = forecastState(forecast, c, today, a.id) || c.state;
+      var day = cells[i];
+      if (state === 'full') { day.done++; day.got += 1; totals.done++; }
+      else if (state === 'partial') {
+        day.partial++; totals.partial++;
+        day.got += c.record && c.record.total ? c.record.done / c.record.total : 0;
+      }
+      else if (state === 'skipped') { day.skipped++; totals.skipped++; }
+      else if (state === 'planned' || state === 'suggested') { day.planned++; totals.planned++; }
+    });
+  });
+
+  cells.forEach(function (d) {
+    d.agenda = d.done + d.partial + d.skipped + d.planned;
+    d.fill = d.agenda ? Math.round(100 * d.got / d.agenda) : 0;
+    if (!d.agenda) d.status = 'rest';
+    else if (d.done === d.agenda) d.status = 'done';
+    else if (d.date > today) d.status = 'planned';
+    else if (d.date === today) d.status = 'today';
+    else d.status = d.done + d.partial > 0 ? 'partial' : 'skipped';
+  });
+
+  return {
+    start: start, end: addDays(start, 6), cells: cells, totals: totals, outcome: outcome,
+    agenda: totals.done + totals.partial + totals.skipped + totals.planned
+  };
+}
+
+function dayCountsText(d) {
+  var bits = [];
+  if (d.done) bits.push(d.done + ' done');
+  if (d.partial) bits.push(d.partial + ' partial');
+  if (d.skipped) bits.push(d.skipped + ' skipped');
+  if (d.planned) bits.push(d.planned + ' planned');
+  return bits.length ? bits.join(', ') : 'nothing on';
+}
+
+function weekDayCell(d, today) {
+  var note = d.status === 'rest' ? '–' : d.date > today ? String(d.planned) : d.done + '/' + d.agenda;
+  var cell = el('button', {
+    class: 'tw-day tw-' + d.status + (d.date === today ? ' is-today' : ''),
+    type: 'button',
+    'aria-label': DAY3[isoDow(d.date)] + ' ' + fmtDateShort(d.date) + (d.date === today ? ', today' : '') + ': ' + dayCountsText(d)
+  }, [
+    el('span', { class: 'tw-ring', style: '--p:' + (d.status === 'done' ? 100 : d.fill), text: d.status === 'done' ? '✓' : d.status === 'skipped' ? '✕' : '' }),
+    el('span', { class: 'tw-dow', text: DAY3[isoDow(d.date)] }),
+    el('span', { class: 'tw-n', text: note })
+  ]);
+  cell.addEventListener('click', function () {
+    areasView.week = weekStartOf(d.date);
+    areasView.day = d.date;
+    location.hash = '#/areas';
+  });
+  return cell;
+}
+
+/* "5 hit · 2 met minimum · 1 missed": how a finished week ended, area by area. */
+function outcomeText(o) {
+  var bits = [];
+  if (o.hit) bits.push(o.hit + ' hit');
+  if (o.over) bits.push(o.over + ' over the max');
+  if (o.met) bits.push(o.met + ' met minimum');
+  if (o.missed) bits.push(o.missed + ' missed');
+  return bits.length ? 'Areas: ' + bits.join(' · ') : '';
+}
+
+/* Draws the card's insides. Called for the first draw, for the switch, and from
+   paintCount, so ticking a set moves today's ring without redrawing the page. */
+function paintTodayWeek(card, today, days) {
+  card = card || document.getElementById('weekcard');
+  if (!card || !areaData) return;
+  today = today || todayISO();
+  days = days || areaDays();
+
+  var start = shownWeekStart(today, todayWeek);
+  var viewingThis = todayWeek === 0;
+  var pic = weekPicture(start, today, days, viewingThis ? weekCardForecast : null);
+  var T = pic.totals;
+
+  /* Never offer a trip to an empty week, and never strand anyone on last week. */
+  var canSwitch = !viewingThis || weekHappened(shownWeekStart(today, -1), days);
+  var toggle = canSwitch ? el('button', { class: 'tw-toggle', type: 'button', text: viewingThis ? '‹ Last week' : 'This week ›' }) : null;
+  if (toggle) {
+    toggle.addEventListener('click', function () {
+      todayWeek = viewingThis ? -1 : 0;
+      paintTodayWeek(card);
+      var again = card.querySelector('.tw-toggle');
+      if (again) again.focus({ preventScroll: true });
+    });
+  }
+
+  card.textContent = '';
+  card.appendChild(el('div', { class: 'tw-head' }, [
+    el('span', { class: 'tw-title', text: (viewingThis ? 'This week' : 'Last week') + ' · ' + fmtRange(start, pic.end) }),
+    toggle
+  ]));
+
+  if (pic.agenda) {
+    var rest = [];
+    if (T.partial) rest.push(T.partial + ' partial');
+    if (T.planned) rest.push(T.planned + ' planned');
+    if (T.skipped) rest.push(T.skipped + ' skipped');
+
+    card.appendChild(el('div', { class: 'tw-main' }, [
+      el('strong', { text: T.done + ' of ' + pic.agenda }),
+      document.createTextNode(' area-days done')
+    ]));
+    card.appendChild(el('div', { class: 'tw-sub', text: rest.join(' · ') }));
+    card.appendChild(el('div', { class: 'tw-strip' }, pic.cells.map(function (d) { return weekDayCell(d, today); })));
+  } else {
+    card.appendChild(el('p', { class: 'tw-empty', text: viewingThis ? 'Nothing lined up for this week yet.' : 'Nothing was planned or done last week.' }));
+  }
+
+  var open = el('button', { class: 'tw-open', type: 'button', text: 'Areas ›' });
+  open.addEventListener('click', function () { areasView.week = start; areasView.day = null; location.hash = '#/areas'; });
+  var info = viewingThis ? weekStrip(today, days).text
+    : weekBeforeAreas(start) ? 'From before the areas, so not judged.' : outcomeText(pic.outcome);
+  card.appendChild(el('div', { class: 'tw-foot' }, [info ? el('span', { class: 'tw-info', text: info }) : null, open]));
+
+  if (viewingThis) {
+    nudgesFor(today, days).forEach(function (n) { card.appendChild(el('div', { class: 'nudge', text: n.text })); });
+  } else {
+    var skips = skippedList(weekSummary(start, today, days));
+    if (skips) card.appendChild(skips);
+  }
+}
+
 function weekStripBlock(today, days) {
-  var strip = weekStrip(today, days);
-  var kids = [el('div', { class: 'ws-main', text: 'This week: ' + strip.text })];
-  nudgesFor(today, days).forEach(function (n) { kids.push(el('div', { class: 'nudge', text: n.text })); });
-  return el('a', { class: 'week-strip', href: '#/areas' }, kids);
+  weekCardForecast = weekForecast(today, days);
+  var card = el('div', { class: 'card tw-card', id: 'weekcard' });
+  paintTodayWeek(card, today, days);
+  return card;
 }
 
 /* The week that has just finished, once: what was done, what was skipped. It stays
@@ -3793,9 +3982,7 @@ function weekStripBlock(today, days) {
 function lastWeekCard(today, days) {
   var start = addDays(weekStartOf(today), -7), end = addDays(start, 6);
   if (settings.lastWeekSeen === start) return null;
-  var happened = days.some(function (r) { return r.date >= start && r.date <= end; })
-    || Object.keys(dayPlans).some(function (d) { return d >= start && d <= end; });
-  if (!happened) return null;
+  if (!weekHappened(start, days)) return null;
 
   var sum = weekSummary(start, today, days);
   var open = el('button', { class: 'btn', type: 'button', text: 'See it in Areas' });
@@ -7549,7 +7736,7 @@ function route() {
   else if (tab === 'areas' && parts[1]) renderAreaDetail(parts[1]);
   else if (tab === 'areas') renderAreas();
   else if (tab === 'session') renderSession(parts[1]);
-  else if (tab === 'today') { renderToday(); window.scrollTo(0, 0); }
+  else if (tab === 'today') { todayWeek = 0; renderToday(); window.scrollTo(0, 0); }
   else if (tab === 'checkin') renderCheckIn();
   else if (tab === 'progress') renderProgress();
   else {
