@@ -277,20 +277,9 @@ eq('several moves in a row: each date finds its own', ['2026-10-01','2026-10-02'
 eq('an unknown stage in storage falls back to where it is now', (ctx.decisions=[{date:'2026-10-12',area:'nordic',from:'N9',to:'N9',action:'up',full:0}], ctx.stageAtDate(nd,'2026-10-01').id), 'N2');
 ctx.decisions=[]; ctx.progress={}; ctx.settings={};
 
-console.log('last week, once, on Today:');
 const draws=(f)=>{try{f();return true;}catch(e){console.log('   ',String(e.stack).split('\n').slice(0,3).join(' | '));return false;}};
-reset(); pinWeeks(); ctx.todayISO=()=>'2026-10-12';          // a Monday; last week began 5 Oct
-const lw=['2026-10-05','2026-10-07'].map(d=>rec(d,'mu'));
-ok('last week had training: there is a card', ctx.lastWeekCard('2026-10-12',lw)!==null);
-eq('a week with nothing in it has none', ctx.lastWeekCard('2026-10-12',[rec('2026-09-20','mu')]), null);
-ctx.dayPlans['2026-10-06']={sittings:[{minutes:45,areas:['mu']}],suggested:['mu'],removed:{},why:{}};
-ok('a menu with nothing done still counts as a week that happened', ctx.lastWeekCard('2026-10-12',[])!==null);
-ctx.settings.lastWeekSeen='2026-10-05';
-eq('put away, it stays away', ctx.lastWeekCard('2026-10-12',lw), null);
-ctx.settings.lastWeekSeen='2026-09-28';
-ok('having put away the week before does not hide this one', ctx.lastWeekCard('2026-10-12',lw)!==null);
-eq('only the week before this one: three weeks on there is nothing for it', (ctx.settings.lastWeekSeen=undefined, ctx.lastWeekCard('2026-10-26',lw)), null);
-ok('it draws, with a skipped line', draws(()=>{ctx.dayPlans['2026-10-08']={sittings:[{minutes:45,areas:['kb']}],suggested:['kb','plyo'],removed:{plyo:'tired'},why:{}}; ctx.lastWeekCard('2026-10-12',lw);}));
+reset(); pinWeeks();
+ok('Today no longer has a just-finished card', typeof ctx.lastWeekCard==='undefined');
 
 console.log('the pieces on screen draw (the fake DOM cannot be read):');
 reset(); pinWeeks(); ctx.todayISO=()=>'2026-10-26';
