@@ -7,7 +7,7 @@
 
 'use strict';
 
-var BUILD = '1.20.0-weekcard';
+var BUILD = '1.21.0-today-lean';
 var PLAN_URL = 'data/plan.json';
 var LS_PLAN = 'plan.cache.v1';
 var LS_LOGS = 'setLogs';
@@ -3783,8 +3783,7 @@ function heldCallouts(date) {
 
 /* --- the week on Today ----------------------------------------------------- */
 /* One card: how much of the week is done, what is lined up for the rest of it, and
-   a switch to last week that is always there (the "just finished" card below goes
-   once it is put away). Each day is one ring, filled by how much of that day's
+   a switch to last week that is always there (the week-before view lives in Areas). Each day is one ring, filled by how much of that day's
    menu got done; tap one to open the day in Areas. Counts are area-days, the unit
    the grid in Areas uses.
 
@@ -3975,29 +3974,6 @@ function weekStripBlock(today, days) {
   var card = el('div', { class: 'card tw-card', id: 'weekcard' });
   paintTodayWeek(card, today, days);
   return card;
-}
-
-/* The week that has just finished, once: what was done, what was skipped. It stays
-   until you put it away, and only for the week before this one. */
-function lastWeekCard(today, days) {
-  var start = addDays(weekStartOf(today), -7), end = addDays(start, 6);
-  if (settings.lastWeekSeen === start) return null;
-  if (!weekHappened(start, days)) return null;
-
-  var sum = weekSummary(start, today, days);
-  var open = el('button', { class: 'btn', type: 'button', text: 'See it in Areas' });
-  open.addEventListener('click', function () { areasView.week = start; areasView.day = null; location.hash = '#/areas'; });
-  var away = el('button', { class: 'btn btn-quiet', type: 'button', text: 'Put it away' });
-  away.addEventListener('click', function () { settings.lastWeekSeen = start; saveSettings(); repaintToday(); });
-
-  return el('div', { class: 'card monday-card' }, [
-    el('div', { class: 'card-top' }, [el('span', { class: 'card-title', text: 'Last week · ' + fmtDateShort(start) + ' – ' + fmtDateShort(end) })]),
-    weekGrid(start, today, days, { static: true }),
-    weekLegend(sum, weekHasNoPlan(start, today, days)),
-    el('p', { class: 'wk-sum', text: 'Done ' + sum.done + ' · Partial ' + sum.partial + ' · Skipped ' + sum.skipped }),
-    skippedList(sum),
-    el('div', { class: 'sheet-actions', style: 'margin-top:10px' }, [open, away])
-  ]);
 }
 
 /* When even the minimums do not fit the minutes you have, say so where you will
@@ -4233,8 +4209,6 @@ function renderToday() {
   todaySessions = [];
 
   var nodes = heldCallouts(today);
-  var lastWeek = lastWeekCard(today, days);
-  if (lastWeek) nodes.push(lastWeek);
   reviewCards(today, days).forEach(function (c) { nodes.push(c); });
   var over = overBooked(today, days);
   if (over) nodes.push(over);
